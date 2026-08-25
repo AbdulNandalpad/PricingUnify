@@ -1,0 +1,29 @@
+{
+  "$id": "build-up-element.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BuildUpElement",
+  "description": "One line of a region's build-up sequence. Matches engine-core's element primitives exactly (BASE, FACTOR, ADDER, PER_LINE) — CONSTRAINT lives in its own array, see constraint.schema.json, because the kernel applies constraints after the build-up, not within it.",
+  "type": "object",
+  "required": ["id", "type", "provenance"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
+    "type": { "enum": ["BASE", "FACTOR", "ADDER", "PER_LINE"] },
+    "basis": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "REQUIRED for FACTOR — ids of earlier build-up steps this factor is computed on. The engine refuses to run a FACTOR without one."
+    },
+    "rate": { "type": ["number", "string"], "description": "Literal multiplier for FACTOR, e.g. 0.047 for 4.7%." },
+    "rateRef": { "type": "string", "description": "Path into facts.elements to pull the rate from instead of a literal." },
+    "amount": { "type": ["number", "string"], "description": "Literal absolute amount for ADDER/PER_LINE." },
+    "amountRef": { "type": "string", "description": "Path into facts.elements to pull the amount from instead of a literal." },
+    "when": { "type": "string", "description": "Conditional inclusion expression, e.g. \"item.warehouse === 'US01'\"." },
+    "composite": { "type": "boolean", "description": "Tags a FACTOR built from multiple regional sub-rates (e.g. China F&D)." },
+    "allocatable": { "type": "boolean", "default": true, "description": "Set false on COMPOSITE factors per requirements §5.1." },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "if": { "properties": { "type": { "const": "FACTOR" } } },
+  "then": { "required": ["basis"] },
+  "additionalProperties": false
+}

@@ -22,6 +22,7 @@ TSS Pricing Engine — an AI pricing workspace ("a pricing system that never exi
 - Deterministic kernel: no I/O inside engine-core; same input → same output
 - Trace on every priced result; golden tests (`tests/golden/`) pass before merge
 - Object-agnostic: engine prices items in context via neutral request; `purpose` (INDICATIVE|BINDING|REPRICE) drives behaviour, not host object type
+- AI never writes a config directly: a natural-language instruction only ever produces a `PENDING_REVIEW` suggestion (config-model); applying one requires an explicit human `approvedBy` and re-validates against every non-negotiable first
 
 ## Repo map
 ```
@@ -37,11 +38,11 @@ docs/           requirements doc + design docs
 
 ## Current phase
 **Phase 1**: kernel + config model + golden tests, one region end-to-end (India or Europe first), API6 client stubbed with recorded payloads.
-Status: `engine-core` kernel implemented and unit-tested against synthetic data. Still open: which region is "first" (deck leaves this for discussion), a real `config-model` validator, the `api6-client` stub with recorded payloads, and real finance-verified golden tests. A standalone dev UI (`app/`) now runs the kernel client-side for visualization, ahead of its normal Phase 3 slot.
+Status: `engine-core` kernel implemented and unit-tested. `config-model` implemented: JSON-Schema-validated config tables, an in-memory versioned/effective-dated store, and the AI natural-language-instruction → suggestion → human-approval pipeline (see `config-model/README.md`). Still open: which region is "first" (deck leaves this for discussion), the `api6-client` stub with recorded payloads, and real finance-verified golden tests. A standalone dev UI (`app/`) runs the kernel client-side for visualization, ahead of its normal Phase 3 slot.
 
 ## Parked (owner decides — do NOT implement without instruction)
-- AI-cost / natural-language-instruction auditability details
-- SaaS/IP ownership; governance model; shadow-run/cutover plan
+- AI-cost tracking (token/$ spend per suggestion) — the auditability *shape* (instruction, patch, rationale, confidence, model, reviewer) is now implemented in config-model; cost metering is not
+- SaaS/IP ownership; governance model beyond single-approver (maker/checker, who may approve what) — currently any `approvedBy` string is accepted, no role check
 - Repo currently on personal GitHub; TSS git migration later (trivial: add remote, push)
 
 ## Decision Log
@@ -49,4 +50,5 @@ Status: `engine-core` kernel implemented and unit-tested against synthetic data.
 - 2026-08-25: Scaffold pushed to `AbdulNandalpad/PricingUnify` on GitHub (still personal, per parked TSS migration note). Concept deck (`TSS_Pricing_Engine_Concept.pptx`) added to `docs/` for reference alongside the binding requirements doc.
 - 2026-08-25: `engine-core` implemented for real (kernel, cost resolution, 5 primitives, trace, decimal math, purpose gating) with unit tests (`node --test`, 6 passing) against a synthetic Europe-shaped build-up — not real TSS rates. `tests/golden/` still has no real finance-verified data, so `test:golden` remains a placeholder.
 - 2026-08-25: Added a standalone dev UI in `app/` (Vite + React) at the owner's request, ahead of the Phase 3 mashup — it imports `@tss-pricing/engine-core` directly in the browser (no CAP/DB/API6 yet) so the kernel's build-up and trace are visible end-to-end. Uses the same synthetic sample data as the engine-core tests. `app` added to npm workspaces; `vite.config.js` sets `resolve.preserveSymlinks: true` + `optimizeDeps.include` so Vite's CJS→ESM interop works across the workspace symlink to engine-core. When `srv/` (CAP) exists, this UI should switch to calling the real pricing API instead of calling engine-core in-browser.
+- 2026-08-25: `config-model` implemented at the owner's explicit instruction to unlock the previously-parked AI/instruction work early. Six tables: `region-config`, `build-up-element`, `constraint`, `resolution-rule`, `ai-suggestion`, plus a `provenance` fragment embedded on every one of them (source HUMAN|AI_SUGGESTED|AI_DERIVED|IMPORTED, confidence, rationale, approver) — every table is AI-ready from scratch, not just region-config. Added the AI pipeline: `suggestConfigChange()` (calls an AI client — real `@anthropic-ai/sdk` client or a `createFakeClient()` for hermetic tests — to turn a natural-language instruction into a JSON-Patch `AiSuggestion`, status `PENDING_REVIEW`) and `applySuggestion()` (requires a human `approvedBy`, re-validates against schema + the FACTOR-basis rule before creating a new version — throws and leaves the store untouched otherwise). No config is ever written by AI without an explicit human approval step. 19 unit tests pass, including one that prices an AI-approved config change through the real `engine-core` kernel. Also fixed a bug in the original scaffolded `region-config.schema.json`: it listed CONSTRAINT as a valid `buildUp` element type, but the kernel (built earlier this session) applies constraints from a separate `constraints[]` array after the build-up — schema now matches kernel behavior. `config-version-history` was considered as a seventh table but dropped: the store already keeps every version ever saved, so the version list *is* the history (see config-model/README.md).
 - (append new entries here, newest last)

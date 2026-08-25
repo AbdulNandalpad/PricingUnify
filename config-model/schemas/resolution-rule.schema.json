@@ -1,0 +1,20 @@
+{
+  "$id": "resolution-rule.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ResolutionRule",
+  "description": "One step of a region's cost-resolution ladder: stock class -> origin of data -> supplier/COO/OOD -> cost basis -> fallback chain. Deliberately loose (additionalProperties: true) — the deck's four-region audit (slide 4) found four very different ladders (Americas MTS/non-MTS, China direct-vs-SAP-fallback, etc.) behind the same five primitives; forcing one rigid shape here would just push the variance into `when` expressions instead of removing it.",
+  "type": "object",
+  "required": ["id", "provenance"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
+    "stockClass": { "type": "string" },
+    "originOfData": { "type": "string" },
+    "supplier": { "type": "string" },
+    "coo": { "type": "string", "description": "Country of origin." },
+    "costBasis": { "enum": ["STANDARD", "MOVING_AVG", "WEIGHTED_AVG", "SUPPLIER_CATALOG", "LAST_PURCHASE", "TRANSFER", "MANUAL", "AI_DERIVED"] },
+    "fallback": { "type": "array", "items": { "type": "string" }, "description": "Ordered chain of rule ids or cost bases to fall back through." },
+    "when": { "type": "string" },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+{
+  "$id": "provenance.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Provenance",
+  "description": "Who or what authored a value, embedded on every config-model entity. This is what makes every table AI-ready from scratch: a value is either HUMAN-authored, AI_SUGGESTED (via natural-language instruction, pending or after human approval), AI_DERIVED (e.g. a BI-history-based proposal), or IMPORTED (e.g. from an ERP migration). AI-sourced values always carry a model, a confidence, and a rationale — never a silent number.",
+  "type": "object",
+  "required": ["source", "authoredAt"],
+  "properties": {
+    "source": { "enum": ["HUMAN", "AI_SUGGESTED", "AI_DERIVED", "IMPORTED"] },
+    "authoredBy": { "type": "string", "description": "User id, or an AI actor id such as \"ai:claude-sonnet-5\"" },
+    "authoredAt": { "type": "string", "format": "date-time" },
+    "aiModel": { "type": "string" },
+    "aiConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "aiRationale": { "type": "string" },
+    "approvedBy": { "type": "string", "description": "Required before an AI_SUGGESTED value may go ACTIVE — see design principle: AI suggests, never silently applies." },
+    "approvedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

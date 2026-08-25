@@ -1,32 +1,50 @@
 {
+  "$id": "region-config.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "RegionPricingConfig",
+  "description": "A region = one versioned, effective-dated config document. Adding a region is adding one of these, never a code branch (requirements §5.1/§6).",
   "type": "object",
-  "required": ["region", "version", "validFrom", "resolution", "buildUp"],
+  "required": ["region", "version", "validFrom", "status", "resolution", "buildUp", "provenance"],
   "properties": {
     "region": { "type": "string" },
     "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"], "description": "Version id this document replaces, if any." },
     "validFrom": { "type": "string", "format": "date" },
-    "resolution": { "type": "array", "description": "Ladder: stockClass -> originOfData -> supplier/COO/OOD -> costBasis -> fallback chain. MROQ is routing input here." },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "resolution": {
+      "type": "array",
+      "items": { "$ref": "resolution-rule.schema.json" },
+      "description": "Ladder: stockClass -> originOfData -> supplier/COO/OOD -> costBasis -> fallback chain. MROQ is routing input here, not a constraint."
+    },
     "buildUp": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "type"],
-        "properties": {
-          "id": { "type": "string" },
-          "type": { "enum": ["BASE", "FACTOR", "ADDER", "PER_LINE", "CONSTRAINT"] },
-          "basis": { "type": "array", "items": { "type": "string" }, "description": "REQUIRED for FACTOR — enforced in validation" },
-          "when": { "type": "string", "description": "conditional inclusion expression" },
-          "composite": { "type": "boolean" },
-          "allocatable": { "type": "boolean" }
-        },
-        "if": { "properties": { "type": { "const": "FACTOR" } } },
-        "then": { "required": ["basis"] }
-      }
+      "minItems": 1,
+      "items": { "$ref": "build-up-element.schema.json" }
     },
-    "constraints": { "type": "array" },
-    "rounding": { "type": "object" },
-    "fx": { "type": "object", "description": "explicit conversion step: rate type, date, position in sequence" }
-  }
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "constraint.schema.json" }
+    },
+    "rounding": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["HALF_UP", "HALF_EVEN", "UP", "DOWN", "CEIL", "FLOOR"] },
+        "decimalPlaces": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["mode", "decimalPlaces"],
+      "additionalProperties": false
+    },
+    "fx": {
+      "type": "object",
+      "description": "Explicit currency-conversion step: rate type, date, and position in the build-up sequence — never implicit in an adapter (requirements §5.3).",
+      "properties": {
+        "rateType": { "type": "string" },
+        "position": { "enum": ["BEFORE_FACTORS", "AFTER_FACTORS", "FINAL"] }
+      },
+      "additionalProperties": true
+    },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
 }

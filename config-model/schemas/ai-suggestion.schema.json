@@ -1,0 +1,39 @@
+{
+  "$id": "ai-suggestion.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AiSuggestion",
+  "description": "A natural-language pricing instruction, the AI's proposed config change (a JSON Patch against the current region config), and its full review trail. Nothing here ever touches a live config by itself — see design principle: 'AI suggests, interprets instructions, and explains — it never silently does arithmetic.' A suggestion becomes a new RegionPricingConfig version only via applySuggestion(), which re-validates against every non-negotiable (schema + FACTOR-basis rule) before it can go ACTIVE.",
+  "type": "object",
+  "required": ["id", "region", "baseVersion", "instruction", "proposedPatch", "status", "createdAt"],
+  "properties": {
+    "id": { "type": "string" },
+    "region": { "type": "string" },
+    "baseVersion": { "type": "string", "description": "The config version this patch is diffed against." },
+    "instruction": { "type": "string", "description": "The natural-language instruction as given by the user, verbatim." },
+    "requestedBy": { "type": "string" },
+    "proposedPatch": {
+      "type": "array",
+      "description": "RFC 6902 JSON Patch operations against the RegionPricingConfig document.",
+      "items": {
+        "type": "object",
+        "required": ["op", "path"],
+        "properties": {
+          "op": { "enum": ["add", "remove", "replace", "move", "copy", "test"] },
+          "path": { "type": "string" },
+          "from": { "type": "string" },
+          "value": {}
+        }
+      }
+    },
+    "rationale": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "aiModel": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["PENDING_REVIEW", "APPROVED", "REJECTED", "APPLIED"] },
+    "reviewedBy": { "type": "string" },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "reviewNotes": { "type": "string" },
+    "resultingVersion": { "type": "string", "description": "Set once status=APPLIED." }
+  },
+  "additionalProperties": false
+}
