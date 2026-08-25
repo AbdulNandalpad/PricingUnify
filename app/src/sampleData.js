@@ -21,10 +21,6 @@ export const DEMO_CONFIG = {
 };
 
 export const DEFAULT_FORM = {
-  mode: 'direct', // 'direct' | 'backend'
-  user: 'alice',
-  region: 'EUROPE',
-  salesOrg: '*',
   partNumber: 'P-10023',
   quantity: 10,
   purpose: PURPOSE.INDICATIVE,

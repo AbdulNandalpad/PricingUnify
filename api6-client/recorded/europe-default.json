@@ -13,15 +13,55 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "P-20045": {
+      "default": "MOVING_AVG_1",
+      "candidates": [
+        {
+          "value": "58.40",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "P-30078": {
+      "default": "MOVING_AVG_1",
+      "candidates": [
+        {
+          "value": "312.75",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "P-40012": {
+      "default": "SUPPLIER_1",
+      "candidates": [
+        {
+          "value": "19.90",
+          "currency": "EUR",
+          "basis": "SUPPLIER_CATALOG",
+          "source": { "system": "CCD", "table": "CATALOG", "field": "PRICE", "key": "SUPPLIER_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "FALLBACK"
+        }
+      ]
     }
   },
   "elements": {
-    "P-10023": {
-      "freight": "5.00",
-      "duty": "2.00",
-      "pickCharge": "21.00",
-      "molv": "50.00"
-    }
+    "P-10023": { "freight": "5.00", "duty": "2.00", "pickCharge": "21.00", "molv": "50.00" },
+    "P-20045": { "freight": "3.10", "duty": "1.20", "pickCharge": "21.00", "molv": "50.00" },
+    "P-30078": { "freight": "12.50", "duty": "6.00", "pickCharge": "21.00", "molv": "50.00" },
+    "P-40012": { "freight": "1.50", "duty": "0.40", "pickCharge": "21.00", "molv": "50.00" }
   },
   "fx": {}
 }
