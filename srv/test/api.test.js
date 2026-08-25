@@ -56,7 +56,10 @@ test('an authenticated pricing request prices against the seeded EUROPE config',
   const body = await res.json();
   const [line] = body.items;
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '113.8'); // same synthetic build-up as engine-core/config-model tests
+  // Topic 4 (Appendix A): P-10023 is MTS, so freight+duty no longer apply -- just BASE(100) +
+  // SCM_MARKUP(4.7) + PICK_CHARGE(21/10=2.1) = 106.8. (Was 113.8 before topic 4's stock-class
+  // split; that number included freight+duty, which Europe's real MTS formula never applies.)
+  assert.equal(line.result.unitPrice, '106.8');
   assert.equal(line.trace.stockClass, 'MTS'); // P-10023's recorded raw code "MTS" resolves via EUROPE's stockClassMap
   assert.equal(body.config.version, '2026.08.0');
   assert.equal(body.requestedBy, 'alice');
@@ -166,6 +169,64 @@ test('China route 3 (non-US COO, via LCE/SAP Europe): same chain at the non-US f
 test('the supplier "88058" (LCE) is not a real supplier-config entry -- China route branching depends only on ood/coo/supplier `when`-conditions, not supplier-config overrides', async () => {
   const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'US' });
   assert.equal(line.trace.constraintPasses.length, 0); // no supplier-config seeded for CHINA, so no unexpected adders/constraints sneak in
+});
+
+async function priceRegion(region, item) {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region, salesOrg: '*', items: [item] } }),
+  }).then((r) => r.json());
+  return res.items[0];
+}
+
+test('India: sourced locally (OOD is IN) -- raw cost, no markup at all', async () => {
+  const line = await priceRegion('INDIA', { partNumber: 'IN-P001', quantity: 1, ood: 'IN' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '50');
+});
+
+test('India: sourced overseas (OOD is not IN) -- the +40% markup applies', async () => {
+  const line = await priceRegion('INDIA', { partNumber: 'IN-P002', quantity: 1, ood: 'DE' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '70'); // 50 * 1.40
+});
+
+test('Americas: MTS, local (OOD=SMA) -- LCA Handling Fee only, no freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, ood: 'SMA' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '110.1'); // 100 + 100*0.067(=6.7) + 34/10(=3.4)
+});
+
+test('Americas: Non-MTS, local (OOD=SMA) -- LCA Handling Fee plus freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P002', quantity: 10, ood: 'SMA' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '127.1'); // 100 + 6.7 + (10+5+2) + 3.4
+});
+
+test('Americas: MTS, overseas (OOD != SMA) -- the higher overseas LCA Handling Fee tier applies', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P003', quantity: 10, ood: 'EU' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '113.9'); // 100 + 100*0.105(=10.5) + 3.4
+});
+
+test('Americas: Non-MTS, overseas (OOD != SMA) -- overseas LCA Handling Fee plus freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P004', quantity: 10, ood: 'EU' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '130.9'); // 100 + 10.5 + 17 + 3.4
+});
+
+test('Americas: effective-dated LCA Handling Fee -- the real 6.2%->6.7% (Jan 2026) rate change reprices historical dates correctly', async () => {
+  const before = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'AMERICAS', salesOrg: '*', priceDate: '2025-08-01', items: [{ partNumber: 'US-P001', quantity: 10, ood: 'SMA' }] } }),
+  }).then((r) => r.json());
+  assert.equal(before.items[0].result.unitPrice, '109.6'); // 100 + 100*0.062(=6.2) + 3.4, the pre-Jan-2026 rate
+  assert.equal(before.config.version, '2025.06.0');
+
+  const after = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, ood: 'SMA' }); // defaults to today (2026-08-25)
+  assert.equal(after.result.unitPrice, '110.1'); // the current 6.7% rate
 });
 
 test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the generic API6 elements', async () => {

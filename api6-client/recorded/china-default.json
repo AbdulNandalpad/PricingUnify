@@ -72,5 +72,12 @@
     }
   },
   "elements": {},
+  "classification": {
+    "CN-P001": { "stockClassRaw": "MTS" },
+    "CN-P002": { "stockClassRaw": "MTS" },
+    "CN-P003": { "stockClassRaw": "MTO" },
+    "CN-P004": { "stockClassRaw": "MTO" },
+    "CN-P005": { "stockClassRaw": "MTS" }
+  },
   "fx": {}
 }
