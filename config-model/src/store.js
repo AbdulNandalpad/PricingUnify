@@ -1,9 +1,74 @@
-const { validateRegionConfig, validateAiSuggestion, ConfigValidationError } = require('./validate');
+const { validateRegionConfig, validateAiSuggestion, validateSupplierConfig, ConfigValidationError } = require('./validate');
 
-const WILDCARD_SALES_ORG = '*';
+const WILDCARD = '*';
 
-function bucketKey(region, salesOrg) {
+/**
+ * Shared versioning machinery: save/get/list + effective-dated lookup with a wildcard
+ * fallback bucket. Used for both region-config (region, salesOrg) and supplier-config
+ * (region, salesOrg, supplier) — same versioning rules, different key shape.
+ */
+class VersionedBucketStore {
+  constructor({ validate, entityLabel, keyOf, wildcardKeyOf }) {
+    this.validate = validate;
+    this.entityLabel = entityLabel;
+    this.keyOf = keyOf;
+    this.wildcardKeyOf = wildcardKeyOf;
+    this.versionsByKey = new Map();
+  }
+
+  saveVersion(doc) {
+    this.validate(doc);
+    const key = this.keyOf(doc);
+    const versions = this.versionsByKey.get(key) || [];
+    if (versions.some((v) => v.version === doc.version)) {
+      throw new ConfigValidationError(`Version "${doc.version}" already exists for this ${this.entityLabel} (key "${key}").`);
+    }
+    if (doc.status === 'ACTIVE') {
+      for (const v of versions) {
+        if (v.status !== 'ACTIVE') continue;
+        v.status = 'SUPERSEDED';
+        // Close the superseded version's window at the new one's start, so overlapping
+        // validFrom dates can't leave two versions both matching the same lookup date.
+        if (!v.validTo || v.validTo > doc.validFrom) v.validTo = doc.validFrom;
+      }
+    }
+    versions.push(doc);
+    this.versionsByKey.set(key, versions);
+    return doc;
+  }
+
+  getVersion(key, version) {
+    const versions = this.versionsByKey.get(key) || [];
+    return versions.find((v) => v.version === version) || null;
+  }
+
+  listVersions(key) {
+    return [...(this.versionsByKey.get(key) || [])];
+  }
+
+  /** Scans every version ever saved for `key`, not just the current ACTIVE one, and picks
+   *  whichever [validFrom, validTo) window contains `date` — reprices historical dates
+   *  exactly at the rules that were live then (requirements §5.4). Falls back to
+   *  `wildcardKey` if nothing in `key`'s own bucket covers the date. */
+  getEffectiveAsOf(key, wildcardKey, date) {
+    const specific = this._effectiveInBucket(key, date);
+    if (specific) return specific;
+    if (key === wildcardKey) return null;
+    return this._effectiveInBucket(wildcardKey, date);
+  }
+
+  _effectiveInBucket(key, date) {
+    const versions = this.versionsByKey.get(key) || [];
+    return versions.find((v) => v.validFrom <= date && (!v.validTo || date < v.validTo) && v.status !== 'REJECTED') || null;
+  }
+}
+
+function regionSalesOrgKey(region, salesOrg) {
   return `${region}::${salesOrg}`;
+}
+
+function supplierKey(region, salesOrg, supplier) {
+  return `${region}::${salesOrg}::${supplier}`;
 }
 
 /**
@@ -11,66 +76,67 @@ function bucketKey(region, salesOrg) {
  * store CAP will own in Phase 2 (`srv/`) — same shape, so swapping the backing store later
  * is a persistence-layer change, not a config-model API change.
  *
- * Configs are scoped by (region, salesOrg), not region alone: salesOrg "*" is a region-wide
- * default, and any sales-org-specific document overrides it for dates it covers — see
- * getEffectiveAsOf.
+ * region-config is scoped by (region, salesOrg): salesOrg "*" is a region-wide default.
+ * supplier-config is scoped by (region, salesOrg, supplier): supplier "*" is a region-wide
+ * default landed-cost adder set, and any supplier-specific document overrides it for dates
+ * it covers — see getEffectiveSupplierConfig.
  */
 class ConfigStore {
   constructor() {
-    this.versionsByKey = new Map();
+    this._regionConfigs = new VersionedBucketStore({
+      validate: validateRegionConfig,
+      entityLabel: 'region/salesOrg',
+      keyOf: (doc) => regionSalesOrgKey(doc.region, doc.salesOrg),
+    });
+    this._supplierConfigs = new VersionedBucketStore({
+      validate: validateSupplierConfig,
+      entityLabel: 'region/salesOrg/supplier',
+      keyOf: (doc) => supplierKey(doc.region, doc.salesOrg, doc.supplier),
+    });
     this.suggestions = new Map();
   }
 
   saveVersion(config) {
-    validateRegionConfig(config);
-    const key = bucketKey(config.region, config.salesOrg);
-    const versions = this.versionsByKey.get(key) || [];
-    if (versions.some((v) => v.version === config.version)) {
-      throw new ConfigValidationError(
-        `Version "${config.version}" already exists for region "${config.region}" / salesOrg "${config.salesOrg}".`,
-      );
-    }
-    if (config.status === 'ACTIVE') {
-      for (const v of versions) {
-        if (v.status !== 'ACTIVE') continue;
-        v.status = 'SUPERSEDED';
-        // Close the superseded version's window at the new one's start, so overlapping
-        // validFrom dates (e.g. an AI suggestion applied with no explicit new effective
-        // date) can't leave two versions both matching the same lookup date.
-        if (!v.validTo || v.validTo > config.validFrom) {
-          v.validTo = config.validFrom;
-        }
-      }
-    }
-    versions.push(config);
-    this.versionsByKey.set(key, versions);
-    return config;
+    return this._regionConfigs.saveVersion(config);
   }
 
   getVersion(region, salesOrg, version) {
-    const versions = this.versionsByKey.get(bucketKey(region, salesOrg)) || [];
-    return versions.find((v) => v.version === version) || null;
+    return this._regionConfigs.getVersion(regionSalesOrgKey(region, salesOrg), version);
   }
 
   listVersions(region, salesOrg) {
-    return [...(this.versionsByKey.get(bucketKey(region, salesOrg)) || [])];
+    return this._regionConfigs.listVersions(regionSalesOrgKey(region, salesOrg));
   }
 
-  /** A December quote reprices exactly at December rules (requirements §5.4) — this scans
-   *  every version ever saved for the exact (region, salesOrg), not just the current
-   *  ACTIVE one, and picks whichever [validFrom, validTo) window contains the given date.
-   *  If no sales-org-specific document covers that date, falls back to the region-wide
-   *  "*" default — a sales org only needs its own config where it actually differs. */
   getEffectiveAsOf(region, salesOrg, date) {
-    const specific = this._effectiveInBucket(region, salesOrg, date);
-    if (specific) return specific;
-    if (salesOrg === WILDCARD_SALES_ORG) return null;
-    return this._effectiveInBucket(region, WILDCARD_SALES_ORG, date);
+    return this._regionConfigs.getEffectiveAsOf(
+      regionSalesOrgKey(region, salesOrg),
+      regionSalesOrgKey(region, WILDCARD),
+      date,
+    );
   }
 
-  _effectiveInBucket(region, salesOrg, date) {
-    const versions = this.versionsByKey.get(bucketKey(region, salesOrg)) || [];
-    return versions.find((v) => v.validFrom <= date && (!v.validTo || date < v.validTo) && v.status !== 'REJECTED') || null;
+  saveSupplierConfig(config) {
+    return this._supplierConfigs.saveVersion(config);
+  }
+
+  getSupplierConfigVersion(region, salesOrg, supplier, version) {
+    return this._supplierConfigs.getVersion(supplierKey(region, salesOrg, supplier), version);
+  }
+
+  listSupplierConfigVersions(region, salesOrg, supplier) {
+    return this._supplierConfigs.listVersions(supplierKey(region, salesOrg, supplier));
+  }
+
+  /** Falls back supplier -> "*" (region-wide default adders), same convention as
+   *  region-config's salesOrg fallback — a supplier only needs its own document where its
+   *  terms actually diverge from the default. */
+  getEffectiveSupplierConfig(region, salesOrg, supplier, date) {
+    return this._supplierConfigs.getEffectiveAsOf(
+      supplierKey(region, salesOrg, supplier),
+      supplierKey(region, salesOrg, WILDCARD),
+      date,
+    );
   }
 
   saveSuggestion(suggestion) {
@@ -90,4 +156,4 @@ class ConfigStore {
   }
 }
 
-module.exports = { ConfigStore, WILDCARD_SALES_ORG };
+module.exports = { ConfigStore, WILDCARD_SALES_ORG: WILDCARD, WILDCARD_SUPPLIER: WILDCARD };

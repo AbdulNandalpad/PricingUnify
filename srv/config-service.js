@@ -26,6 +26,14 @@ module.exports = (srv) => {
     return { suggestions: store.listSuggestions(region, status) };
   });
 
+  srv.on('getEffectiveSupplierConfig', (req) => {
+    const { region, salesOrg = '*', supplier, asOf } = req.data;
+    if (!region || !supplier) return req.reject(400, 'region and supplier are required.');
+    const config = store.getEffectiveSupplierConfig(region, salesOrg, supplier, asOf || todayIso());
+    if (!config) return req.reject(404, `No effective supplier-config for region "${region}" / salesOrg "${salesOrg}" / supplier "${supplier}".`);
+    return config;
+  });
+
   srv.on('suggestChange', async (req) => {
     const { region, salesOrg = '*', version, instruction } = req.data.payload || {};
     if (!region || !instruction) return req.reject(400, 'payload.region and payload.instruction are required.');

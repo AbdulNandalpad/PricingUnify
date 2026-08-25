@@ -9,6 +9,7 @@ const SCHEMA_FILES = [
   'constraint.schema.json',
   'region-config.schema.json',
   'ai-suggestion.schema.json',
+  'supplier-config.schema.json',
 ];
 
 function buildAjv() {
@@ -95,4 +96,14 @@ function validateAiSuggestion(suggestion) {
   return true;
 }
 
-module.exports = { validateRegionConfig, validateAiSuggestion, ConfigValidationError };
+function validateSupplierConfig(config) {
+  validateAgainst('supplier-config.schema.json', config);
+  if (config.validTo && config.validFrom && config.validTo <= config.validFrom) {
+    throw new ConfigValidationError('SupplierConfig failed business-rule validation', [
+      `validTo (${config.validTo}) must be after validFrom (${config.validFrom}).`,
+    ]);
+  }
+  return true;
+}
+
+module.exports = { validateRegionConfig, validateAiSuggestion, validateSupplierConfig, ConfigValidationError };

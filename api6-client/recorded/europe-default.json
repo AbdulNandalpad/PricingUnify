@@ -101,15 +101,30 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "P-70200": {
+      "default": "MOVING_AVG_1",
+      "candidates": [
+        {
+          "value": "150.00",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
   "elements": {
-    "P-10023": { "freight": "5.00", "duty": "2.00", "pickCharge": "21.00", "molv": "50.00" },
-    "P-20045": { "freight": "3.10", "duty": "1.20", "pickCharge": "21.00", "molv": "50.00" },
-    "P-30078": { "freight": "12.50", "duty": "6.00", "pickCharge": "21.00", "molv": "50.00" },
-    "P-40012": { "freight": "1.50", "duty": "0.40", "pickCharge": "21.00", "molv": "50.00" },
-    "P-50099": { "freight": "4.00", "duty": "1.80", "pickCharge": "21.00", "molv": "50.00" },
-    "P-60150": { "freight": "8.00", "duty": "3.50", "pickCharge": "21.00", "molv": "50.00" }
+    "P-10023": { "freight": "5.00", "duty": "2.00", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-20045": { "freight": "3.10", "duty": "1.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-30078": { "freight": "12.50", "duty": "6.00", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-40012": { "freight": "1.50", "duty": "0.40", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-50099": { "freight": "4.00", "duty": "1.80", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-60150": { "freight": "8.00", "duty": "3.50", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-70200": { "freight": "6.00", "duty": "2.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
   },
   "fx": {}
 }

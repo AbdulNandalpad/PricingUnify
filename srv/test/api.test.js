@@ -61,6 +61,39 @@ test('an authenticated pricing request prices against the seeded EUROPE config',
   assert.equal(body.requestedBy, 'alice');
 });
 
+test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the generic API6 elements', async () => {
+  const withoutSupplier = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 10 }] } }),
+  }).then((r) => r.json());
+  assert.equal(withoutSupplier.items[0].status, 'PRICED');
+  assert.equal(withoutSupplier.items[0].result.unitPrice, '167.35'); // generic freight/duty/tariff=0
+
+  const withAcme = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 30, supplier: 'ACME' }] } }),
+  }).then((r) => r.json());
+  assert.equal(withAcme.items[0].status, 'PRICED');
+  assert.equal(withAcme.items[0].result.unitPrice, '197.25'); // ACME's higher freight/duty/tariff, quantity above ACME's MOQ so no constraint fires
+  assert.equal(withAcme.items[0].trace.constraintPasses.length, 0);
+});
+
+test('a below-MOQ, below-MOLV order for a supplier surfaces both constraints without silently failing', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 1, supplier: 'ACME' }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '300'); // ACME's MOLV floor (300) lifts the 1-unit line
+  const kinds = line.trace.constraintPasses.map((c) => c.kind);
+  assert.ok(kinds.includes('FLOOR'));
+  assert.ok(kinds.includes('MIN_QTY'), 'below ACME MOQ (25) should surface, even though it never changes price');
+});
+
 test('an unknown region/salesOrg with no effective config is a clear 422, not a crash', async () => {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',

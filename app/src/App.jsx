@@ -174,8 +174,10 @@ function BatchWorkspace() {
           client — enter part numbers, not costs. Recorded mode knows <code>P-10023</code>, <code>P-20045</code>,{' '}
           <code>P-30078</code>, <code>P-40012</code> (FALLBACK-confidence — try BINDING purpose to see it get
           blocked), <code>P-50099</code> (only CCD/CCP candidates — try it to see the cost access sequence fall
-          through), and <code>P-60150</code> (has both ERP and C4C candidates — C4C wins). Anything else comes
-          back MISSING.
+          through), <code>P-60150</code> (has both ERP and C4C candidates — C4C wins), and <code>P-70200</code>
+          (try supplier <code>ACME</code> to see supplier-specific freight/duty/tariff/MOLV/MOQ override the
+          generic ones — small quantities also trip ACME's MOQ, shown but never silently changing price).
+          Anything else comes back MISSING.
         </p>
 
         <div className="field-grid">
@@ -207,6 +209,7 @@ function BatchWorkspace() {
               <th>Part number</th>
               <th>Quantity</th>
               <th>COO / classification</th>
+              <th>Supplier</th>
               <th aria-hidden="true"></th>
             </tr>
           </thead>
@@ -216,6 +219,7 @@ function BatchWorkspace() {
                 <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
                 <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
                 <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
+                <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
                 <td>
                   <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
                 </td>
@@ -233,10 +237,10 @@ function BatchWorkspace() {
 
         {showBulk && (
           <div className="bulk-add">
-            <p className="hint">One part per line: <code>partNumber, quantity, COO</code> (quantity and COO optional).</p>
+            <p className="hint">One part per line: <code>partNumber, quantity, COO, supplier</code> (quantity, COO, and supplier all optional).</p>
             <textarea
               rows={4}
-              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-30078, 4, CN'}
+              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />

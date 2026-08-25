@@ -2,8 +2,33 @@ const { price } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
 
+const SUPPLIER_ADDER_FIELDS = ['freight', 'duty', 'tariff', 'molv', 'moq'];
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Landed-cost adders/constraints that vary by supplier (freight, duty, tariff, MOLV, MOQ) —
+ * independent of the cost access sequence, which only picks WHICH cost candidate to use.
+ * Resolved per line (an item's own `supplier`, falling back to config-model's "*" region-wide
+ * default) and merged over whatever API6 already put in facts.elements — a supplier-specific
+ * value wins where set; anything it doesn't override keeps the API6/generic value.
+ */
+function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
+  for (const item of items) {
+    if (!item.supplier) continue;
+    const supplierConfig = store.getEffectiveSupplierConfig(region, salesOrg, item.supplier, priceDate);
+    if (!supplierConfig) continue;
+
+    const overrides = {};
+    for (const field of SUPPLIER_ADDER_FIELDS) {
+      if (supplierConfig[field] !== undefined && supplierConfig[field] !== null) overrides[field] = supplierConfig[field];
+    }
+    if (Object.keys(overrides).length === 0) continue;
+
+    facts.elements[item.partNumber] = { ...(facts.elements[item.partNumber] || {}), ...overrides };
+  }
 }
 
 module.exports = (srv) => {
@@ -21,6 +46,7 @@ module.exports = (srv) => {
     }
 
     const facts = await api6.getPricingFacts({ region, salesOrg, items });
+    applySupplierOverrides(facts, items, region, salesOrg, priceDate);
 
     const request = {
       context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },

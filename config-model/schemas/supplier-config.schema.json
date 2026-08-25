@@ -1,0 +1,25 @@
+{
+  "$id": "supplier-config.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SupplierConfig",
+  "description": "Landed-cost adders and constraints that vary by supplier — freight, duty, tariff, MOLV, MOQ. Independent of the cost access sequence (which picks WHICH cost candidate to use): this is what gets added on top once a supplier is known for the line. One (region, salesOrg, supplier) triple = one versioned, effective-dated document, scoped exactly like region-config. supplier \"*\" is a region-wide default; a specific supplier only needs its own document where its terms actually diverge.",
+  "type": "object",
+  "required": ["region", "salesOrg", "supplier", "version", "validFrom", "status", "provenance"],
+  "properties": {
+    "region": { "type": "string" },
+    "salesOrg": { "type": "string", "minLength": 1 },
+    "supplier": { "type": "string", "minLength": 1, "description": "A specific supplier id (e.g. \"ACME\"), or \"*\" for a region-wide default used when the item's supplier has no override." },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "freight": { "type": ["string", "number", "null"], "description": "Overrides the part's freight adder for this supplier, if set." },
+    "duty": { "type": ["string", "number", "null"] },
+    "tariff": { "type": ["string", "number", "null"] },
+    "molv": { "type": ["string", "number", "null"], "description": "Minimum order line value for this supplier." },
+    "moq": { "type": ["string", "number", "null"], "description": "Minimum order quantity for this supplier — informational (see constraint.schema.json kind MIN_QTY), never silently changes price." },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
+}

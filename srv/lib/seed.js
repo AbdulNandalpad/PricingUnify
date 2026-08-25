@@ -9,6 +9,11 @@ const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'seed@tss.example', auth
  * real config-authoring flow once finance-verified rates exist.
  */
 function seed() {
+  seedRegionConfig();
+  seedSupplierConfigs();
+}
+
+function seedRegionConfig() {
   if (store.listVersions('EUROPE', '*').length > 0) return; // idempotent — safe to call more than once
   store.saveVersion({
     region: 'EUROPE',
@@ -25,10 +30,40 @@ function seed() {
       { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, provenance: HUMAN_PROVENANCE },
       { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', provenance: HUMAN_PROVENANCE },
       { id: 'DUTY', type: 'ADDER', amountRef: 'duty', provenance: HUMAN_PROVENANCE },
+      { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', provenance: HUMAN_PROVENANCE },
       { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', provenance: HUMAN_PROVENANCE },
     ],
-    constraints: [{ id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE }],
+    constraints: [
+      { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE },
+      { id: 'MOQ', type: 'CONSTRAINT', kind: 'MIN_QTY', minRef: 'moq', provenance: HUMAN_PROVENANCE },
+    ],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    provenance: HUMAN_PROVENANCE,
+  });
+}
+
+/**
+ * Landed-cost adders/constraints that vary by supplier — independent of the cost access
+ * sequence (which only picks WHICH cost candidate to use). A line only gets these when the
+ * caller sets item.supplier; with no supplier given, pricing uses whatever API6 already put
+ * in facts.elements (see api6-client/recorded/europe-default.json's tariff:"0", moq:"1"
+ * defaults) — there's no need for a "*" wildcard supplier-config entry to fall back to.
+ */
+function seedSupplierConfigs() {
+  if (store.listSupplierConfigVersions('EUROPE', '*', 'ACME').length > 0) return;
+  store.saveSupplierConfig({
+    region: 'EUROPE',
+    salesOrg: '*',
+    supplier: 'ACME',
+    version: '2026.08.0',
+    status: 'ACTIVE',
+    validFrom: '2026-08-01',
+    validTo: null,
+    freight: '18.00',
+    duty: '9.50',
+    tariff: '12.00',
+    molv: '300.00',
+    moq: '25',
     provenance: HUMAN_PROVENANCE,
   });
 }

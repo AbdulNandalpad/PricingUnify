@@ -86,6 +86,20 @@ function applyConstraint(el, running, ctx) {
     if (adjusted.eq(running)) return { total: running, applied: false };
     return { total: adjusted, applied: true, note: { kind: 'STEP', step: step.toString() } };
   }
+  if (el.kind === 'MIN_QTY') {
+    const { value: minQty } = resolveParam(el, 'min', 'minRef', ctx.facts);
+    if (minQty === null) return { total: running, applied: false };
+    const quantity = new Decimal(ctx.quantity);
+    if (quantity.gte(minQty)) return { total: running, applied: false };
+    // Informational only — MOQ never silently changes price (mirrors MROQ being routing
+    // input, not a price adjustment, per requirements §5.1). It still surfaces in the
+    // trace so a BINDING caller can decide what to do about it.
+    return {
+      total: running,
+      applied: true,
+      note: { kind: 'MIN_QTY', min: minQty.toString(), quantity: quantity.toString(), warning: 'Requested quantity is below the minimum order quantity.' },
+    };
+  }
   throw new Error(`CONSTRAINT "${el.id}" has unknown kind "${el.kind}".`);
 }
 

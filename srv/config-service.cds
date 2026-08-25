@@ -16,6 +16,9 @@ service ConfigService {
   @requires: 'authenticated-user'
   function listSuggestions(region: String, status: String) returns Map;
 
+  @requires: 'authenticated-user'
+  function getEffectiveSupplierConfig(region: String, salesOrg: String, supplier: String, asOf: String) returns Map;
+
   @requires: 'PricingAdmin'
   action suggestChange(payload: Map) returns Map;
 
