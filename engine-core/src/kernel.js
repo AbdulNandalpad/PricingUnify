@@ -136,11 +136,16 @@ function priceItem(item, request, facts, config) {
   }
 
   const constraintPasses = [];
+  let quantity = item.quantity;
   for (const c of config.constraints || []) {
-    const res = applyConstraint(c, running, { facts: itemFacts, quantity: item.quantity });
+    const res = applyConstraint(c, running, { facts: itemFacts, quantity });
     if (res.applied) {
       constraintPasses.push({ id: c.id, from: running.toString(), to: res.total.toString(), ...res.note });
       running = res.total;
+      // A FLOOR constraint in QUANTITY mode adjusts the order quantity instead of the unit
+      // price (config-driven — see elements.js). Later constraints in this same pass (e.g. a
+      // MOQ check) see the adjusted quantity, same as they'd see an adjusted price.
+      if (res.quantity) quantity = res.quantity.toNumber();
     }
   }
 
@@ -149,7 +154,7 @@ function priceItem(item, request, facts, config) {
   return {
     partNumber: item.partNumber,
     status: 'PRICED',
-    result: { unitPrice: running.toString(), currency: chosen.currency, quantity: item.quantity },
+    result: { unitPrice: running.toString(), currency: chosen.currency, quantity },
     trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
   };
 }

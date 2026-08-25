@@ -88,7 +88,10 @@ function LineDetail({ line }) {
           <h3>Constraint passes</h3>
           <ul>
             {line.trace.constraintPasses.map((c, i) => (
-              <li key={i} className="mono">{c.id} ({c.kind}): {c.from} → {c.to}</li>
+              <li key={i} className="mono">
+                {c.id} ({c.kind}{c.mode ? `, ${c.mode.toLowerCase()}-adjust` : ''}):{' '}
+                {c.mode === 'QUANTITY' ? `quantity ${c.quantityFrom} → ${c.quantityTo}` : `${c.from} → ${c.to}`}
+              </li>
             ))}
           </ul>
         </div>
@@ -299,7 +302,11 @@ function BatchWorkspace() {
                       onClick={() => setExpandedIndex((cur) => (cur === i ? null : i))}
                     >
                       <td className="mono">{line.partNumber}</td>
-                      <td className="num mono">{result.submittedItems[i]?.quantity}</td>
+                      <td className="num mono">
+                        {line.status === 'PRICED' && line.result.quantity !== result.submittedItems[i]?.quantity
+                          ? `${line.result.quantity} (was ${result.submittedItems[i]?.quantity})`
+                          : result.submittedItems[i]?.quantity}
+                      </td>
                       <td><span className={`badge-status badge-status-${line.status.toLowerCase()}`}>{STATUS_LABEL[line.status] || line.status}</span></td>
                       <td className="num mono">{line.status === 'PRICED' ? `${line.result.unitPrice} ${line.result.currency}` : '—'}</td>
                       <td className="expand-chevron">{expandedIndex === i ? '▾' : '▸'}</td>

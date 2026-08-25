@@ -75,8 +75,21 @@ function applyConstraint(el, running, ctx) {
     if (min === null) return { total: running, applied: false };
     const lineTotal = running.times(ctx.quantity);
     if (lineTotal.gte(min)) return { total: running, applied: false };
+    // `mode` is config-driven, not universal — real MOLV behavior genuinely differs across
+    // TSS regions/sheets: some correct the unit price at the existing quantity, others correct
+    // the order quantity at the existing unit price. Default (unset) keeps the original
+    // price-adjust behavior for backward compatibility.
+    if (el.mode === 'QUANTITY') {
+      const newQuantity = min.div(running).ceil();
+      return {
+        total: running,
+        applied: true,
+        quantity: newQuantity,
+        note: { kind: 'FLOOR', mode: 'QUANTITY', min: min.toString(), from: lineTotal.toString(), quantityFrom: String(ctx.quantity), quantityTo: newQuantity.toString() },
+      };
+    }
     const adjusted = min.div(ctx.quantity);
-    return { total: adjusted, applied: true, note: { kind: 'FLOOR', min: min.toString(), from: lineTotal.toString() } };
+    return { total: adjusted, applied: true, note: { kind: 'FLOOR', mode: 'PRICE', min: min.toString(), from: lineTotal.toString() } };
   }
   if (el.kind === 'STEP') {
     const { value: step } = resolveParam(el, 'step', 'stepRef', ctx.facts);

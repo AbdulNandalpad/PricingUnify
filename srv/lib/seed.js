@@ -102,7 +102,14 @@ function seedChinaRegionConfig() {
       { id: 'LCE_MARKUP_BASE', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
       { id: 'LCE_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS', 'LCE_MARKUP_BASE'], rate: 0.06, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
     ],
-    constraints: [],
+    // Topic 5: the newest China sheet (with a stakeholder correction comment) says MOLV
+    // adjusts QUANTITY, not price -- "Quantity = MOLV/Unit sell price". Older China/Americas
+    // sheets describe adjusting cost instead; owner confirmed this is a config decision, not
+    // universal, so only China opts into QUANTITY mode here (Europe/Americas keep the default
+    // PRICE-adjust FLOOR behavior via their supplier-config-driven MOLV).
+    constraints: [
+      { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', mode: 'QUANTITY', provenance: HUMAN_PROVENANCE },
+    ],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
     provenance: HUMAN_PROVENANCE,
   });

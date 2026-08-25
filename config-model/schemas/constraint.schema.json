@@ -9,6 +9,7 @@
     "id": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" },
     "type": { "const": "CONSTRAINT" },
     "kind": { "enum": ["FLOOR", "STEP", "MIN_QTY"] },
+    "mode": { "enum": ["PRICE", "QUANTITY"], "description": "kind=FLOOR only. Real MOLV behavior genuinely differs by region/source: PRICE (default if omitted) recalculates the unit price at the existing quantity to meet the floor; QUANTITY instead recalculates the order quantity at the existing unit price. Config-driven, not universal — see CLAUDE.md Decision Log topic 5." },
     "min": { "type": ["number", "string"], "description": "Literal floor value for kind=FLOOR (e.g. MOLV), or minimum quantity for kind=MIN_QTY (e.g. MOQ)." },
     "minRef": { "type": "string" },
     "step": { "type": ["number", "string"], "description": "Literal step size for kind=STEP." },

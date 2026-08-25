@@ -69,15 +69,32 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "CN-P006": {
+      "default": "JDE_CHINA_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "JDE_CHINA", "table": "F4105", "field": "UNIT_COST", "key": "JDE_CHINA_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
-  "elements": {},
+  "elements": {
+    "CN-P006": { "molv": "500.00" }
+  },
   "classification": {
     "CN-P001": { "stockClassRaw": "MTS" },
     "CN-P002": { "stockClassRaw": "MTS" },
     "CN-P003": { "stockClassRaw": "MTO" },
     "CN-P004": { "stockClassRaw": "MTO" },
-    "CN-P005": { "stockClassRaw": "MTS" }
+    "CN-P005": { "stockClassRaw": "MTS" },
+    "CN-P006": { "stockClassRaw": "MTS" }
   },
   "fx": {}
 }

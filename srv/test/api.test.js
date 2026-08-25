@@ -171,6 +171,19 @@ test('the supplier "88058" (LCE) is not a real supplier-config entry -- China ro
   assert.equal(line.trace.constraintPasses.length, 0); // no supplier-config seeded for CHINA, so no unexpected adders/constraints sneak in
 });
 
+test('China MOLV (topic 5): below-MOLV orders bump the QUANTITY, not the price -- the corrected mechanism from the newest reference sheet', async () => {
+  const below = await priceChina({ partNumber: 'CN-P006', quantity: 1, ood: 'CN' });
+  assert.equal(below.status, 'PRICED');
+  assert.equal(below.result.unitPrice, '103.2'); // unchanged -- MOLV never touches price in QUANTITY mode
+  assert.equal(below.result.quantity, 5); // ceil(500 / 103.2)
+  assert.equal(below.trace.constraintPasses[0].mode, 'QUANTITY');
+
+  const atMolv = await priceChina({ partNumber: 'CN-P006', quantity: 5, ood: 'CN' });
+  assert.equal(atMolv.status, 'PRICED');
+  assert.equal(atMolv.result.quantity, 5); // already at/above MOLV -- no adjustment needed
+  assert.equal(atMolv.trace.constraintPasses.length, 0);
+});
+
 async function priceRegion(region, item) {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
