@@ -25,6 +25,13 @@ function seedRegionConfig() {
     validTo: null,
     resolution: [{ id: 'RES_MOVING_AVG', stockClass: 'MTS', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE }],
     costAccessSequence: ['C4C', 'ERP', 'CCD', 'CCP'],
+    // Normalizes this region's raw ERP stock-class codes into the two canonical buckets
+    // buildUp `when` conditions can branch on — see srv/pricing-service.js's
+    // applyStockClassNormalization and engine-core/src/kernel.js. Not yet consumed by any
+    // buildUp element below (Europe's real (region x stockClass) landed-cost formulas are
+    // still pending finance sign-off), so this is purely classification/audit for now — every
+    // demo part still prices identically regardless of stock class.
+    stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, provenance: HUMAN_PROVENANCE },

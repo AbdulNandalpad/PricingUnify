@@ -50,6 +50,21 @@ function roundTotal(total, rounding) {
 }
 
 function priceItem(item, request, facts, config) {
+  // The caller (srv) resolves each region's raw ERP stock-class code (OMT, SMT, MTS-Z, ...)
+  // into item.stockClass ('MTS'|'NonMTS') before engine-core ever sees the item — the kernel
+  // stays ERP-agnostic and only ever branches on the clean value via `when`. If the caller
+  // couldn't resolve it (region needs stock class but the code was missing or unrecognized),
+  // it sets item.stockClassError instead — silently skipping the stockClass-conditioned
+  // elements would risk under-pricing, so this is a typed MISSING, not a guess.
+  if (item.stockClassError) {
+    return {
+      partNumber: item.partNumber,
+      status: 'MISSING',
+      missing: { reason: 'STOCK_CLASS_UNRESOLVED', detail: item.stockClassError },
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [] }),
+    };
+  }
+
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
   const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, config.costAccessSequence);
@@ -59,7 +74,7 @@ function priceItem(item, request, facts, config) {
       partNumber: item.partNumber,
       status: 'MISSING',
       missing: { reason: reason || 'COST_MISSING' },
-      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [] }),
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }),
     };
   }
 
@@ -70,7 +85,7 @@ function priceItem(item, request, facts, config) {
       partNumber: item.partNumber,
       status: 'BLOCKED',
       missing: { reason: 'CONFIDENCE_BLOCKED_BY_PURPOSE', confidence: chosen.confidence, purpose },
-      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps: [] }),
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps: [], stockClass: item.stockClass }),
     };
   }
 
@@ -99,7 +114,7 @@ function priceItem(item, request, facts, config) {
         partNumber: item.partNumber,
         status: 'MISSING',
         missing: { ...result.missing, elementId: el.id },
-        trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps }),
+        trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, stockClass: item.stockClass }),
       };
     }
 
@@ -123,7 +138,7 @@ function priceItem(item, request, facts, config) {
     partNumber: item.partNumber,
     status: 'PRICED',
     result: { unitPrice: running.toString(), currency: chosen.currency, quantity: item.quantity },
-    trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses }),
+    trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
   };
 }
 

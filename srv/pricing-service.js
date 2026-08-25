@@ -31,6 +31,34 @@ function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
   }
 }
 
+/**
+ * Normalizes each item's raw ERP stock-class code (facts.classification[partNumber]
+ * .stockClassRaw — e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) into the canonical
+ * item.stockClass ('MTS'|'NonMTS') engine-core's `when` conditions branch on, using this
+ * region's config.stockClassMap. Mutates items in place, mirroring how item.coo already
+ * arrives pre-resolved. A no-op for any region that hasn't declared a stockClassMap — stock
+ * class isn't a concern there yet, so existing parts keep pricing exactly as before.
+ *
+ * Once a region does declare a map, every item must resolve to a mapped code or it comes
+ * back MISSING(STOCK_CLASS_UNRESOLVED) from engine-core (via item.stockClassError) rather
+ * than silently skipping stockClass-conditioned build-up elements — see kernel.js.
+ */
+function applyStockClassNormalization(facts, items, config) {
+  if (!config.stockClassMap) return;
+  for (const item of items) {
+    const raw = facts.classification && facts.classification[item.partNumber] && facts.classification[item.partNumber].stockClassRaw;
+    if (raw === undefined || raw === null || raw === '') {
+      item.stockClassError = 'STOCK_CLASS_NOT_PROVIDED';
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(config.stockClassMap, raw)) {
+      item.stockClass = config.stockClassMap[raw];
+    } else {
+      item.stockClassError = `STOCK_CLASS_UNMAPPED:${raw}`;
+    }
+  }
+}
+
 module.exports = (srv) => {
   srv.on('price', async (req) => {
     const payload = req.data.payload || {};
@@ -47,6 +75,7 @@ module.exports = (srv) => {
 
     const facts = await api6.getPricingFacts({ region, salesOrg, items });
     applySupplierOverrides(facts, items, region, salesOrg, priceDate);
+    applyStockClassNormalization(facts, items, config);
 
     const request = {
       context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },

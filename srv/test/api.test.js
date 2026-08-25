@@ -57,8 +57,32 @@ test('an authenticated pricing request prices against the seeded EUROPE config',
   const [line] = body.items;
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '113.8'); // same synthetic build-up as engine-core/config-model tests
+  assert.equal(line.trace.stockClass, 'MTS'); // P-10023's recorded raw code "MTS" resolves via EUROPE's stockClassMap
   assert.equal(body.config.version, '2026.08.0');
   assert.equal(body.requestedBy, 'alice');
+});
+
+test('a raw ERP stock-class code normalizes to NonMTS via the region stockClassMap, without changing the price', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-30078', quantity: 4 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.trace.stockClass, 'NonMTS'); // P-30078's recorded raw code is "OMT"
+});
+
+test('a part whose raw stock-class code is not in the region stockClassMap comes back MISSING, not silently priced', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90400', quantity: 1 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'MISSING');
+  assert.equal(line.missing.reason, 'STOCK_CLASS_UNRESOLVED');
+  assert.equal(line.missing.detail, 'STOCK_CLASS_UNMAPPED:ZZZ'); // P-90400's recorded raw code "ZZZ" is deliberately absent from EUROPE's stockClassMap
 });
 
 test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the generic API6 elements', async () => {

@@ -28,11 +28,12 @@ function costCandidateEntry(cost, selectedBy) {
   };
 }
 
-function build({ region, configVersion, costCandidate, selectedBy, steps, constraintPasses }) {
+function build({ region, configVersion, costCandidate, selectedBy, steps, constraintPasses, stockClass }) {
   return {
     region,
     configVersion,
     costCandidate: costCandidateEntry(costCandidate, selectedBy),
+    stockClass: stockClass || null,
     steps,
     constraintPasses: constraintPasses || [],
   };

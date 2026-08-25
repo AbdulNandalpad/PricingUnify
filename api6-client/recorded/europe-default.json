@@ -124,7 +124,18 @@
     "P-40012": { "freight": "1.50", "duty": "0.40", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-50099": { "freight": "4.00", "duty": "1.80", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-60150": { "freight": "8.00", "duty": "3.50", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
-    "P-70200": { "freight": "6.00", "duty": "2.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
+    "P-70200": { "freight": "6.00", "duty": "2.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-90400": { "freight": "2.00", "duty": "1.00", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
+  },
+  "classification": {
+    "P-10023": { "stockClassRaw": "MTS" },
+    "P-20045": { "stockClassRaw": "MTS" },
+    "P-30078": { "stockClassRaw": "OMT" },
+    "P-40012": { "stockClassRaw": "MTO" },
+    "P-50099": { "stockClassRaw": "MTS-Z" },
+    "P-60150": { "stockClassRaw": "MTS" },
+    "P-70200": { "stockClassRaw": "CMT" },
+    "P-90400": { "stockClassRaw": "ZZZ" }
   },
   "fx": {}
 }

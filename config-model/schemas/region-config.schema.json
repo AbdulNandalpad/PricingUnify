@@ -24,6 +24,11 @@
       "minItems": 1,
       "description": "TSS's own cost-source resolution order — not SAP's condition technique. An ordered list of source systems to try when a part has cost candidates from more than one, e.g. [\"C4C\", \"ERP\", \"CCD\", \"CCP\"] (C4C manual entry first, then ERP, then CCD, then CCP). The first system in the list with a candidate wins; matched against candidate.source.system by engine-core's resolveCandidate(). Optional — omitting it falls back to the facts' own `default` candidate id, same as before this existed."
     },
+    "stockClassMap": {
+      "type": "object",
+      "additionalProperties": { "enum": ["MTS", "NonMTS"] },
+      "description": "Maps this region's raw ERP stock-class codes (e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) to the two canonical buckets buildUp/constraint `when` expressions branch on via item.stockClass. Optional — a region whose formulas don't yet vary by stock class (e.g. India, or Europe before Appendix A lands) omits it entirely, and srv skips classification for that region rather than requiring every part to carry a code. Once present, every priced item for that region must resolve to a mapped code or it comes back MISSING(STOCK_CLASS_UNRESOLVED) — silently skipping stock-class-conditioned elements would risk under-pricing."
+    },
     "buildUp": {
       "type": "array",
       "minItems": 1,
