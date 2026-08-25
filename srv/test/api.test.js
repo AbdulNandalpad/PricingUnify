@@ -85,6 +85,45 @@ test('a part whose raw stock-class code is not in the region stockClassMap comes
   assert.equal(line.missing.detail, 'STOCK_CLASS_UNMAPPED:ZZZ'); // P-90400's recorded raw code "ZZZ" is deliberately absent from EUROPE's stockClassMap
 });
 
+test('P-90500 prices normally off its recorded default cost when no MROQ override is given', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90500', quantity: 10 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '21.46');
+  assert.equal(line.trace.costCandidate.selectedBy, 'DEFAULT');
+});
+
+test('a business user typing a hypothetical MROQ for an OOD=SMA part switches to the matching quantity-break cost', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90500', quantity: 60, ood: 'SMA', mroqOverride: 60 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  // qty 60 falls in the "50+" break (12.84), not the default 18.49 — the override wins via
+  // engine-core's existing "explicit user selection always wins" precedence.
+  assert.equal(line.result.unitPrice, '13.79');
+  assert.equal(line.trace.costCandidate.selectedBy, 'USER');
+  assert.equal(line.trace.costCandidate.value, '12.84');
+});
+
+test('the same MROQ override is ignored for a non-SMA (or unspecified) OOD -- the mechanism is Americas-only', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90500', quantity: 60, mroqOverride: 60 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.trace.costCandidate.selectedBy, 'DEFAULT'); // no ood: 'SMA', so the override never applied
+  assert.equal(line.trace.costCandidate.value, '18.49');
+});
+
 test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the generic API6 elements', async () => {
   const withoutSupplier = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',

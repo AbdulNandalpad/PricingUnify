@@ -203,30 +203,36 @@ function BatchWorkspace() {
           </Field>
         </div>
 
-        <table className="item-grid">
-          <thead>
-            <tr>
-              <th>Part number</th>
-              <th>Quantity</th>
-              <th>COO / classification</th>
-              <th>Supplier</th>
-              <th aria-hidden="true"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={row.id}>
-                <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
-                <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
-                <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
-                <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
-                <td>
-                  <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
-                </td>
+        <div className="item-grid-scroll">
+          <table className="item-grid">
+            <thead>
+              <tr>
+                <th>Part number</th>
+                <th>Quantity</th>
+                <th>COO / classification</th>
+                <th>Supplier</th>
+                <th>OOD</th>
+                <th>MROQ override</th>
+                <th aria-hidden="true"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={row.id}>
+                  <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
+                  <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
+                  <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
+                  <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
+                  <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
+                  <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
+                  <td>
+                    <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <div className="grid-actions">
           <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
@@ -237,10 +243,10 @@ function BatchWorkspace() {
 
         {showBulk && (
           <div className="bulk-add">
-            <p className="hint">One part per line: <code>partNumber, quantity, COO, supplier</code> (quantity, COO, and supplier all optional).</p>
+            <p className="hint">One part per line: <code>partNumber, quantity, COO, supplier, OOD, warehouse, MROQ override</code> (everything but partNumber is optional).</p>
             <textarea
               rows={4}
-              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME'}
+              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME\nP-90500, 60, , , SMA, 1020, 60'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />

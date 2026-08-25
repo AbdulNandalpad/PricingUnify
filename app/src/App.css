@@ -331,10 +331,15 @@
 
 /* --- Batch item grid --- */
 
+.item-grid-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
 .item-grid {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
-  margin-top: 18px;
   font-size: 13px;
 }
 
@@ -368,7 +373,8 @@
   outline-offset: -1px;
 }
 
-.item-grid .qty-input {
+.item-grid .qty-input,
+.item-grid .ood-input {
   width: 5.5em;
 }
 

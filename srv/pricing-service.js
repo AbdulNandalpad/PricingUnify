@@ -59,6 +59,56 @@ function applyStockClassNormalization(facts, items, config) {
   }
 }
 
+/**
+ * The Americas MROQ standalone flow: a business user can type a hypothetical Minimum
+ * Reorder Quantity and see the cost at that quantity break, instead of whatever quantity
+ * they're actually ordering. In the normal (host-system-integrated) flow, API6 already
+ * resolves which of Americas' cost tiers (MROQ/Supplier Catalog/Current/Direct Ship) applies
+ * — engine-core never needs to know about that decision tree. This is purely for the
+ * standalone "what if my MROQ were X" case, and only makes sense for Americas-sourced
+ * material (item.ood === 'SMA' — see docs/PRICING_ENGINE_REQUIREMENTS.md discussion log).
+ *
+ * facts.qtyBreaks[partNumber] is a small step-priced-by-quantity table (the same shape a
+ * real API6 call parameterized by the requested MROQ would return). The matching tier is
+ * added as one more cost candidate and explicitly selected via item.selectedCostId — reusing
+ * engine-core's existing "an explicit user selection always wins" precedence, same path a
+ * manually-chosen cost candidate already takes.
+ */
+function applyMroqOverrides(facts, items) {
+  if (!facts.qtyBreaks) return;
+  for (const item of items) {
+    if (!item.mroqOverride || item.ood !== 'SMA') continue;
+    const breaks = facts.qtyBreaks[item.partNumber];
+    if (!breaks || breaks.length === 0) continue;
+    const requestedQty = Number(item.mroqOverride);
+    if (!Number.isFinite(requestedQty) || requestedQty <= 0) continue;
+
+    const applicable = [...breaks]
+      .filter((b) => Number(b.minQty) <= requestedQty)
+      .sort((a, b) => Number(b.minQty) - Number(a.minQty))[0];
+    if (!applicable) continue;
+
+    const candidateKey = `MROQ_OVERRIDE_${item.partNumber}_${applicable.minQty}`;
+    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
+    facts.costs[item.partNumber] = {
+      ...existing,
+      candidates: [
+        ...existing.candidates,
+        {
+          value: applicable.value,
+          currency: applicable.currency || 'USD',
+          basis: 'SUPPLIER_CATALOG',
+          source: { system: 'JDE_E1', table: 'F41291', field: 'QTY_BREAK', key: candidateKey },
+          validFrom: applicable.validFrom || null,
+          retrievedAt: applicable.retrievedAt || null,
+          confidence: 'EXACT',
+        },
+      ],
+    };
+    item.selectedCostId = candidateKey;
+  }
+}
+
 module.exports = (srv) => {
   srv.on('price', async (req) => {
     const payload = req.data.payload || {};
@@ -76,6 +126,7 @@ module.exports = (srv) => {
     const facts = await api6.getPricingFacts({ region, salesOrg, items });
     applySupplierOverrides(facts, items, region, salesOrg, priceDate);
     applyStockClassNormalization(facts, items, config);
+    applyMroqOverrides(facts, items);
 
     const request = {
       context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
