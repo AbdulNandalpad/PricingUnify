@@ -1,0 +1,17 @@
+# Cloud Foundry deployment for the srv/ CAP backend. Pushed from the repo ROOT (not
+# srv/ alone) so the Node.js buildpack's `npm install` resolves the npm-workspaces
+# packages srv/ depends on (@tss-pricing/engine-core, config-model, api6-client) —
+# see docs/DEPLOYMENT.md for the full runbook and why.
+applications:
+  - name: tss-pricing-srv
+    path: .
+    buildpacks:
+      - nodejs_buildpack
+    command: node srv/server.js
+    memory: 512M
+    disk_quota: 1G
+    instances: 1
+    env:
+      NODE_ENV: production
+    services:
+      - tss-pricing-xsuaa

@@ -1,0 +1,12 @@
+# cf push uploads the whole repo root (srv/ needs the workspace's other packages
+# resolved via npm workspaces, so we push root, not srv/ alone — see docs/DEPLOYMENT.md).
+# Exclude everything the Node.js buildpack doesn't need to install/run srv/.
+node_modules/
+**/node_modules/
+.git/
+app/dist/
+mta_archives/
+gen/
+*.log
+.DS_Store
+docs/*.pptx
