@@ -3,6 +3,7 @@ import { price, PURPOSE, CONFIDENCE } from '@tss-pricing/engine-core';
 import { DEFAULT_FORM, buildPricingInput } from './sampleData';
 import { priceViaBackend, DEMO_USERS, ApiError } from './api';
 import { DEFAULT_ROWS, newRow, parseBulkText, toPricingItems } from './batch';
+import AdminConfig from './AdminConfig.jsx';
 import './App.css';
 
 const STATUS_LABEL = {
@@ -444,32 +445,38 @@ function DirectWorkspace() {
   );
 }
 
+const MODE_SUBTITLE = {
+  backend: 'Batch pricing — React → CAP (srv/) → config-model + api6-client → engine-core',
+  direct: 'Kernel-mechanics demo — engine-core running directly in the browser, no backend',
+  admin: 'Admin config — browse region configs, supplier overrides, and the AI-suggestion review queue',
+};
+
 export default function App() {
   const [mode, setMode] = useState('backend');
-  const isBackend = mode === 'backend';
 
   return (
     <div className="page">
       <header className="page-header">
         <div>
           <h1>TSS Pricing Engine</h1>
-          <p className="subtitle">
-            {isBackend
-              ? 'Batch pricing — React → CAP (srv/) → config-model + api6-client → engine-core'
-              : 'Kernel-mechanics demo — engine-core running directly in the browser, no backend'}
-          </p>
+          <p className="subtitle">{MODE_SUBTITLE[mode]}</p>
         </div>
         <nav className="mode-toggle mode-toggle-header">
-          <button type="button" className={isBackend ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('backend')}>
+          <button type="button" className={mode === 'backend' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('backend')}>
             Pricing workspace
           </button>
-          <button type="button" className={!isBackend ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('direct')}>
+          <button type="button" className={mode === 'direct' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('direct')}>
             Kernel demo
+          </button>
+          <button type="button" className={mode === 'admin' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('admin')}>
+            Admin config
           </button>
         </nav>
       </header>
 
-      {isBackend ? <BatchWorkspace /> : <DirectWorkspace />}
+      {mode === 'backend' && <BatchWorkspace />}
+      {mode === 'direct' && <DirectWorkspace />}
+      {mode === 'admin' && <AdminConfig />}
     </div>
   );
 }

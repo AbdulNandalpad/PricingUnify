@@ -25,7 +25,8 @@ class ApiError extends Error {
 }
 
 async function callAction(path, { user, payload, method = 'POST' }) {
-  const url = method === 'GET' ? `${API_BASE}${path}?${new URLSearchParams(payload).toString()}` : `${API_BASE}${path}`;
+  const definedParams = Object.fromEntries(Object.entries(payload || {}).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  const url = method === 'GET' ? `${API_BASE}${path}?${new URLSearchParams(definedParams).toString()}` : `${API_BASE}${path}`;
   const res = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: authHeader(user) },
@@ -41,8 +42,32 @@ export function priceViaBackend({ user, region, salesOrg, purpose, items }) {
   return callAction('/rest/pricing/price', { user, payload: { region, salesOrg, purpose, items } });
 }
 
-export function getEffectiveConfig({ user, region, salesOrg }) {
-  return callAction('/rest/config/getEffectiveConfig', { user, method: 'GET', payload: { region, salesOrg } });
+export function getEffectiveConfig({ user, region, salesOrg, asOf }) {
+  return callAction('/rest/config/getEffectiveConfig', { user, method: 'GET', payload: { region, salesOrg, asOf } });
+}
+
+export function listVersions({ user, region, salesOrg }) {
+  return callAction('/rest/config/listVersions', { user, method: 'GET', payload: { region, salesOrg } });
+}
+
+export function getEffectiveSupplierConfig({ user, region, salesOrg, supplier, asOf }) {
+  return callAction('/rest/config/getEffectiveSupplierConfig', { user, method: 'GET', payload: { region, salesOrg, supplier, asOf } });
+}
+
+export function listSuggestions({ user, region, status }) {
+  return callAction('/rest/config/listSuggestions', { user, method: 'GET', payload: { region, status } });
+}
+
+export function suggestChange({ user, region, salesOrg, version, instruction }) {
+  return callAction('/rest/config/suggestChange', { user, payload: { region, salesOrg, version, instruction } });
+}
+
+export function approveSuggestion({ user, suggestionId, newVersion }) {
+  return callAction('/rest/config/approveSuggestion', { user, payload: { suggestionId, newVersion } });
+}
+
+export function rejectSuggestion({ user, suggestionId, reviewNotes }) {
+  return callAction('/rest/config/rejectSuggestion', { user, payload: { suggestionId, reviewNotes } });
 }
 
 export { ApiError };
