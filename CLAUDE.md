@@ -43,6 +43,7 @@ Status: `engine-core` kernel implemented and unit-tested — now with compound (
 
 ## Parked (owner decides — do NOT implement without instruction)
 - Topic 6 of the reference-doc review, SPU (Ship Pack Unit — order qty must round up to a packaging multiple) — owner said to leave it out for now, skipped ahead to topic 7
+- Topic 9 of the reference-doc review, quote-level Approval Total/Approval Margin (highest Total + lowest Margin% per product group, per docx §5.1) — owner said "we do this later, skip for now"; an open design question when it does come up: where "Product Group" comes from on a line (caller-supplied per item, like coo/supplier, or derived from something else)
 - AI-cost tracking (token/$ spend per suggestion) — the auditability *shape* (instruction, patch, rationale, confidence, model, reviewer) is now implemented in config-model; cost metering is not
 - SaaS/IP ownership; governance model beyond a `PricingAdmin` role gate on config-changing endpoints (maker/checker, who *specifically* may approve what) — `srv/` now requires an authenticated PricingAdmin to approve/reject an AI suggestion, but there's still no distinct "maker" vs "checker" separation
 - Real API6 / AI credentials — `api6-client` defaults to recorded payloads, `config-model`'s AI pipeline needs `ANTHROPIC_API_KEY` (unset today; endpoint reports `AI_NOT_CONFIGURED` rather than faking a response) — both explicitly deferred by the owner ("API key is for later")
