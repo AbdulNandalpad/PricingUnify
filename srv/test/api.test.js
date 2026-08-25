@@ -88,16 +88,29 @@ test('a part whose raw stock-class code is not in the region stockClassMap comes
   assert.equal(line.missing.detail, 'STOCK_CLASS_UNMAPPED:ZZZ'); // P-90400's recorded raw code "ZZZ" is deliberately absent from EUROPE's stockClassMap
 });
 
-test('P-90500 prices normally off its recorded default cost when no MROQ override is given', async () => {
-  const res = await fetch(`${BASE}/rest/pricing/price`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
-    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90500', quantity: 10 }] } }),
-  }).then((r) => r.json());
-  const line = res.items[0];
-  assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '21.46');
-  assert.equal(line.trace.costCandidate.selectedBy, 'DEFAULT');
+test('topic 7: a plain price-list part (P-90600) automatically picks its cost tier by the real order quantity -- no MROQ override or special OOD needed', async () => {
+  const priceP90600 = async (quantity) => {
+    const res = await fetch(`${BASE}/rest/pricing/price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+      body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-90600', quantity }] } }),
+    }).then((r) => r.json());
+    return res.items[0];
+  };
+
+  const below = await priceP90600(5); // below even the lowest published break (10)
+  assert.equal(below.status, 'PRICED');
+  assert.equal(below.trace.costCandidate.selectedBy, 'DEFAULT'); // no break matches -- falls back to the recorded default
+  assert.equal(below.trace.costCandidate.value, '18.49');
+
+  const mid = await priceP90600(30); // falls in the "25+" break
+  assert.equal(mid.status, 'PRICED');
+  assert.equal(mid.trace.costCandidate.selectedBy, 'USER'); // auto-selected via the same "explicit selection wins" path
+  assert.equal(mid.trace.costCandidate.value, '15.41');
+
+  const high = await priceP90600(200); // falls in the "100+" break
+  assert.equal(high.status, 'PRICED');
+  assert.equal(high.trace.costCandidate.value, '10.70');
 });
 
 test('a business user typing a hypothetical MROQ for an OOD=SMA part switches to the matching quantity-break cost', async () => {
@@ -115,7 +128,7 @@ test('a business user typing a hypothetical MROQ for an OOD=SMA part switches to
   assert.equal(line.trace.costCandidate.value, '12.84');
 });
 
-test('the same MROQ override is ignored for a non-SMA (or unspecified) OOD -- the mechanism is Americas-only', async () => {
+test('an MROQ override input is ignored for a non-SMA (or unspecified) OOD, but the automatic real-quantity price-list lookup still applies -- the standalone what-if is Americas-only, the price list itself is not', async () => {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
@@ -123,8 +136,11 @@ test('the same MROQ override is ignored for a non-SMA (or unspecified) OOD -- th
   }).then((r) => r.json());
   const line = res.items[0];
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.trace.costCandidate.selectedBy, 'DEFAULT'); // no ood: 'SMA', so the override never applied
-  assert.equal(line.trace.costCandidate.value, '18.49');
+  // The mroqOverride=60 hypothetical is ignored (no ood: 'SMA'), but the real requested
+  // quantity (60) still lands in the "50+" break automatically -- same tier, different reason.
+  assert.equal(line.trace.costCandidate.selectedBy, 'USER');
+  assert.equal(line.trace.costCandidate.value, '12.84');
+  assert.equal(line.trace.costCandidate.source.key, 'QTY_BREAK_P-90500_50'); // not MROQ_OVERRIDE_... -- confirms it took the automatic path, not the override path
 });
 
 async function priceChina(item) {

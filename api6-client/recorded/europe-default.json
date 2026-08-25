@@ -129,6 +129,20 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "P-90600": {
+      "default": "SUPPLIER_1",
+      "candidates": [
+        {
+          "value": "18.49",
+          "currency": "USD",
+          "basis": "SUPPLIER_CATALOG",
+          "source": { "system": "JDE_E1", "table": "F41291", "field": "UNIT_COST", "key": "SUPPLIER_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
   "elements": {
@@ -140,7 +154,8 @@
     "P-60150": { "freight": "8.00", "duty": "3.50", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-70200": { "freight": "6.00", "duty": "2.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-90400": { "freight": "2.00", "duty": "1.00", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
-    "P-90500": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
+    "P-90500": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-90600": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
   },
   "classification": {
     "P-10023": { "stockClassRaw": "MTS" },
@@ -151,10 +166,18 @@
     "P-60150": { "stockClassRaw": "MTS" },
     "P-70200": { "stockClassRaw": "CMT" },
     "P-90400": { "stockClassRaw": "ZZZ" },
-    "P-90500": { "stockClassRaw": "MTO" }
+    "P-90500": { "stockClassRaw": "MTO" },
+    "P-90600": { "stockClassRaw": "MTO" }
   },
   "qtyBreaks": {
     "P-90500": [
+      { "minQty": 10, "value": "18.49" },
+      { "minQty": 25, "value": "15.41" },
+      { "minQty": 50, "value": "12.84" },
+      { "minQty": 100, "value": "10.70" },
+      { "minQty": 250, "value": "7.58" }
+    ],
+    "P-90600": [
       { "minQty": 10, "value": "18.49" },
       { "minQty": 25, "value": "15.41" },
       { "minQty": 50, "value": "12.84" },
