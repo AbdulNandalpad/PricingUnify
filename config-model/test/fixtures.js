@@ -5,6 +5,7 @@ const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'demo@tss.example', auth
 function europeConfig(overrides = {}) {
   return {
     region: 'EUROPE',
+    salesOrg: '*',
     version: '2026.08.0',
     status: 'ACTIVE',
     supersedes: null,

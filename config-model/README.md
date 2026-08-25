@@ -8,14 +8,35 @@ must approve before it goes live.
 
 | Table | Purpose |
 |---|---|
-| `region-config` | One region = one versioned, effective-dated document: `region`, `version`, `status` (DRAFT/ACTIVE/SUPERSEDED/REJECTED), `validFrom`/`validTo`, `resolution[]`, `buildUp[]`, `constraints[]`, `rounding`, `fx`, `provenance`. |
+| `region-config` | One **(region, salesOrg)** pair = one versioned, effective-dated document: `region`, `salesOrg`, `version`, `status` (DRAFT/ACTIVE/SUPERSEDED/REJECTED), `validFrom`/`validTo`, `resolution[]`, `buildUp[]`, `constraints[]`, `rounding`, `fx`, `provenance`. |
 | `build-up-element` | One line of `buildUp[]` — BASE, FACTOR (basis required), ADDER, or PER_LINE. Matches engine-core's primitives exactly. |
 | `constraint` | One line of `constraints[]` — FLOOR or STEP (MOLV, MOV, SPU rounding). Applied by the kernel after the build-up, not within it. |
 | `resolution-rule` | One step of the cost-resolution ladder (stock class → origin of data → supplier/COO/OOD → cost basis → fallback chain). Deliberately loose — the four regions in the concept deck have four different ladders behind the same five primitives. |
-| `ai-suggestion` | A natural-language instruction, the AI's proposed JSON Patch against a region config, its rationale/confidence, and its full human review trail (PENDING_REVIEW → APPROVED/REJECTED → APPLIED). |
+| `ai-suggestion` | A natural-language instruction, the AI's proposed JSON Patch against a specific (region, salesOrg) config, its rationale/confidence, and its full human review trail (PENDING_REVIEW → APPROVED/REJECTED → APPLIED). |
 | `provenance` | Not a table of its own — embedded on every entity above. `{ source: HUMAN\|AI_SUGGESTED\|AI_DERIVED\|IMPORTED, authoredBy, authoredAt, aiModel?, aiConfidence?, aiRationale?, approvedBy?, approvedAt? }`. This is what makes every table AI-ready from scratch: any value can show it came from a human or from an AI proposal, with a confidence and a rationale, and — if AI-sourced — who approved it. |
 
-There is no separate "config version history" table: every `region-config` document a region has ever had stays in the store (`ConfigStore`), so `getEffectiveAsOf(region, date)` can reprice a historical quote exactly at the rules that were live on that date (requirements §5.4), and the version list itself *is* the history.
+There is no separate "config version history" table: every `region-config` document a
+(region, salesOrg) pair has ever had stays in the store (`ConfigStore`), so
+`getEffectiveAsOf(region, salesOrg, date)` can reprice a historical quote exactly at the
+rules that were live on that date (requirements §5.4), and the version list itself *is*
+the history.
+
+## Region + sales org scoping
+
+A config document is keyed by **both** `region` and `salesOrg`, matching the object-agnostic
+request's `party: { customerId, salesOrg }` (requirements §7). `salesOrg: "*"` is a
+region-wide default; a specific sales org (e.g. `"DE01"`) only needs its own document where
+its rules actually diverge from the region default:
+
+```
+getEffectiveAsOf('EUROPE', 'DE01', '2026-08-15')
+   1. look for a DE01-specific document covering 2026-08-15 → use it if found
+   2. else fall back to the EUROPE '*' region-wide default
+```
+
+Saving a new ACTIVE version closes the window of whatever it supersedes (sets its
+`validTo` to the new version's `validFrom`) so two versions in the same (region, salesOrg)
+bucket can never both match the same lookup date.
 
 ## The AI pipeline
 
@@ -54,12 +75,13 @@ the environment (wired as a BTP destination/service credential once `srv/` exist
 const { ConfigStore, createFakeClient, suggestConfigChange, applySuggestion } = require('@tss-pricing/config-model');
 
 const store = new ConfigStore();
-store.saveVersion(myEuropeConfigV1);
+store.saveVersion(myEuropeConfigV1); // salesOrg: '*' — region-wide default
 
 const suggestion = await suggestConfigChange({
   aiClient: createFakeClient({ patch: [...], rationale: '...', confidence: 0.9 }),
   region: 'EUROPE',
-  currentConfig: store.getVersion('EUROPE', '2026.08.0'),
+  salesOrg: '*',
+  currentConfig: store.getVersion('EUROPE', '*', '2026.08.0'),
   instruction: 'Add a 3% tariff surcharge for parts sourced from China.',
   requestedBy: 'pricing-lead@tss.example',
 });

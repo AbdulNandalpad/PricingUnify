@@ -16,9 +16,11 @@ function applySuggestion(suggestion, { store, approvedBy, newVersion }) {
     throw new Error('applySuggestion requires an approvedBy — AI suggestions never go live unattended.');
   }
 
-  const baseConfig = store.getVersion(suggestion.region, suggestion.baseVersion);
+  const baseConfig = store.getVersion(suggestion.region, suggestion.salesOrg, suggestion.baseVersion);
   if (!baseConfig) {
-    throw new Error(`Base version "${suggestion.baseVersion}" for region "${suggestion.region}" not found.`);
+    throw new Error(
+      `Base version "${suggestion.baseVersion}" for region "${suggestion.region}" / salesOrg "${suggestion.salesOrg}" not found.`,
+    );
   }
 
   const { newDocument } = jsonpatch.applyPatch(baseConfig, suggestion.proposedPatch, true, false);

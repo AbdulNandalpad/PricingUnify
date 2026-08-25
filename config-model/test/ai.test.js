@@ -37,6 +37,7 @@ test('suggestConfigChange records the instruction and proposal without touching 
   const suggestion = await suggestConfigChange({
     aiClient,
     region: 'EUROPE',
+    salesOrg: '*',
     currentConfig: base,
     instruction: 'Add a 3% tariff surcharge for parts sourced from China, on top of base cost.',
     requestedBy: 'pricing-lead@tss.example',
@@ -45,7 +46,22 @@ test('suggestConfigChange records the instruction and proposal without touching 
   assert.equal(suggestion.status, 'PENDING_REVIEW');
   assert.equal(suggestion.aiModel, 'fake-client');
   assert.equal(suggestion.baseVersion, '2026.08.0');
-  assert.equal(store.listVersions('EUROPE').length, 1, 'no new version until a human approves');
+  assert.equal(store.listVersions('EUROPE', '*').length, 1, 'no new version until a human approves');
+});
+
+test('suggestConfigChange rejects a currentConfig for the wrong salesOrg', async () => {
+  const base = europeConfig({ salesOrg: 'DE01' });
+  await assert.rejects(
+    () =>
+      suggestConfigChange({
+        aiClient: createFakeClient(tariffSurchargePatch()),
+        region: 'EUROPE',
+        salesOrg: '*',
+        currentConfig: base,
+        instruction: 'Add China tariff.',
+      }),
+    /salesOrg/,
+  );
 });
 
 test('an approved suggestion becomes a new, valid, ACTIVE version that engine-core can price against', async () => {
@@ -53,7 +69,7 @@ test('an approved suggestion becomes a new, valid, ACTIVE version that engine-co
   const base = store.saveVersion(europeConfig());
   const aiClient = createFakeClient(tariffSurchargePatch());
   const suggestion = store.saveSuggestion(
-    await suggestConfigChange({ aiClient, region: 'EUROPE', currentConfig: base, instruction: 'Add China tariff.' }),
+    await suggestConfigChange({ aiClient, region: 'EUROPE', salesOrg: '*', currentConfig: base, instruction: 'Add China tariff.' }),
   );
 
   const applied = applySuggestion(suggestion, { store, approvedBy: 'head-of-pricing@tss.example', newVersion: '2026.08.1' });
@@ -62,7 +78,7 @@ test('an approved suggestion becomes a new, valid, ACTIVE version that engine-co
   assert.equal(applied.provenance.source, 'AI_SUGGESTED');
   assert.equal(applied.provenance.approvedBy, 'head-of-pricing@tss.example');
   assert.equal(suggestion.status, 'APPLIED');
-  assert.equal(store.getVersion('EUROPE', '2026.08.0').status, 'SUPERSEDED');
+  assert.equal(store.getVersion('EUROPE', '*', '2026.08.0').status, 'SUPERSEDED');
 
   const facts = {
     costs: { 'P-1': { default: 'C', candidates: [{ value: '100.00', currency: 'EUR', confidence: 'EXACT', source: { key: 'C' } }] } },
@@ -83,13 +99,13 @@ test('a rejected suggestion never reaches the store', async () => {
   const base = store.saveVersion(europeConfig());
   const aiClient = createFakeClient(tariffSurchargePatch());
   const suggestion = store.saveSuggestion(
-    await suggestConfigChange({ aiClient, region: 'EUROPE', currentConfig: base, instruction: 'Add China tariff.' }),
+    await suggestConfigChange({ aiClient, region: 'EUROPE', salesOrg: '*', currentConfig: base, instruction: 'Add China tariff.' }),
   );
 
   rejectSuggestion(suggestion, { reviewedBy: 'head-of-pricing@tss.example', reviewNotes: 'Finance wants 2.5%, not 3%.' });
 
   assert.equal(suggestion.status, 'REJECTED');
-  assert.equal(store.listVersions('EUROPE').length, 1);
+  assert.equal(store.listVersions('EUROPE', '*').length, 1);
   assert.throws(() => applySuggestion(suggestion, { store, approvedBy: 'x', newVersion: '2026.08.1' }));
 });
 
@@ -102,13 +118,34 @@ test('the AI cannot bypass the FACTOR-basis non-negotiable — an invalid patch 
     confidence: 0.4,
   };
   const suggestion = store.saveSuggestion(
-    await suggestConfigChange({ aiClient: createFakeClient(invalidPatch), region: 'EUROPE', currentConfig: base, instruction: 'Add a bad factor.' }),
+    await suggestConfigChange({ aiClient: createFakeClient(invalidPatch), region: 'EUROPE', salesOrg: '*', currentConfig: base, instruction: 'Add a bad factor.' }),
   );
 
   assert.throws(
     () => applySuggestion(suggestion, { store, approvedBy: 'head-of-pricing@tss.example', newVersion: '2026.08.1' }),
     ConfigValidationError,
   );
-  assert.equal(store.listVersions('EUROPE').length, 1, 'store is untouched when the AI proposal is invalid');
+  assert.equal(store.listVersions('EUROPE', '*').length, 1, 'store is untouched when the AI proposal is invalid');
   assert.equal(suggestion.status, 'PENDING_REVIEW', 'a failed apply leaves the suggestion for a human to see and retry');
+});
+
+test('an AI suggestion scoped to one sales org only patches that sales org\'s config, not the region default', async () => {
+  const store = new ConfigStore();
+  store.saveVersion(europeConfig()); // region-wide default
+  const de01Base = store.saveVersion(europeConfig({ salesOrg: 'DE01', version: 'DE01-2026.08.0' }));
+
+  const suggestion = store.saveSuggestion(
+    await suggestConfigChange({
+      aiClient: createFakeClient(tariffSurchargePatch()),
+      region: 'EUROPE',
+      salesOrg: 'DE01',
+      currentConfig: de01Base,
+      instruction: 'Add China tariff for DE01 only.',
+    }),
+  );
+  applySuggestion(suggestion, { store, approvedBy: 'head-of-pricing@tss.example', newVersion: 'DE01-2026.08.1' });
+
+  assert.equal(store.getEffectiveAsOf('EUROPE', 'DE01', '2026-08-15').version, 'DE01-2026.08.1');
+  assert.equal(store.getEffectiveAsOf('EUROPE', '*', '2026-08-15').version, '2026.08.0', 'region default is untouched');
+  assert.equal(store.getEffectiveAsOf('EUROPE', 'FR01', '2026-08-15').version, '2026.08.0', 'other sales orgs still get the region default');
 });

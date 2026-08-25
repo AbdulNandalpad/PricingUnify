@@ -52,7 +52,7 @@ function createAnthropicClient({ apiKey = process.env.ANTHROPIC_API_KEY, model =
 
   return {
     model,
-    async proposeConfigChange({ instruction, currentConfig, region }) {
+    async proposeConfigChange({ instruction, currentConfig, region, salesOrg }) {
       const response = await client.messages.create({
         model,
         max_tokens: 2048,
@@ -62,7 +62,7 @@ function createAnthropicClient({ apiKey = process.env.ANTHROPIC_API_KEY, model =
         messages: [
           {
             role: 'user',
-            content: `Region: ${region}\nInstruction: ${instruction}\n\nCurrent config:\n${JSON.stringify(currentConfig, null, 2)}`,
+            content: `Region: ${region}\nSales org: ${salesOrg}\nInstruction: ${instruction}\n\nCurrent config:\n${JSON.stringify(currentConfig, null, 2)}`,
           },
         ],
       });

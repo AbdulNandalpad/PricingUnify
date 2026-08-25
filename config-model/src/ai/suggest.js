@@ -5,16 +5,20 @@ const crypto = require('node:crypto');
  * config change. The instruction and the AI's raw proposal are recorded verbatim; nothing
  * here writes to the config store.
  */
-async function suggestConfigChange({ aiClient, region, currentConfig, instruction, requestedBy }) {
+async function suggestConfigChange({ aiClient, region, salesOrg, currentConfig, instruction, requestedBy }) {
   if (currentConfig.region !== region) {
     throw new Error(`currentConfig is for region "${currentConfig.region}", not "${region}".`);
   }
+  if (currentConfig.salesOrg !== salesOrg) {
+    throw new Error(`currentConfig is for salesOrg "${currentConfig.salesOrg}", not "${salesOrg}".`);
+  }
 
-  const { patch, rationale, confidence } = await aiClient.proposeConfigChange({ instruction, currentConfig, region });
+  const { patch, rationale, confidence } = await aiClient.proposeConfigChange({ instruction, currentConfig, region, salesOrg });
 
   return {
     id: crypto.randomUUID(),
     region,
+    salesOrg,
     baseVersion: currentConfig.version,
     instruction,
     requestedBy,
