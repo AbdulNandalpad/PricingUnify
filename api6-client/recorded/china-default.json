@@ -1,0 +1,76 @@
+{
+  "costs": {
+    "CN-P001": {
+      "default": "JDE_CHINA_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "JDE_CHINA", "table": "F4105", "field": "UNIT_COST", "key": "JDE_CHINA_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "CN-P002": {
+      "default": "SAP_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "SAP", "table": "MBEW", "field": "VERPR", "key": "SAP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "CN-P003": {
+      "default": "SAP_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "SAP", "table": "MBEW", "field": "VERPR", "key": "SAP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "CN-P004": {
+      "default": "SAP_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "SAP", "table": "MBEW", "field": "VERPR", "key": "SAP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "CN-P005": {
+      "default": "SAP_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "CNY",
+          "basis": "MOVING_AVG",
+          "source": { "system": "SAP", "table": "MBEW", "field": "VERPR", "key": "SAP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    }
+  },
+  "elements": {},
+  "fx": {}
+}

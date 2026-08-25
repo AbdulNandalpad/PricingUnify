@@ -124,6 +124,50 @@ test('the same MROQ override is ignored for a non-SMA (or unspecified) OOD -- th
   assert.equal(line.trace.costCandidate.value, '18.49');
 });
 
+async function priceChina(item) {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'CHINA', salesOrg: '*', items: [item] } }),
+  }).then((r) => r.json());
+  return res.items[0];
+}
+
+test('China route 1: OOD is JDE China -- the cost is already landed, only the 3.2% LCS markup applies', async () => {
+  const line = await priceChina({ partNumber: 'CN-P001', quantity: 1, ood: 'CN' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '103.2');
+});
+
+test('China route 2 (US COO): direct from a non-LCE supplier -- freight&duty x1.32, then 3.2% markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P002', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'US' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '136.22');
+});
+
+test('China route 2 (non-US COO): direct from a non-LCE supplier -- freight&duty x1.21, then 3.2% markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P003', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'IT' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '124.87');
+});
+
+test('China route 3 (US COO, via LCE/SAP Europe): freight&duty, 3.2% markup, then a further 6% LCE markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'US' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '144.4');
+});
+
+test('China route 3 (non-US COO, via LCE/SAP Europe): same chain at the non-US freight&duty rate', async () => {
+  const line = await priceChina({ partNumber: 'CN-P005', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'IT' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '132.36');
+});
+
+test('the supplier "88058" (LCE) is not a real supplier-config entry -- China route branching depends only on ood/coo/supplier `when`-conditions, not supplier-config overrides', async () => {
+  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'US' });
+  assert.equal(line.trace.constraintPasses.length, 0); // no supplier-config seeded for CHINA, so no unexpected adders/constraints sneak in
+});
+
 test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the generic API6 elements', async () => {
   const withoutSupplier = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',

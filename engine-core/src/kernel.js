@@ -25,8 +25,11 @@ function parseLiteral(raw) {
 }
 
 /** Deliberately not `eval`/`Function` — config is data, and this keeps it that way.
- *  Supports "path.to.field OP literal" only; anything richer is a Phase-2+ config-model concern. */
+ *  Supports "path.to.field OP literal" only; anything richer is a Phase-2+ config-model concern.
+ *  An array of expressions is AND-ed together (all must be true) — real regional logic often
+ *  branches on more than one field at once (e.g. China: origin of data AND supplier AND COO). */
 function evaluateWhen(expr, scope) {
+  if (Array.isArray(expr)) return expr.every((e) => evaluateWhen(e, scope));
   const m = String(expr).match(/^\s*([\w.]+)\s*(===|==|!==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
   if (!m) throw new Error(`Unsupported "when" expression: "${expr}"`);
   const [, path, op, rawValue] = m;
@@ -97,7 +100,16 @@ function priceItem(item, request, facts, config) {
   const steps = [];
 
   for (const el of config.buildUp) {
-    if (el.when && !evaluateWhen(el.when, scope)) continue;
+    if (el.when && !evaluateWhen(el.when, scope)) {
+      // A skipped element still contributes a (zero) step value so a later FACTOR can safely
+      // list it in `basis` alongside the mutually-exclusive branch that DID fire — e.g. China's
+      // COO-conditioned freight&duty factors, where exactly one of them ever actually applies.
+      // The skip itself is recorded in the trace too — a BINDING caller needs to see why a
+      // branch didn't apply, not just what happened in the branch that did.
+      ctx.stepValues[el.id] = new Decimal(0);
+      steps.push(trace.step(el.id, el.type, { delta: new Decimal(0), runningTotal: running, note: { skipped: true, when: el.when } }));
+      continue;
+    }
 
     let result;
     switch (el.type) {

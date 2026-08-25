@@ -10,6 +10,7 @@ const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'seed@tss.example', auth
  */
 function seed() {
   seedRegionConfig();
+  seedChinaRegionConfig();
   seedSupplierConfigs();
 }
 
@@ -44,6 +45,52 @@ function seedRegionConfig() {
       { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE },
       { id: 'MOQ', type: 'CONSTRAINT', kind: 'MIN_QTY', minRef: 'moq', provenance: HUMAN_PROVENANCE },
     ],
+    rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    provenance: HUMAN_PROVENANCE,
+  });
+}
+
+/**
+ * China's real cost-route logic (topic 3 of the reference-doc review): which multiplier
+ * stack applies is a genuine 3-way branch on origin of data, supplier, and COO — not a
+ * generic per-region markup. Per the owner's stakeholder-corrected reference doc: "OOD needs
+ * to be considered in the logic, and NOT the Supplier Country."
+ *   - OOD is JDE China ("CN"): the cost JDE China returns is already landed (freight+duty
+ *     baked in) — only the 3.2% LCS markup applies.
+ *   - OOD is not JDE China, sourced directly from an actual supplier (not 88058/LCE):
+ *     freight&duty by COO (US ×1.32, non-US ×1.21 — a COMPOSITE factor per requirements
+ *     §5.1, since the real data is one blended rate, not separate freight/duty percentages),
+ *     then the 3.2% LCS markup on top.
+ *   - OOD is not JDE China, sourced via LCE/SAP Europe (supplier "88058"): same freight&duty
+ *     + LCS markup chain, plus a further 6% LCE markup.
+ * Deliberately minimal (no stock-class branching, no MOLV/MOQ/pick yet) — this is purely the
+ * cost-route mechanism; folding in the full (region x stockClass) formula from Appendix A is
+ * topic 4. Real China Pick cost is documented as always 0, so no PER_LINE element at all.
+ */
+function seedChinaRegionConfig() {
+  if (store.listVersions('CHINA', '*').length > 0) return;
+  store.saveVersion({
+    region: 'CHINA',
+    salesOrg: '*',
+    version: '2026.08.0',
+    status: 'ACTIVE',
+    supersedes: null,
+    validFrom: '2026-08-01',
+    validTo: null,
+    resolution: [
+      { id: 'RES_JDE_CHINA', originOfData: 'CN', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE },
+      { id: 'RES_SAP_EUROPE_FALLBACK', originOfData: 'SAP', fallback: ['RES_JDE_CHINA'], costBasis: 'SUPPLIER_CATALOG', provenance: HUMAN_PROVENANCE },
+    ],
+    buildUp: [
+      { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
+      { id: 'ROUTE_JDE_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.032, when: "item.ood === 'CN'", provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT_DUTY_US', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.32, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.coo === 'US'"], provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT_DUTY_NONUS', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.21, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.coo !== 'US'"], provenance: HUMAN_PROVENANCE },
+      { id: 'DIRECT_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier !== '88058'"], provenance: HUMAN_PROVENANCE },
+      { id: 'LCE_MARKUP_BASE', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
+      { id: 'LCE_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS', 'LCE_MARKUP_BASE'], rate: 0.06, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
+    ],
+    constraints: [],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
     provenance: HUMAN_PROVENANCE,
   });
