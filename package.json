@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "TSS Pricing Engine — AI pricing workspace. Landed cost from ERP facts + regional config, explainable, CRM-agnostic.",
-  "workspaces": ["engine-core", "config-model", "api6-client", "srv", "mcp-server"],
+  "workspaces": ["engine-core", "config-model", "api6-client", "srv", "app", "mcp-server"],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "test:golden": "node tests/run-golden.js"

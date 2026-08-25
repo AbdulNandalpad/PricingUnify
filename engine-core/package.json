@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "description": "Pure pricing kernel. Deterministic, no I/O, no SAP dependencies. 5 primitives: BASE, FACTOR, ADDER, PER_LINE, CONSTRAINT.",
   "main": "src/index.js",
-  "scripts": { "test": "node --test test/" },
+  "scripts": { "test": "node --test" },
   "dependencies": { "decimal.js": "^10.4.3" }
 }

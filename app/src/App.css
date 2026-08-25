@@ -1,0 +1,283 @@
+.page {
+  min-height: 100vh;
+}
+
+.page-header {
+  background: var(--navy);
+  color: #fff;
+  padding: 20px 32px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-header h1 {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin-top: 4px;
+  color: #c3c8e8;
+  font-size: 14px;
+}
+
+.phase-badge {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #c3c8e8;
+  border: 1px solid #4a5391;
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 20px;
+  padding: 24px 32px 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panel h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.field input,
+.field select {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: -1px;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.panel > button[type='submit'] {
+  margin-top: 20px;
+  width: 100%;
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.panel > button[type='submit']:hover {
+  background: var(--navy-dark);
+}
+
+.status {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+
+.status-priced {
+  background: #dff3e6;
+  color: #1a7a45;
+}
+
+.status-missing {
+  background: #f5eddb;
+  color: #93650b;
+}
+
+.status-blocked {
+  background: #fbe2e2;
+  color: #b3261e;
+}
+
+.error {
+  color: #b3261e;
+  font-size: 14px;
+}
+
+.price-callout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.price-value {
+  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 600;
+}
+
+.price-currency {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.price-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.missing-reason {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #93650b;
+  margin-bottom: 16px;
+}
+
+.candidate-line {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.trace-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.trace-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trace-table .num {
+  text-align: right;
+}
+
+.trace-table .mono {
+  font-family: var(--mono);
+}
+
+.row-missing {
+  background: #fbf3e2;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef0f7;
+  color: var(--navy);
+}
+
+.constraints {
+  margin-top: 20px;
+}
+
+.constraints h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.constraints ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.link-button {
+  margin-top: 20px;
+  background: none;
+  border: none;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.raw-json {
+  margin-top: 12px;
+  background: #0f1226;
+  color: #dfe3f5;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 420px;
+  overflow-y: auto;
+}

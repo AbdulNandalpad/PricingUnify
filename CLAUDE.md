@@ -37,6 +37,7 @@ docs/           requirements doc + design docs
 
 ## Current phase
 **Phase 1**: kernel + config model + golden tests, one region end-to-end (India or Europe first), API6 client stubbed with recorded payloads.
+Status: `engine-core` kernel implemented and unit-tested against synthetic data. Still open: which region is "first" (deck leaves this for discussion), a real `config-model` validator, the `api6-client` stub with recorded payloads, and real finance-verified golden tests. A standalone dev UI (`app/`) now runs the kernel client-side for visualization, ahead of its normal Phase 3 slot.
 
 ## Parked (owner decides — do NOT implement without instruction)
 - AI-cost / natural-language-instruction auditability details
@@ -46,4 +47,6 @@ docs/           requirements doc + design docs
 ## Decision Log
 - 2026-08-21: Requirements v1.0 finalized. Platform locked (CAP/CF + React + portable core). Object-agnostic model via `purpose` field. Repo scaffold created.
 - 2026-08-25: Scaffold pushed to `AbdulNandalpad/PricingUnify` on GitHub (still personal, per parked TSS migration note). Concept deck (`TSS_Pricing_Engine_Concept.pptx`) added to `docs/` for reference alongside the binding requirements doc.
+- 2026-08-25: `engine-core` implemented for real (kernel, cost resolution, 5 primitives, trace, decimal math, purpose gating) with unit tests (`node --test`, 6 passing) against a synthetic Europe-shaped build-up — not real TSS rates. `tests/golden/` still has no real finance-verified data, so `test:golden` remains a placeholder.
+- 2026-08-25: Added a standalone dev UI in `app/` (Vite + React) at the owner's request, ahead of the Phase 3 mashup — it imports `@tss-pricing/engine-core` directly in the browser (no CAP/DB/API6 yet) so the kernel's build-up and trace are visible end-to-end. Uses the same synthetic sample data as the engine-core tests. `app` added to npm workspaces; `vite.config.js` sets `resolve.preserveSymlinks: true` + `optimizeDeps.include` so Vite's CJS→ESM interop works across the workspace symlink to engine-core. When `srv/` (CAP) exists, this UI should switch to calling the real pricing API instead of calling engine-core in-browser.
 - (append new entries here, newest last)
