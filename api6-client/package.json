@@ -1,0 +1,6 @@
+{
+  "name": "@tss-pricing/api6-client",
+  "version": "0.1.0",
+  "description": "Single door to API6. Raw facts only (routing, cost candidates + provenance, elements, FX, BI history). One call per pricing run. Dev mode replays ./recorded payloads.",
+  "main": "src/index.js"
+}
