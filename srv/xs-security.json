@@ -1,0 +1,13 @@
+{
+  "xsappname": "tss-pricing-engine",
+  "tenant-mode": "dedicated",
+  "description": "XSUAA security descriptor for BTP deployment. Inert for local dev — see package.json's cds.requires.auth (mocked kind, [production] overrides to xsuaa).",
+  "scopes": [
+    { "name": "$XSAPPNAME.PricingViewer", "description": "Read prices and configs" },
+    { "name": "$XSAPPNAME.PricingAdmin", "description": "Request, approve, or reject AI config suggestions" }
+  ],
+  "role-templates": [
+    { "name": "PricingViewer", "description": "Pricing Viewer", "scope-references": ["$XSAPPNAME.PricingViewer"] },
+    { "name": "PricingAdmin", "description": "Pricing Admin", "scope-references": ["$XSAPPNAME.PricingAdmin", "$XSAPPNAME.PricingViewer"] }
+  ]
+}

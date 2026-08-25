@@ -1,0 +1,27 @@
+{
+  "costs": {
+    "P-10023": {
+      "default": "MOVING_AVG_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    }
+  },
+  "elements": {
+    "P-10023": {
+      "freight": "5.00",
+      "duty": "2.00",
+      "pickCharge": "21.00",
+      "molv": "50.00"
+    }
+  },
+  "fx": {}
+}

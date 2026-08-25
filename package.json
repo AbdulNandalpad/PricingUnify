@@ -6,7 +6,24 @@
   "workspaces": ["engine-core", "config-model", "api6-client", "srv", "app", "mcp-server"],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
-    "test:golden": "node tests/run-golden.js"
+    "test:golden": "node tests/run-golden.js",
+    "start:srv": "node srv/server.js"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=20" },
+  "cds": {
+    "requires": {
+      "auth": {
+        "kind": "mocked",
+        "users": {
+          "alice": { "roles": ["PricingViewer"] },
+          "bob": { "roles": ["PricingAdmin", "PricingViewer"] }
+        },
+        "[production]": { "kind": "xsuaa" }
+      }
+    },
+    "server": {
+      "cors": true,
+      "[production]": { "cors": false }
+    }
+  }
 }

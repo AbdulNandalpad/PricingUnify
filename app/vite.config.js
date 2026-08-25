@@ -9,4 +9,9 @@ export default defineConfig({
   // as raw source instead of running it through CJS->ESM interop.
   resolve: { preserveSymlinks: true },
   optimizeDeps: { include: ['@tss-pricing/engine-core'] },
+  server: {
+    // Backend-orchestrated mode calls srv/ (CAP, default port 4004) — proxying avoids
+    // needing CORS-friendly absolute URLs or VITE_API_BASE_URL for local dev.
+    proxy: { '/rest': 'http://localhost:4004' },
+  },
 })

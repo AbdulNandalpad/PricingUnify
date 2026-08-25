@@ -1,0 +1,17 @@
+{
+  "name": "@tss-pricing/srv",
+  "version": "0.1.0",
+  "description": "CAP Node.js backend — pricing API + config API. CAP is only the host; all pricing logic lives in @tss-pricing/engine-core, all config logic in @tss-pricing/config-model.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@sap/cds": "^10.0.6",
+    "@sap/xssec": "^4.15.0",
+    "@tss-pricing/engine-core": "^0.1.0",
+    "@tss-pricing/config-model": "^0.1.0",
+    "@tss-pricing/api6-client": "^0.1.0"
+  }
+}
