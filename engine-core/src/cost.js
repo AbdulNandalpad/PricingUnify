@@ -12,16 +12,36 @@ const PURPOSE = Object.freeze({ INDICATIVE:'INDICATIVE', BINDING:'BINDING', REPR
 /**
  * Resolves a cost candidate set to the one this pricing run uses.
  * costFacts: { candidates: Cost[], default: string } — `default` is a candidate id (source.key).
- * itemSelection: optional explicit candidate id chosen by the user (recorded in trace by caller).
+ * itemSelection: optional explicit candidate id chosen by the user (recorded in trace by caller)
+ *   — always wins when it matches a candidate.
+ * accessSequence: optional ordered list of source systems (e.g. ["C4C","ERP","CCD","CCP"]) —
+ *   region-config's `costAccessSequence`. Walked in order; the first system with a matching
+ *   candidate wins. This is TSS's own cost-source resolution order, not SAP's condition
+ *   technique — deliberately just an ordered fallback over `candidate.source.system`.
+ * Falls back to `costFacts.default` (or the first candidate) if neither an explicit selection
+ * nor the access sequence matches anything — same as before accessSequence existed.
  * Never picks silently around a MISSING/STALE — purpose gates that in the kernel, not here.
  */
-function resolveCandidate(costFacts, itemSelection) {
+function resolveCandidate(costFacts, itemSelection, accessSequence) {
   if (!costFacts || !Array.isArray(costFacts.candidates) || costFacts.candidates.length === 0) {
-    return { chosen: null, reason: 'NO_CANDIDATES' };
+    return { chosen: null, reason: 'NO_CANDIDATES', matchedStep: null };
   }
+
+  if (itemSelection) {
+    const chosen = costFacts.candidates.find(c => c.source && c.source.key === itemSelection);
+    if (chosen) return { chosen, reason: null, matchedStep: null };
+  }
+
+  if (Array.isArray(accessSequence)) {
+    for (const system of accessSequence) {
+      const chosen = costFacts.candidates.find(c => c.source && c.source.system === system);
+      if (chosen) return { chosen, reason: null, matchedStep: system };
+    }
+  }
+
   const wantId = itemSelection || costFacts.default;
   const chosen = costFacts.candidates.find(c => c.source && c.source.key === wantId) || costFacts.candidates[0];
-  return { chosen, reason: null };
+  return { chosen, reason: null, matchedStep: null };
 }
 
 /** Purpose gate per requirements §7: BINDING refuses FALLBACK/STALE/MISSING costs without explicit override. */

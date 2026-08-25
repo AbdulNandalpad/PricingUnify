@@ -18,6 +18,12 @@
       "items": { "$ref": "resolution-rule.schema.json" },
       "description": "Ladder: stockClass -> originOfData -> supplier/COO/OOD -> costBasis -> fallback chain. MROQ is routing input here, not a constraint."
     },
+    "costAccessSequence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "TSS's own cost-source resolution order — not SAP's condition technique. An ordered list of source systems to try when a part has cost candidates from more than one, e.g. [\"C4C\", \"ERP\", \"CCD\", \"CCP\"] (C4C manual entry first, then ERP, then CCD, then CCP). The first system in the list with a candidate wins; matched against candidate.source.system by engine-core's resolveCandidate(). Optional — omitting it falls back to the facts' own `default` candidate id, same as before this existed."
+    },
     "buildUp": {
       "type": "array",
       "minItems": 1,

@@ -56,6 +56,15 @@ function TraceTable({ steps }) {
   );
 }
 
+/** selectedBy is 'USER' | 'DEFAULT' | 'ACCESS_SEQUENCE:<system>' — see engine-core/src/kernel.js. */
+function describeSelection(selectedBy) {
+  if (selectedBy === 'USER') return 'manually selected';
+  if (selectedBy?.startsWith('ACCESS_SEQUENCE:')) {
+    return `via cost access sequence → ${selectedBy.split(':')[1]}`;
+  }
+  return 'default candidate';
+}
+
 function LineDetail({ line }) {
   return (
     <>
@@ -68,7 +77,9 @@ function LineDetail({ line }) {
       {line.trace.costCandidate && (
         <p className="candidate-line">
           Cost candidate: <strong>{line.trace.costCandidate.value} {line.trace.costCandidate.currency}</strong>{' '}
-          ({line.trace.costCandidate.confidence}, {line.trace.costCandidate.basis}) — selected {line.trace.costCandidate.selectedBy}
+          ({line.trace.costCandidate.confidence}, {line.trace.costCandidate.basis}
+          {line.trace.costCandidate.source?.system ? `, ${line.trace.costCandidate.source.system}` : ''}) —{' '}
+          {describeSelection(line.trace.costCandidate.selectedBy)}
         </p>
       )}
       <TraceTable steps={line.trace.steps} />
@@ -161,7 +172,10 @@ function BatchWorkspace() {
         <p className="hint">
           Facts (cost, freight, duty, pick charge, MOLV) are resolved server-side by the backend's API6
           client — enter part numbers, not costs. Recorded mode knows <code>P-10023</code>, <code>P-20045</code>,{' '}
-          <code>P-30078</code>, <code>P-40012</code>; anything else comes back MISSING.
+          <code>P-30078</code>, <code>P-40012</code> (FALLBACK-confidence — try BINDING purpose to see it get
+          blocked), <code>P-50099</code> (only CCD/CCP candidates — try it to see the cost access sequence fall
+          through), and <code>P-60150</code> (has both ERP and C4C candidates — C4C wins). Anything else comes
+          back MISSING.
         </p>
 
         <div className="field-grid">

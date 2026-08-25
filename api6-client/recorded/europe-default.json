@@ -7,7 +7,7 @@
           "value": "100.00",
           "currency": "EUR",
           "basis": "MOVING_AVG",
-          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -21,7 +21,7 @@
           "value": "58.40",
           "currency": "EUR",
           "basis": "MOVING_AVG",
-          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -35,7 +35,7 @@
           "value": "312.75",
           "currency": "EUR",
           "basis": "MOVING_AVG",
-          "source": { "system": "S4", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -55,13 +55,61 @@
           "confidence": "FALLBACK"
         }
       ]
+    },
+    "P-50099": {
+      "default": "CCD_1",
+      "candidates": [
+        {
+          "value": "90.00",
+          "currency": "EUR",
+          "basis": "SUPPLIER_CATALOG",
+          "source": { "system": "CCD", "table": "CATALOG", "field": "PRICE", "key": "CCD_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        },
+        {
+          "value": "85.00",
+          "currency": "EUR",
+          "basis": "TRANSFER",
+          "source": { "system": "CCP", "table": "CCP_COST", "field": "PRICE", "key": "CCP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "P-60150": {
+      "default": "ERP_1",
+      "candidates": [
+        {
+          "value": "200.00",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "ERP_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        },
+        {
+          "value": "180.00",
+          "currency": "EUR",
+          "basis": "MANUAL",
+          "source": { "system": "C4C", "table": "QUOTE_LINE", "field": "MANUAL_COST", "key": "C4C_1" },
+          "validFrom": "2026-08-20",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
   "elements": {
     "P-10023": { "freight": "5.00", "duty": "2.00", "pickCharge": "21.00", "molv": "50.00" },
     "P-20045": { "freight": "3.10", "duty": "1.20", "pickCharge": "21.00", "molv": "50.00" },
     "P-30078": { "freight": "12.50", "duty": "6.00", "pickCharge": "21.00", "molv": "50.00" },
-    "P-40012": { "freight": "1.50", "duty": "0.40", "pickCharge": "21.00", "molv": "50.00" }
+    "P-40012": { "freight": "1.50", "duty": "0.40", "pickCharge": "21.00", "molv": "50.00" },
+    "P-50099": { "freight": "4.00", "duty": "1.80", "pickCharge": "21.00", "molv": "50.00" },
+    "P-60150": { "freight": "8.00", "duty": "3.50", "pickCharge": "21.00", "molv": "50.00" }
   },
   "fx": {}
 }

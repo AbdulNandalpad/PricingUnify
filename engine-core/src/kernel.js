@@ -52,7 +52,7 @@ function roundTotal(total, rounding) {
 function priceItem(item, request, facts, config) {
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
-  const { chosen, reason } = resolveCandidate(costFacts, item.selectedCostId);
+  const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, config.costAccessSequence);
 
   if (!chosen) {
     return {
@@ -63,7 +63,8 @@ function priceItem(item, request, facts, config) {
     };
   }
 
-  const selectedBy = item.selectedCostId ? 'USER' : 'DEFAULT';
+  // Which of the three ways this candidate was picked — never silent about it (requirements §5.2).
+  const selectedBy = item.selectedCostId ? 'USER' : matchedStep ? `ACCESS_SEQUENCE:${matchedStep}` : 'DEFAULT';
   if (!purposeAllows(chosen.confidence, purpose, item.overrideStaleCost)) {
     return {
       partNumber: item.partNumber,

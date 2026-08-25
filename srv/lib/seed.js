@@ -19,6 +19,7 @@ function seed() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_MOVING_AVG', stockClass: 'MTS', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE }],
+    costAccessSequence: ['C4C', 'ERP', 'CCD', 'CCP'],
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, provenance: HUMAN_PROVENANCE },
