@@ -288,6 +288,42 @@ async function priceRegion(region, item) {
   return res.items[0];
 }
 
+test('topic 10: the Additional Cost flag (0-4) picks which elements apply, independent of stock class', async () => {
+  // P-90700: NonMTS, base 100, freight 10, duty 5, tariff 8, pick 20 (qty 1).
+  const opt0 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 0 });
+  assert.equal(opt0.status, 'PRICED');
+  assert.equal(opt0.result.unitPrice, '100'); // "0 - Nothing to add" -- base cost only
+
+  const opt1 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 1 });
+  assert.equal(opt1.result.unitPrice, '147.7'); // "1 - Landed cost & Markup" -- everything applies, same as no flag at all
+
+  const noFlag = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1 });
+  assert.equal(noFlag.result.unitPrice, '147.7'); // never setting the flag prices identically to option 1 for a NonMTS part
+
+  const opt2 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 2 });
+  assert.equal(opt2.result.unitPrice, '104.7'); // "2 - Markup only": 100 + 4.7
+
+  const opt3 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 3 });
+  assert.equal(opt3.result.unitPrice, '112.7'); // "3 - No Landed cost and Pick": 100 + 4.7(markup) + 8(tariff, not named so stays included)
+
+  const opt4 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 4 });
+  assert.equal(opt4.result.unitPrice, '139.7'); // "4 - Landed cost & Markup, No tariff": 100 + 4.7 + 10 + 5 + 20
+});
+
+test('topic 10: additionalCost never forces freight/duty onto an MTS part -- stock class and the flag both have to allow it', async () => {
+  // P-10023 is MTS -- freight/duty are excluded by stock class regardless of the flag.
+  const line = await priceRegion('EUROPE', { partNumber: 'P-10023', quantity: 10, additionalCost: 1 });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '106.8'); // identical to the no-flag MTS price (topic 4) -- freight/duty still don't apply
+});
+
+test('topic 10: an unrecognized additionalCost value is a typed MISSING, not a guess', async () => {
+  const line = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 9 });
+  assert.equal(line.status, 'MISSING');
+  assert.equal(line.missing.reason, 'ADDITIONAL_COST_UNRESOLVED');
+  assert.equal(line.missing.detail, 'ADDITIONAL_COST_UNMAPPED:9');
+});
+
 test('India: sourced locally (OOD is IN) -- raw cost, no markup at all', async () => {
   const line = await priceRegion('INDIA', { partNumber: 'IN-P001', quantity: 1, ood: 'IN' });
   assert.equal(line.status, 'PRICED');

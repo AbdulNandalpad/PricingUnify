@@ -29,6 +29,20 @@
       "additionalProperties": { "enum": ["MTS", "NonMTS"] },
       "description": "Maps this region's raw ERP stock-class codes (e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) to the two canonical buckets buildUp/constraint `when` expressions branch on via item.stockClass. Optional — a region whose formulas don't yet vary by stock class (e.g. India, or Europe before Appendix A lands) omits it entirely, and srv skips classification for that region rather than requiring every part to carry a code. Once present, every priced item for that region must resolve to a mapped code or it comes back MISSING(STOCK_CLASS_UNRESOLVED) — silently skipping stock-class-conditioned elements would risk under-pricing."
     },
+    "additionalCostMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "markup": { "type": "boolean" },
+          "landedCost": { "type": "boolean" },
+          "tariff": { "type": "boolean" },
+          "pick": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "description": "Maps this region's Additional Cost flag values (a line-level selector the host UI exposes, e.g. \"0 - Nothing to add\", \"1 - Landed cost & Markup\", \"2 - Markup only\", \"3 - No Landed cost and Pick\", \"4 - Landed cost & Markup, No tariff\") to which build-up elements apply — markup, landedCost (freight+duty), tariff, and pick. Keyed by the flag's string value (e.g. \"0\"). srv resolves item.additionalCost through this map into item.includeMarkup/includeLandedCost/includeTariff/includePick; buildUp `when` clauses read those via `!== false` so an item that never sets additionalCost at all keeps pricing exactly as before (unset -> not explicitly excluded -> included). Optional — a region that doesn't expose this flag omits it entirely."
+    },
     "buildUp": {
       "type": "array",
       "minItems": 1,

@@ -68,6 +68,19 @@ function priceItem(item, request, facts, config) {
     };
   }
 
+  // Same pattern as stockClassError: the caller resolves item.additionalCost (a line-level
+  // "which adders apply" flag) into item.include*/additionalCostError before engine-core ever
+  // sees the item, via this region's additionalCostMap. An unrecognized flag value is a typed
+  // MISSING, not a guess at which elements should apply.
+  if (item.additionalCostError) {
+    return {
+      partNumber: item.partNumber,
+      status: 'MISSING',
+      missing: { reason: 'ADDITIONAL_COST_UNRESOLVED', detail: item.additionalCostError },
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [] }),
+    };
+  }
+
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
   const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, config.costAccessSequence);

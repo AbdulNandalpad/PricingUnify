@@ -67,6 +67,35 @@ function applyStockClassNormalization(facts, items, config) {
 }
 
 /**
+ * The Additional Cost flag (topic 10): a line-level selector the host UI exposes (e.g.
+ * "0 - Nothing to add", "1 - Landed cost & Markup", "2 - Markup only", "3 - No Landed cost
+ * and Pick", "4 - Landed cost & Markup, No tariff") that picks which build-up elements apply
+ * for that one line — independent of stock class or region. Resolved through this region's
+ * config.additionalCostMap into item.includeMarkup/includeLandedCost/includeTariff/
+ * includePick, which buildUp `when` clauses read via `!== false`.
+ *
+ * Unlike stock class, an item that never sets additionalCost at all is NOT an error — the
+ * flag is opt-in (most lines never touch it), and every include* flag stays unset, which
+ * `!== false` treats as "not excluded" — i.e. every element still applies, exactly as before
+ * this flag existed. Only an explicitly-set but unrecognized value is a typed MISSING.
+ */
+function applyAdditionalCostFlags(items, config) {
+  if (!config.additionalCostMap) return;
+  for (const item of items) {
+    if (item.additionalCost === undefined || item.additionalCost === null) continue;
+    const mapping = config.additionalCostMap[String(item.additionalCost)];
+    if (!mapping) {
+      item.additionalCostError = `ADDITIONAL_COST_UNMAPPED:${item.additionalCost}`;
+      continue;
+    }
+    item.includeMarkup = mapping.markup;
+    item.includeLandedCost = mapping.landedCost;
+    item.includeTariff = mapping.tariff;
+    item.includePick = mapping.pick;
+  }
+}
+
+/**
  * Trelleborg's "price list" pricing technique (topic 7 of the reference-doc review): a
  * supplier COST that varies by quantity break (e.g. qty 10 -> 18.49, 25 -> 15.41, ...) — per
  * the owner, this is a supplier cost, not necessarily the final customer sell price, so it
@@ -163,6 +192,7 @@ function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) 
   const flatItems = [...nonKitItems, ...componentItems];
   applySupplierOverrides(facts, flatItems, region, salesOrg, priceDate);
   applyStockClassNormalization(facts, flatItems, config);
+  applyAdditionalCostFlags(flatItems, config);
   applyQuantityBreakCost(facts, flatItems);
 
   const flatResult = flatItems.length ? price({ request: { ...request, items: flatItems }, facts, config }) : { items: [] };

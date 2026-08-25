@@ -32,16 +32,28 @@ function seedRegionConfig() {
     // buildUp `when` conditions can branch on — see srv/pricing-service.js's
     // applyStockClassNormalization and engine-core/src/kernel.js.
     stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+    // Topic 10: the host UI's line-level "Additional Cost" selector (0-4) picks which of
+    // these elements apply for that one line, independent of stock class — e.g. "2 - Markup
+    // only" means markup fires but freight/duty/tariff/pick don't, even for an otherwise
+    // Non-MTS part. See srv/pricing-service.js:applyAdditionalCostFlags.
+    additionalCostMap: {
+      0: { markup: false, landedCost: false, tariff: false, pick: false }, // "0 - Nothing to add"
+      1: { markup: true, landedCost: true, tariff: true, pick: true }, // "1 - Landed cost & Markup"
+      2: { markup: true, landedCost: false, tariff: false, pick: false }, // "2 - Markup only"
+      3: { markup: true, landedCost: false, tariff: true, pick: false }, // "3 - No Landed cost and Pick" -- tariff isn't named, so it stays included, same "unless explicitly excluded" rule as Pick in options 1/4
+      4: { markup: true, landedCost: true, tariff: false, pick: true }, // "4 - Landed cost & Markup, No tariff"
+    },
     // Topic 4 (Appendix A): Europe's real formula splits by stock class — Non-MTS gets
     // freight+duty on top of the base cost, MTS does not (moving-average cost is already
-    // "clean"). SCM markup and pick apply to both classes either way.
+    // "clean"). SCM markup and pick apply to both classes either way. Each element also
+    // respects the Additional Cost flag above when a line sets one.
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
-      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, provenance: HUMAN_PROVENANCE },
-      { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
-      { id: 'DUTY', type: 'ADDER', amountRef: 'duty', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
-      { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', provenance: HUMAN_PROVENANCE },
-      { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', provenance: HUMAN_PROVENANCE },
+      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
+      { id: 'DUTY', type: 'ADDER', amountRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
+      { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', when: "item.includeTariff !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: "item.includePick !== false", provenance: HUMAN_PROVENANCE },
     ],
     constraints: [
       { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE },

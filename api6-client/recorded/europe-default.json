@@ -143,6 +143,20 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "P-90700": {
+      "default": "MOVING_AVG_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "EUR",
+          "basis": "MOVING_AVG",
+          "source": { "system": "ERP", "table": "MBEW", "field": "VERPR", "key": "MOVING_AVG_1" },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
   "elements": {
@@ -155,7 +169,8 @@
     "P-70200": { "freight": "6.00", "duty": "2.20", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-90400": { "freight": "2.00", "duty": "1.00", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
     "P-90500": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
-    "P-90600": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" }
+    "P-90600": { "freight": "0", "duty": "0", "tariff": "0", "pickCharge": "21.00", "molv": "50.00", "moq": "1" },
+    "P-90700": { "freight": "10.00", "duty": "5.00", "tariff": "8.00", "pickCharge": "20.00", "molv": "0", "moq": "1" }
   },
   "classification": {
     "P-10023": { "stockClassRaw": "MTS" },
@@ -167,7 +182,8 @@
     "P-70200": { "stockClassRaw": "CMT" },
     "P-90400": { "stockClassRaw": "ZZZ" },
     "P-90500": { "stockClassRaw": "MTO" },
-    "P-90600": { "stockClassRaw": "MTO" }
+    "P-90600": { "stockClassRaw": "MTO" },
+    "P-90700": { "stockClassRaw": "MTO" }
   },
   "qtyBreaks": {
     "P-90500": [
