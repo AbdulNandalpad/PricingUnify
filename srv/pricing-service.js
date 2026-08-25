@@ -1,6 +1,13 @@
+const Decimal = require('decimal.js');
 const { price } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
+
+// Topic 8: kit/BOM header-cost-is-sum-of-components only has a real API6 path for Americas
+// (JDE E1) and China (JDE) — Europe's BOM explosion is handled natively inside S4 (see the S4
+// Pricing sheet), and India has no kit mechanism in the reference docs at all. A kit item
+// requested for any other region is a typed MISSING, not a silent (wrong) price.
+const KIT_SUPPORTED_REGIONS = ['AMERICAS', 'CHINA'];
 
 const SUPPLIER_ADDER_FIELDS = ['freight', 'duty', 'tariff', 'molv', 'moq'];
 
@@ -119,6 +126,102 @@ function applyQuantityBreakCost(facts, items) {
   }
 }
 
+/**
+ * Kit/BOM (topic 8): a kit header item (item.components: [{partNumber, quantity, ...}]) is
+ * quoted as ONE line to the customer, priced as the sum of its components — each priced
+ * through its own full, normal landed-cost build-up (a component can have its own supplier,
+ * COO, stock class, exactly like an independent line), per the S4 Pricing sheet: "Users only
+ * need to input the kit's main item... consolidation occurs at the header level." Lives here
+ * in srv, as orchestration around engine-core's existing per-part price() — not a new kernel
+ * concept — per the owner's explicit call.
+ *
+ * Every component across every kit in the request is flattened into ONE extra batch alongside
+ * the regular (non-kit) items, so the existing per-item fact resolution (supplier overrides,
+ * stock class, quantity-break cost) and a single price() call cover components exactly the
+ * same way they cover any other line — no separate code path for "component pricing."
+ */
+function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) {
+  const items = request.items;
+  const kitIndices = [];
+  items.forEach((it, i) => {
+    if (Array.isArray(it.components) && it.components.length > 0) kitIndices.push(i);
+  });
+
+  // With no kits in this batch, nonKitItems is every item and componentItems is empty — the
+  // rest of this function degrades to exactly one price() call over the original items,
+  // same as before kits existed. No separate no-kit code path needed.
+  const nonKitItems = items.filter((_, i) => !kitIndices.includes(i));
+  const componentItems = [];
+  const componentOwner = []; // parallel array: which kit's request-array index each componentItems[i] belongs to
+  for (const kitIndex of kitIndices) {
+    for (const comp of items[kitIndex].components) {
+      componentItems.push(comp);
+      componentOwner.push(kitIndex);
+    }
+  }
+
+  const flatItems = [...nonKitItems, ...componentItems];
+  applySupplierOverrides(facts, flatItems, region, salesOrg, priceDate);
+  applyStockClassNormalization(facts, flatItems, config);
+  applyQuantityBreakCost(facts, flatItems);
+
+  const flatResult = flatItems.length ? price({ request: { ...request, items: flatItems }, facts, config }) : { items: [] };
+  const nonKitLines = flatResult.items.slice(0, nonKitItems.length);
+  const componentLines = flatResult.items.slice(nonKitItems.length);
+
+  const kitLines = kitIndices.map((kitIndex) => {
+    const kitItem = items[kitIndex];
+    if (!KIT_SUPPORTED_REGIONS.includes(region)) {
+      return {
+        partNumber: kitItem.partNumber,
+        status: 'MISSING',
+        missing: { reason: 'KIT_NOT_SUPPORTED_FOR_REGION', region, supportedRegions: KIT_SUPPORTED_REGIONS },
+        trace: { kit: true, components: [] },
+      };
+    }
+
+    const myComponentLines = componentLines.filter((_, i) => componentOwner[i] === kitIndex);
+    const failed = myComponentLines.find((l) => l.status !== 'PRICED');
+    if (failed) {
+      return {
+        partNumber: kitItem.partNumber,
+        status: failed.status,
+        missing: { reason: 'KIT_COMPONENT_UNRESOLVED', componentPartNumber: failed.partNumber, componentIssue: failed.missing },
+        trace: { kit: true, components: myComponentLines },
+      };
+    }
+
+    const currencies = [...new Set(myComponentLines.map((l) => l.result.currency))];
+    if (currencies.length > 1) {
+      return {
+        partNumber: kitItem.partNumber,
+        status: 'MISSING',
+        missing: { reason: 'KIT_CURRENCY_MISMATCH', currencies },
+        trace: { kit: true, components: myComponentLines },
+      };
+    }
+
+    const total = myComponentLines.reduce(
+      (sum, l) => sum.plus(new Decimal(l.result.unitPrice).times(l.result.quantity)),
+      new Decimal(0),
+    );
+    return {
+      partNumber: kitItem.partNumber,
+      status: 'PRICED',
+      result: { unitPrice: total.toString(), currency: currencies[0], quantity: kitItem.quantity },
+      trace: { kit: true, components: myComponentLines },
+    };
+  });
+
+  const merged = [];
+  let nonKitCursor = 0;
+  let kitCursor = 0;
+  for (let i = 0; i < items.length; i++) {
+    merged.push(kitIndices.includes(i) ? kitLines[kitCursor++] : nonKitLines[nonKitCursor++]);
+  }
+  return { items: merged };
+}
+
 module.exports = (srv) => {
   srv.on('price', async (req) => {
     const payload = req.data.payload || {};
@@ -133,10 +236,11 @@ module.exports = (srv) => {
       return req.reject(422, `No effective config for region "${region}" / salesOrg "${salesOrg}" as of ${priceDate}.`);
     }
 
-    const facts = await api6.getPricingFacts({ region, salesOrg, items });
-    applySupplierOverrides(facts, items, region, salesOrg, priceDate);
-    applyStockClassNormalization(facts, items, config);
-    applyQuantityBreakCost(facts, items);
+    // Kit components need their own facts too (they're priced as full lines in their own
+    // right), so fetch for every part number that will actually be priced, not just the
+    // top-level request items.
+    const allPartNumbers = items.flatMap((it) => (Array.isArray(it.components) ? it.components : [it]));
+    const facts = await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
 
     const request = {
       context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
@@ -146,7 +250,7 @@ module.exports = (srv) => {
       instructions,
     };
 
-    const result = price({ request, facts, config });
+    const result = priceWithKits({ region, salesOrg, priceDate, facts, config, request });
 
     return {
       config: { region: config.region, salesOrg: config.salesOrg, version: config.version, status: config.status },

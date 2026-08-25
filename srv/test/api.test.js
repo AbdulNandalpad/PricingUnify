@@ -200,6 +200,85 @@ test('China MOLV (topic 5): below-MOLV orders bump the QUANTITY, not the price -
   assert.equal(atMolv.trace.constraintPasses.length, 0);
 });
 
+test('topic 8: a kit header prices as the sum of its components, each through its own full build-up', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({
+      payload: {
+        region: 'CHINA',
+        salesOrg: '*',
+        items: [
+          {
+            partNumber: 'CN-K001',
+            quantity: 3,
+            components: [
+              { partNumber: 'CN-K001-A', quantity: 2, ood: 'CN' },
+              { partNumber: 'CN-K001-B', quantity: 1, ood: 'CN' },
+            ],
+          },
+        ],
+      },
+    }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  // CN-K001-A: 50 * 1.032 = 51.6, x2 = 103.2. CN-K001-B: 80 * 1.032 = 82.56, x1 = 82.56.
+  // Header unit price (per kit) = 103.2 + 82.56 = 185.76. Requested 3 kits -- quantity carries
+  // through untouched, same as any other line (extension is unitPrice x quantity elsewhere).
+  assert.equal(line.result.unitPrice, '185.76');
+  assert.equal(line.result.quantity, 3);
+  assert.equal(line.trace.kit, true);
+  assert.equal(line.trace.components.length, 2);
+  assert.equal(line.trace.components[0].result.unitPrice, '51.6');
+  assert.equal(line.trace.components[1].result.unitPrice, '82.56');
+});
+
+test('topic 8: a kit with an unresolvable component comes back MISSING, not silently priced off the good components', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({
+      payload: {
+        region: 'CHINA',
+        salesOrg: '*',
+        items: [
+          {
+            partNumber: 'CN-K002',
+            quantity: 1,
+            components: [
+              { partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' },
+              { partNumber: 'CN-K002-BAD', quantity: 1, ood: 'CN' }, // deliberately unmapped stock class
+            ],
+          },
+        ],
+      },
+    }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'MISSING');
+  assert.equal(line.missing.reason, 'KIT_COMPONENT_UNRESOLVED');
+  assert.equal(line.missing.componentPartNumber, 'CN-K002-BAD');
+});
+
+test('topic 8: a kit requested for a region without a real BOM-explosion path (Europe) is a typed MISSING, not a silent wrong price', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({
+      payload: {
+        region: 'EUROPE',
+        salesOrg: '*',
+        items: [{ partNumber: 'EU-KIT', quantity: 1, components: [{ partNumber: 'P-10023', quantity: 1 }] }],
+      },
+    }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'MISSING');
+  assert.equal(line.missing.reason, 'KIT_NOT_SUPPORTED_FOR_REGION');
+  assert.equal(line.missing.region, 'EUROPE');
+});
+
 async function priceRegion(region, item) {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
