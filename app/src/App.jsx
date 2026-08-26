@@ -263,6 +263,18 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   function updateRow(index, key, value) {
     setRows((rs) => rs.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
   }
+  /** Picking a supplier from the dropdown also fills in its known country — the same
+   *  autofill srv's applySupplierOverrides does server-side, just visible here so the field
+   *  isn't left blank until pricing runs. Still just a starting value: typing over it wins,
+   *  same "explicit selection always wins" precedence as everywhere else. */
+  function pickSupplier(index, supplierId) {
+    const s = knownSuppliers.find((x) => x.supplier === supplierId);
+    setRows((rs) => rs.map((r, i) => (i === index ? {
+      ...r,
+      supplier: supplierId,
+      ...(s?.supplierCountry ? { supplierCountry: s.supplierCountry } : {}),
+    } : r)));
+  }
   function removeRow(index) {
     setRows((rs) => rs.filter((_, i) => i !== index));
   }
@@ -436,10 +448,10 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                       <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
                       <td>
                     {knownSuppliers.length > 0 ? (
-                      <select value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)}>
+                      <select value={row.supplier} onChange={(e) => pickSupplier(i, e.target.value)}>
                         <option value="">— none —</option>
                         {knownSuppliers.map((s) => (
-                          <option key={s.supplier} value={s.supplier}>{s.supplier}</option>
+                          <option key={s.supplier} value={s.supplier}>{s.supplier}{s.supplierCountry ? ` (${s.supplierCountry})` : ''}</option>
                         ))}
                         {row.supplier && !knownSuppliers.some((s) => s.supplier === row.supplier) && (
                           <option value={row.supplier}>{row.supplier}</option>
