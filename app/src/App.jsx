@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { PURPOSE } from '@tss-pricing/engine-core';
-import { priceViaBackend, listSuppliers, DEMO_USERS, ApiError } from './api';
+import { priceViaBackend, fetchItemAttributes, listSuppliers, DEMO_USERS, ApiError } from './api';
 import { DEFAULT_ROWS, newRow, newComponent, parseBulkText, toPricingItems } from './batch';
 import AdminConfig from './AdminConfig.jsx';
 import './App.css';
@@ -261,6 +261,8 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   const [pricedRowIds, setPricedRowIds] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingAttributes, setFetchingAttributes] = useState(false);
+  const [attributesNote, setAttributesNote] = useState(null);
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [knownSuppliers, setKnownSuppliers] = useState([]);
@@ -362,6 +364,40 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
     }
   }
 
+  /** Real-world flow: before pricing, the host system resolves each item's own attributes
+   *  (supplier, stock class, supplier country, warehouse) — here, via the same recorded data
+   *  API6 already stands in for, rather than a real C4C call — and shows them to the user
+   *  up front. Only fills in fields the user hasn't already set themselves. */
+  async function runFetchAttributes() {
+    setError(null);
+    setAttributesNote(null);
+    const items = toPricingItems(rows);
+    if (items.length === 0) {
+      setError('Add at least one part number.');
+      return;
+    }
+    setFetchingAttributes(true);
+    try {
+      const body = await fetchItemAttributes({ user: globals.user, region, salesOrg: globals.salesOrg, items });
+      setRows((rs) => rs.map((r) => {
+        const attrs = body.attributes?.[r.partNumber.trim()];
+        if (!attrs) return r;
+        return {
+          ...r,
+          supplier: r.supplier || attrs.supplier || '',
+          supplierCountry: r.supplierCountry || attrs.supplierCountry || '',
+          warehouse: r.warehouse || attrs.warehouse || '',
+          stockClass: r.stockClass || attrs.stockClass || '',
+        };
+      }));
+      setAttributesNote(`Fetched item attributes for ${Object.keys(body.attributes || {}).length} part(s) — review below, then price.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? `${err.status}: ${err.message}` : err.message);
+    } finally {
+      setFetchingAttributes(false);
+    }
+  }
+
   const lines = result?.items;
   const counts = lines?.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
   // Maps a row id back to its priced line (and submitted item, for the "was X" quantity note)
@@ -450,9 +486,21 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           </Field>
         </div>
 
-        <button type="submit" form="batch-price-form" disabled={loading} className="price-submit-top">
-          {loading ? 'Pricing…' : `Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}
-        </button>
+        <div className="price-action-row">
+          <button type="button" className="link-button-outline" onClick={runFetchAttributes} disabled={fetchingAttributes}>
+            {fetchingAttributes ? 'Fetching…' : '1. Fetch item attributes'}
+          </button>
+          <button type="submit" form="batch-price-form" disabled={loading} className="price-submit-top">
+            {loading ? 'Pricing…' : `2. Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}
+          </button>
+        </div>
+        {attributesNote && <p className="saved-note">{attributesNote}</p>}
+        <p className="hint">
+          Fetching attributes resolves each part's supplier, stock class, supplier country and
+          warehouse before you price — the same two-step flow a real integration follows (a host
+          system resolves these via C4C, then calls the pricing API with them already set). You
+          can still edit anything it fills in before pricing.
+        </p>
 
         <form id="batch-price-form" onSubmit={runBatch}>
           <div className="item-grid-scroll">

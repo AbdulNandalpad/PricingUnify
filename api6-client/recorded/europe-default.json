@@ -420,5 +420,9 @@
       }
     ]
   },
-  "fx": {}
+  "fx": {},
+  "itemAttributes": {
+    "P-70200": { "supplier": "ACME", "warehouse": "EU01" },
+    "EU-T100": { "supplier": "ACME", "warehouse": "EU01" }
+  }
 }

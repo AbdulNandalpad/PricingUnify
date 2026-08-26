@@ -42,6 +42,10 @@ export function priceViaBackend({ user, region, salesOrg, purpose, items }) {
   return callAction('/rest/pricing/price', { user, payload: { region, salesOrg, purpose, items } });
 }
 
+export function fetchItemAttributes({ user, region, salesOrg, items }) {
+  return callAction('/rest/pricing/fetchItemAttributes', { user, payload: { region, salesOrg, items } });
+}
+
 export function getEffectiveConfig({ user, region, salesOrg, asOf }) {
   return callAction('/rest/config/getEffectiveConfig', { user, method: 'GET', payload: { region, salesOrg, asOf } });
 }

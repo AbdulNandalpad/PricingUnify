@@ -98,6 +98,25 @@ function applyStockClassNormalization(facts, items, config) {
 }
 
 /**
+ * In production a host system (C4C) resolves an item's own master-data attributes —
+ * supplier, warehouse, supplier country — before it ever calls this pricing API, and sends
+ * them already populated in the request; that's why every one of those fields already
+ * follows "explicit selection always wins" throughout this file. `facts.itemAttributes`
+ * (from API6's recorded payloads, standing in for that C4C resolution in dev/test) fills in
+ * only what the caller left unset — the same fallback shape as everything else here, never
+ * overriding a value the request already supplied.
+ */
+function applyItemAttributesFromFacts(facts, items) {
+  for (const item of items) {
+    const attrs = facts.itemAttributes && facts.itemAttributes[item.partNumber];
+    if (!attrs) continue;
+    if (!item.supplier && attrs.supplier) item.supplier = attrs.supplier;
+    if (!item.supplierCountry && attrs.supplierCountry) item.supplierCountry = attrs.supplierCountry;
+    if (!item.warehouse && attrs.warehouse) item.warehouse = attrs.warehouse;
+  }
+}
+
+/**
  * The Additional Cost flag (topic 10): a line-level selector the host UI exposes (e.g.
  * "0 - Nothing to add", "1 - Landed cost & Markup", "2 - Markup only", "3 - No Landed cost
  * and Pick", "4 - Landed cost & Markup, No tariff") that picks which build-up elements apply
@@ -356,6 +375,60 @@ module.exports = (srv) => {
       priceDate,
       requestedBy: req.user.id,
       ...result,
+    };
+  });
+
+  /**
+   * Real-world flow: a user adds the items to price, the host system calls C4C to resolve
+   * each item's attributes (supplier, stock class, supplier country, warehouse), shows them
+   * up front, THEN prices using those attributes plus the region's rules. This endpoint is
+   * that first step, standing in for the C4C call — a pure preview, no price() call at all,
+   * so the calculator can populate a line's attributes before the user ever clicks "price."
+   * A real API caller does the same two-call dance itself (resolve attributes, then call
+   * `price` with them already filled in) — `price` doesn't call this internally, since in
+   * production a caller has always already resolved these before reaching it.
+   */
+  srv.on('fetchItemAttributes', async (req) => {
+    const payload = req.data.payload || {};
+    const { salesOrg = '*', items, customerId, customerOod } = payload;
+    const priceDate = payload.priceDate || todayIso();
+
+    if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+
+    const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
+    const resolvedCustomerOod = customerOod || (partyConfig && partyConfig.customerOod) || null;
+
+    const { region, derivedBy: regionDerivedBy, entityLabel, reason: regionUnresolvedReason } =
+      resolveRegion({ region: payload.region, salesOrg, customerOod: resolvedCustomerOod, priceDate });
+    if (!region) {
+      return req.reject(400, `payload.region is required (or provide customerId/customerOod that resolves via region-route) — ${regionUnresolvedReason}.`);
+    }
+
+    const config = store.getEffectiveAsOf(region, salesOrg, priceDate);
+    if (!config) {
+      return req.reject(422, `No effective config for region "${region}" / salesOrg "${salesOrg}" as of ${priceDate}.`);
+    }
+
+    const facts = await api6.getPricingFacts({ region, salesOrg, items });
+    const workingItems = items.map((it) => ({ ...it }));
+    applyItemAttributesFromFacts(facts, workingItems);
+    applySupplierOverrides(facts, workingItems, priceDate);
+    applyStockClassNormalization(facts, workingItems, config);
+
+    const attributes = {};
+    for (const item of workingItems) {
+      attributes[item.partNumber] = {
+        supplier: item.supplier || null,
+        supplierCountry: item.supplierCountry || null,
+        warehouse: item.warehouse || null,
+        stockClass: item.stockClass || null,
+        stockClassError: item.stockClassError || null,
+      };
+    }
+
+    return {
+      region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
+      attributes,
     };
   });
 };

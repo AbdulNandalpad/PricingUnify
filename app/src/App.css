@@ -270,7 +270,8 @@
   color: var(--text-muted);
 }
 
-.panel > button[type='submit'] {
+.panel > button[type='submit'],
+.price-action-row button[type='submit'] {
   margin-top: 20px;
   width: 100%;
   background: var(--navy);
@@ -283,17 +284,49 @@
   cursor: pointer;
 }
 
-.panel > button[type='submit']:hover {
+.panel > button[type='submit']:hover,
+.price-action-row button[type='submit']:hover {
   background: var(--navy-dark);
 }
 
-.panel > button[type='submit'].price-submit-top {
+.panel > button[type='submit'].price-submit-top,
+.price-action-row button[type='submit'].price-submit-top {
   width: auto;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  margin-top: 0;
   padding: 11px 28px;
 }
 
-.panel > button[type='submit']:disabled {
+.price-action-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.link-button-outline {
+  background: none;
+  border: 1px solid var(--navy);
+  color: var(--navy);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-button-outline:hover {
+  background: #eef1fb;
+}
+
+.link-button-outline:disabled {
+  border-color: #9aa0b8;
+  color: #9aa0b8;
+  cursor: not-allowed;
+}
+
+.panel > button[type='submit']:disabled,
+.price-action-row button[type='submit']:disabled {
   background: #9aa0b8;
   cursor: not-allowed;
 }

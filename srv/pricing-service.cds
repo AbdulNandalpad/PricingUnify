@@ -7,4 +7,7 @@
 service PricingService {
   @requires: 'authenticated-user'
   action price(payload: Map) returns Map;
+
+  @requires: 'authenticated-user'
+  action fetchItemAttributes(payload: Map) returns Map;
 }

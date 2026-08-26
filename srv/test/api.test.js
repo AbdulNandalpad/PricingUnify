@@ -88,6 +88,31 @@ test('EUROPE Non-MTS cost resolves via CCD (PIR data) first, per the stock-class
   assert.equal(line.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:CCD');
 });
 
+test('fetchItemAttributes resolves supplier/warehouse/stock class up front -- the C4C-standin step before pricing', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/fetchItemAttributes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'EU-T100' }, { partNumber: 'P-10023' }] } }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(body.attributes['EU-T100'], {
+    supplier: 'ACME', supplierCountry: 'DE', warehouse: 'EU01', stockClass: 'NonMTS', stockClassError: null,
+  });
+  // P-10023 has no recorded supplier/warehouse in the demo data and is genuinely MTS
+  assert.equal(body.attributes['P-10023'].supplier, null);
+  assert.equal(body.attributes['P-10023'].stockClass, 'MTS');
+});
+
+test('fetchItemAttributes never prices -- an explicit item value still always wins over the recorded default', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/fetchItemAttributes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'EU-T100', supplier: 'GLOBEX' }] } }),
+  }).then((r) => r.json());
+  assert.equal(res.attributes['EU-T100'].supplier, 'GLOBEX'); // explicit wins over the recorded ACME default
+});
+
 test('a part whose raw stock-class code is not in the region stockClassMap comes back MISSING, not silently priced', async () => {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
