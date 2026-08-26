@@ -81,6 +81,9 @@ function applySupplierOverrides(facts, items, priceDate) {
 function applyStockClassNormalization(facts, items, config) {
   if (!config.stockClassMap) return;
   for (const item of items) {
+    // Explicit selection always wins, same precedence as cost candidates, supplier country,
+    // and region — a caller that already knows the stock class skips ERP-code normalization.
+    if (item.stockClass) continue;
     const raw = facts.classification && facts.classification[item.partNumber] && facts.classification[item.partNumber].stockClassRaw;
     if (raw === undefined || raw === null || raw === '') {
       item.stockClassError = 'STOCK_CLASS_NOT_PROVIDED';

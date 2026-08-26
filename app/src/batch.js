@@ -5,7 +5,7 @@ function nextId() {
 }
 
 export function newRow(overrides = {}) {
-  return { id: nextId(), partNumber: '', quantity: 1, supplier: '', supplierCountry: '', ood: '', warehouse: '', mroqOverride: '', components: [], kitOpen: false, ...overrides };
+  return { id: nextId(), partNumber: '', quantity: 1, supplier: '', supplierCountry: '', stockClass: '', ood: '', warehouse: '', mroqOverride: '', components: [], kitOpen: false, ...overrides };
 }
 
 /** One kit component line — a kit header's price is the sum of its components, each priced
@@ -54,6 +54,7 @@ export function toPricingItems(rows) {
       const item = { partNumber: r.partNumber.trim(), quantity: Number(r.quantity) || 1 };
       if (r.supplier?.trim()) item.supplier = r.supplier.trim();
       if (r.supplierCountry?.trim()) item.supplierCountry = r.supplierCountry.trim();
+      if (r.stockClass?.trim()) item.stockClass = r.stockClass.trim();
       if (r.ood?.trim()) item.ood = r.ood.trim();
       if (r.warehouse?.trim()) item.warehouse = r.warehouse.trim();
       if (r.mroqOverride?.trim()) item.mroqOverride = r.mroqOverride.trim();

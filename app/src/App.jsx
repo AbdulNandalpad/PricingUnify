@@ -427,10 +427,11 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                 <th>Qty</th>
                 <th title="Supplier for this line — supplier-specific charges and order minimums apply when set">Supplier</th>
                 <th title="The supplier's own country — drives freight/duty and the local vs. overseas handling rate in China, Americas and India">Supplier country</th>
+                <th title="MTS/Non-MTS — leave on auto to classify from the part's own ERP stock-class code; set it directly to override that">Stock class</th>
+                <th title="Destination warehouse — which of the supplier's per-warehouse freight/duty/tariff terms apply (e.g. EU01, US01, CN01, IN01)">Warehouse</th>
                 {showAdvanced && (
                   <>
                     <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
-                    <th title="Destination warehouse — which of the supplier's per-warehouse freight/duty/tariff terms apply (e.g. EU01, US01, CN01, IN01)">Warehouse</th>
                     <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
                   </>
                 )}
@@ -439,7 +440,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const colCount = showAdvanced ? 8 : 5;
+                const colCount = showAdvanced ? 9 : 7;
                 const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
                 return (
                   <Fragment key={row.id}>
@@ -462,10 +463,17 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                     )}
                   </td>
                       <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
+                      <td>
+                        <select value={row.stockClass} onChange={(e) => updateRow(i, 'stockClass', e.target.value)}>
+                          <option value="">— auto —</option>
+                          <option value="MTS">MTS</option>
+                          <option value="NonMTS">NonMTS</option>
+                        </select>
+                      </td>
+                      <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
                       {showAdvanced && (
                         <>
                           <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
-                          <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
                           <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
                         </>
                       )}

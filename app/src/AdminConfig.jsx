@@ -7,6 +7,7 @@ import {
   getEffectiveSupplierConfig,
   listSuppliers,
   listSupplierConfigVersions,
+  saveSupplierConfig,
 } from './api';
 import { RegionConfigEditor, SupplierConfigEditor } from './AdminConfigEdit.jsx';
 
@@ -322,6 +323,38 @@ function SupplierConfigSection({ user, asOf }) {
   const today = new Date().toISOString().slice(0, 10);
   const defaultVersion = `${today}-r${versions.length + 1}`;
 
+  /** Removing one warehouse is common enough (a supplier stops shipping somewhere, a typo'd
+   *  code) that it shouldn't require opening the full editor and typing a version id — this
+   *  still creates a real new version under the hood (config is never mutated in place), just
+   *  with the version auto-generated instead of asked for, same as "Edit as new version" would
+   *  produce if you changed nothing else. */
+  const [deletingWarehouse, setDeletingWarehouse] = useState(null);
+  const deleteWarehouse = async (code) => {
+    if (!result) return;
+    const { [code]: _removed, ...remainingWarehouses } = result.warehouses || {};
+    const payload = {
+      supplier: result.supplier,
+      version: `${today}-r${versions.length + 1}`,
+      supersedes: result.version,
+      supplierCountry: result.supplierCountry,
+      molv: result.molv,
+      warehouses: remainingWarehouses,
+    };
+    if (asOf) payload.validFrom = asOf;
+    setDeletingWarehouse(code);
+    setError(null);
+    try {
+      const saved = await saveSupplierConfig({ user, payload });
+      setSavedNote(`Removed warehouse ${code} — saved as version ${saved.version}.`);
+      setListTick((t) => t + 1);
+      load(supplier);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDeletingWarehouse(null);
+    }
+  };
+
   return (
     <div>
       <p className="hint">
@@ -402,7 +435,7 @@ function SupplierConfigSection({ user, asOf }) {
                 <h4>Warehouses</h4>
                 {result.warehouses && Object.keys(result.warehouses).length > 0 ? (
                   <table className="trace-table">
-                    <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th></tr></thead>
+                    <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th>{isAdmin && <th aria-hidden="true"></th>}</tr></thead>
                     <tbody>
                       {Object.entries(result.warehouses).map(([code, terms]) => (
                         <tr key={code}>
@@ -410,6 +443,20 @@ function SupplierConfigSection({ user, asOf }) {
                           <td className="num mono">{terms.freight ?? '—'}</td>
                           <td className="num mono">{terms.duty ?? '—'}</td>
                           <td className="num mono">{terms.tariff ?? '—'}</td>
+                          {isAdmin && (
+                            <td>
+                              <button
+                                type="button"
+                                className="row-remove"
+                                onClick={() => deleteWarehouse(code)}
+                                disabled={deletingWarehouse === code}
+                                aria-label={`Remove warehouse ${code}`}
+                                title="Remove this warehouse — saves immediately as a new version, no version id to type"
+                              >
+                                {deletingWarehouse === code ? '…' : '×'}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
