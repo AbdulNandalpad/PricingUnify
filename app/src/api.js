@@ -58,6 +58,10 @@ export function listSuppliers({ user, asOf }) {
   return callAction('/rest/config/listSuppliers', { user, method: 'GET', payload: { asOf } });
 }
 
+export function listSupplierConfigVersions({ user, supplier }) {
+  return callAction('/rest/config/listSupplierConfigVersions', { user, method: 'GET', payload: { supplier } });
+}
+
 export function getEffectiveRegionRoute({ user, ood, salesOrg, asOf }) {
   return callAction('/rest/config/getEffectiveRegionRoute', { user, method: 'GET', payload: { ood, salesOrg, asOf } });
 }

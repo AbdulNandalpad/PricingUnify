@@ -13,7 +13,6 @@ function supplierConfig(overrides = {}) {
     validTo: null,
     supplierCountry: 'DE',
     molv: '50.00',
-    moq: '1',
     warehouses: {
       EU01: { freight: '5.00', duty: '2.00', tariff: '0' },
     },
@@ -27,9 +26,8 @@ test('a well-formed supplier-config validates cleanly', () => {
 });
 
 test('fields are individually optional — a supplier can set just supplierCountry with no warehouses at all', () => {
-  const config = supplierConfig({ molv: undefined, moq: undefined, warehouses: undefined });
+  const config = supplierConfig({ molv: undefined, warehouses: undefined });
   delete config.molv;
-  delete config.moq;
   delete config.warehouses;
   assert.equal(validateSupplierConfig(config), true);
 });

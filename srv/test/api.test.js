@@ -413,7 +413,10 @@ test('freight/duty/tariff are per-warehouse, not supplier-wide -- the same suppl
   assert.equal(usWarehouse.result.unitPrice, '217.75'); // same supplier, US01 terms (25/15/20) -- a genuinely different landed cost for the same goods, same supplier
 });
 
-test('a below-MOQ, below-MOLV order for a supplier surfaces both constraints without silently failing', async () => {
+test('a below-MOQ, below-MOLV order surfaces both constraints without silently failing -- MOLV from the supplier, MOQ from the part\'s own facts', async () => {
+  // MOQ is deliberately NOT a supplier-config field (owner: "MOQ is not based on the
+  // supplier, its based on the order") -- P-70200's own facts declare moq=25, independent of
+  // which supplier (if any) is on the line; MOLV (300) still comes from ACME's supplier-config.
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
@@ -424,7 +427,7 @@ test('a below-MOQ, below-MOLV order for a supplier surfaces both constraints wit
   assert.equal(line.result.unitPrice, '300'); // ACME's MOLV floor (300) lifts the 1-unit line
   const kinds = line.trace.constraintPasses.map((c) => c.kind);
   assert.ok(kinds.includes('FLOOR'));
-  assert.ok(kinds.includes('MIN_QTY'), 'below ACME MOQ (25) should surface, even though it never changes price');
+  assert.ok(kinds.includes('MIN_QTY'), 'below the part\'s own MOQ (25) should surface, even though it never changes price');
 });
 
 test('an unknown region/salesOrg with no effective config is a clear 422, not a crash', async () => {

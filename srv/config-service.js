@@ -81,6 +81,12 @@ module.exports = (srv) => {
     return { suppliers: store.listSuppliers(asOf || todayIso()) };
   });
 
+  srv.on('listSupplierConfigVersions', (req) => {
+    const { supplier } = req.data;
+    if (!supplier) return req.reject(400, 'supplier is required.');
+    return { versions: store.listSupplierConfigVersions(supplier) };
+  });
+
   srv.on('getEffectiveRegionRoute', (req) => {
     const { ood, salesOrg = '*', asOf } = req.data;
     if (!ood) return req.reject(400, 'ood is required.');

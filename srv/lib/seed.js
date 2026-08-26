@@ -256,7 +256,6 @@ function seedSupplierConfigs() {
       supplier: 'ACME',
       supplierCountry: 'DE',
       molv: '300.00',
-      moq: '25',
       warehouses: {
         EU01: { freight: '18.00', duty: '9.50', tariff: '12.00' },
         US01: { freight: '25.00', duty: '15.00', tariff: '20.00' },
@@ -268,7 +267,6 @@ function seedSupplierConfigs() {
       supplier: 'GLOBEX',
       supplierCountry: 'NL',
       molv: '50.00',
-      moq: '1',
       warehouses: {
         EU01: { freight: '8.00', duty: '4.00', tariff: '5.00' },
       },
@@ -277,7 +275,6 @@ function seedSupplierConfigs() {
       supplier: 'INITECH',
       supplierCountry: 'CN',
       molv: '50.00',
-      moq: '1',
       warehouses: {
         EU01: { freight: '12.00', duty: '6.00', tariff: '20.00' },
         CN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
@@ -294,7 +291,6 @@ function seedSupplierConfigs() {
       supplier: 'TOKYO',
       supplierCountry: 'JP',
       molv: '500.00',
-      moq: '50',
       warehouses: {
         EU01: { freight: '20.00', duty: '11.00', tariff: '15.00' },
         US01: { freight: '16.00', duty: '8.00', tariff: '22.00' },
@@ -305,7 +301,6 @@ function seedSupplierConfigs() {
       supplier: 'BHARAT',
       supplierCountry: 'IN',
       molv: '20.00',
-      moq: '1',
       warehouses: {
         IN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
         EU01: { freight: '28.00', duty: '14.00', tariff: '18.00' },
@@ -315,7 +310,6 @@ function seedSupplierConfigs() {
       supplier: 'AZTECA',
       supplierCountry: 'MX',
       molv: '40.00',
-      moq: '5',
       warehouses: {
         US01: { freight: '6.00', duty: '3.00', tariff: '4.00' },
       },

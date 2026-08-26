@@ -10,7 +10,10 @@ const { api6 } = require('./lib/api6');
 const KIT_SUPPORTED_REGIONS = ['AMERICAS', 'CHINA'];
 
 const SUPPLIER_WAREHOUSE_ADDER_FIELDS = ['freight', 'duty', 'tariff'];
-const SUPPLIER_WIDE_ADDER_FIELDS = ['molv', 'moq'];
+// MOQ is deliberately not here — it's a property of the order/part, not the supplier
+// (owner: "MOQ is not based on the supplier, its based on the order"); the MIN_QTY
+// constraint still reads it from the part's own facts, unaffected by this.
+const SUPPLIER_WIDE_ADDER_FIELDS = ['molv'];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);

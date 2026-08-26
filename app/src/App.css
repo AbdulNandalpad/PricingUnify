@@ -625,6 +625,14 @@
   background: #f5f6f9;
 }
 
+.results-row-active {
+  background: #eef1fb;
+}
+
+.results-row-active:hover {
+  background: #e4e8f9;
+}
+
 .status-row-missing {
   background: #fdf9f1;
 }
@@ -1285,6 +1293,10 @@ details.hint p {
 
 .config-header .field {
   min-width: 240px;
+}
+
+.config-header .editor-actions {
+  margin-top: 0;
 }
 
 .config-region-pills {

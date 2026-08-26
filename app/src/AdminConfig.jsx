@@ -6,6 +6,7 @@ import {
   listVersions,
   getEffectiveSupplierConfig,
   listSuppliers,
+  listSupplierConfigVersions,
 } from './api';
 import { RegionConfigEditor, SupplierConfigEditor } from './AdminConfigEdit.jsx';
 
@@ -258,15 +259,18 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
 }
 
 /** A supplier is independent of region: it manufactures in one country and ships to
- *  warehouses across every region that orders from it. supplierCountry/MOLV/MOQ are
+ *  warehouses across every region that orders from it. supplierCountry/MOLV are
  *  supplier-wide; freight/duty/tariff vary by destination warehouse, so they render as a
  *  per-warehouse table rather than flat columns. No region/salesOrg scoping — a supplier
- *  either has a document on file or it doesn't. */
+ *  either has a document on file or it doesn't. MOQ isn't modeled here — it's a property of
+ *  the order/part, not the supplier. */
 function SupplierConfigSection({ user, asOf }) {
   const isAdmin = user === 'bob';
-  const [supplier, setSupplier] = useState('ACME');
+  const [supplier, setSupplier] = useState(null);
+  const [lookupText, setLookupText] = useState('');
   const [supplierList, setSupplierList] = useState([]);
   const [result, setResult] = useState(null);
+  const [versions, setVersions] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -282,28 +286,42 @@ function SupplierConfigSection({ user, asOf }) {
     return () => { cancelled = true; };
   }, [user, asOf, listTick]);
 
-  const load = async (supplierId = supplier) => {
+  const load = async (supplierId) => {
+    setSupplier(supplierId);
     setLoading(true);
     setError(null);
     setResult(null);
+    setVersions([]);
     setNotFound(false);
     setEditing(false);
+    setSavedNote(null);
     try {
-      const config = await getEffectiveSupplierConfig({ user, supplier: supplierId, asOf });
+      const [config, versionList] = await Promise.all([
+        getEffectiveSupplierConfig({ user, supplier: supplierId, asOf }),
+        listSupplierConfigVersions({ user, supplier: supplierId }),
+      ]);
       setResult(config);
+      setVersions(versionList.versions);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setNotFound(true);
-      else setError(errorMessage(err));
+      if (err instanceof ApiError && err.status === 404) {
+        setNotFound(true);
+        listSupplierConfigVersions({ user, supplier: supplierId }).then((v) => setVersions(v.versions)).catch(() => {});
+      } else setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
+  // A ready-to-use next version id, same convenience as the region-pricing sheet — one less
+  // thing to type when all you're doing is copying forward and tweaking a number.
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultVersion = `${today}-r${versions.length + 1}`;
+
   return (
     <div>
       <p className="hint">
         A supplier is independent of region — it manufactures goods in one country and ships to
-        warehouses in whichever regions order from it. Supplier country, MOLV and MOQ are
+        warehouses in whichever regions order from it. Supplier country and MOLV are
         supplier-wide; freight, duty and tariff vary by <em>destination warehouse</em> — a line
         that names both a supplier and a warehouse prices with that specific row's numbers.
       </p>
@@ -311,20 +329,19 @@ function SupplierConfigSection({ user, asOf }) {
       {supplierList.length > 0 && (
         <table className="results-table">
           <thead>
-            <tr><th>Supplier</th><th>Country</th><th className="num">MOLV</th><th className="num">MOQ</th><th>Warehouses</th></tr>
+            <tr><th>Supplier</th><th>Country</th><th className="num">MOLV</th><th>Warehouses</th></tr>
           </thead>
           <tbody>
             {supplierList.map((s) => (
               <tr
                 key={s.supplier}
-                className="results-row"
-                onClick={() => { setSupplier(s.supplier); load(s.supplier); }}
+                className={s.supplier === supplier ? 'results-row results-row-active' : 'results-row'}
+                onClick={() => load(s.supplier)}
                 title="Click to open this supplier"
               >
                 <td className="mono">{s.supplier}</td>
                 <td className="mono">{s.supplierCountry ?? '—'}</td>
                 <td className="num mono">{s.molv ?? '—'}</td>
-                <td className="num mono">{s.moq ?? '—'}</td>
                 <td className="mono">{s.warehouses && Object.keys(s.warehouses).length > 0 ? Object.keys(s.warehouses).join(', ') : '—'}</td>
               </tr>
             ))}
@@ -332,62 +349,91 @@ function SupplierConfigSection({ user, asOf }) {
         </table>
       )}
 
-      <div className="field-grid">
-        <Field label="Supplier (click a row above, or type a new id to create one)">
-          <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="e.g. ACME" />
-        </Field>
-      </div>
-      <button type="button" onClick={() => load()} disabled={loading || !supplier.trim()}>
-        {loading ? 'Loading…' : `Look up ${supplier || '…'}`}
-      </button>
+      <details className="hint">
+        <summary>Look up or create a supplier by id</summary>
+        <div className="field-grid">
+          <Field label="Supplier id">
+            <input value={lookupText} onChange={(e) => setLookupText(e.target.value)} placeholder="e.g. ACME" />
+          </Field>
+        </div>
+        <button type="button" onClick={() => load(lookupText)} disabled={loading || !lookupText.trim()}>
+          {loading ? 'Loading…' : `Look up ${lookupText || '…'}`}
+        </button>
+      </details>
+
       {error && <p className="error">{error}</p>}
-      {savedNote && <p className="hint">{savedNote}</p>}
       {notFound && <p className="missing-reason">No effective supplier-config for "{supplier}".</p>}
 
-      {isAdmin && (result || notFound) && !editing && (
-        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
-          {result ? 'Edit as new version' : 'Create supplier config'}
-        </button>
-      )}
-
-      {result && !editing && (
-        <>
-          <dl className="config-meta">
-            <div><dt>Version</dt><dd className="mono">{result.version}</dd></div>
-            <div><dt>Valid from</dt><dd className="mono">{result.validFrom}</dd></div>
-            <div><dt>Supplier country</dt><dd className="mono">{result.supplierCountry ?? '—'}</dd></div>
-            <div><dt>MOLV</dt><dd className="mono">{result.molv ?? '—'}</dd></div>
-            <div><dt>MOQ</dt><dd className="mono">{result.moq ?? '—'}</dd></div>
-          </dl>
-          <h4>Warehouses</h4>
-          {result.warehouses && Object.keys(result.warehouses).length > 0 ? (
-            <table className="trace-table">
-              <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th></tr></thead>
-              <tbody>
-                {Object.entries(result.warehouses).map(([code, terms]) => (
-                  <tr key={code}>
-                    <td className="mono">{code}</td>
-                    <td className="num mono">{terms.freight ?? '—'}</td>
-                    <td className="num mono">{terms.duty ?? '—'}</td>
-                    <td className="num mono">{terms.tariff ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="hint">No per-warehouse charges declared — a line shipped to any warehouse falls back to whatever API6 already put in facts.</p>
-          )}
-        </>
-      )}
-
-      {editing && (
+      {editing ? (
         <SupplierConfigEditor
           user={user}
           supplier={supplier}
           base={result}
-          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); setListTick((t) => t + 1); load(); }}
+          defaultVersion={defaultVersion}
+          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); setListTick((t) => t + 1); load(supplier); }}
           onCancel={() => setEditing(false)}
         />
+      ) : (
+        (result || notFound) && (
+          <div className="admin-config-detail">
+            <div className="config-header">
+              <h3>{supplier}{result ? ` — v${result.version}` : ' (new)'}</h3>
+              {isAdmin && (
+                <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
+                  {result ? 'Edit as new version' : 'Create supplier config'}
+                </button>
+              )}
+            </div>
+            {savedNote && <p className="saved-note">{savedNote}</p>}
+
+            {result && (
+              <>
+                <dl className="config-meta">
+                  <div><dt>Valid from</dt><dd className="mono">{result.validFrom}</dd></div>
+                  <div><dt>Supplier country</dt><dd className="mono">{result.supplierCountry ?? '—'}</dd></div>
+                  <div><dt>MOLV</dt><dd className="mono">{result.molv ?? '—'}</dd></div>
+                </dl>
+                <h4>Warehouses</h4>
+                {result.warehouses && Object.keys(result.warehouses).length > 0 ? (
+                  <table className="trace-table">
+                    <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th></tr></thead>
+                    <tbody>
+                      {Object.entries(result.warehouses).map(([code, terms]) => (
+                        <tr key={code}>
+                          <td className="mono">{code}</td>
+                          <td className="num mono">{terms.freight ?? '—'}</td>
+                          <td className="num mono">{terms.duty ?? '—'}</td>
+                          <td className="num mono">{terms.tariff ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="hint">No per-warehouse charges declared — a line shipped to any warehouse falls back to whatever API6 already put in facts.</p>
+                )}
+              </>
+            )}
+
+            {versions.length > 0 && (
+              <details className="hint version-history">
+                <summary>Version history ({versions.length})</summary>
+                <table className="results-table">
+                  <thead><tr><th>Version</th><th>Status</th><th>Valid from</th><th>Valid to</th></tr></thead>
+                  <tbody>
+                    {versions.map((v) => (
+                      <tr key={v.version}>
+                        <td className="mono">{v.version}</td>
+                        <td><span className={`badge-status badge-status-${v.status === 'ACTIVE' ? 'priced' : 'missing'}`}>{v.status}</span></td>
+                        <td className="mono">{v.validFrom}</td>
+                        <td className="mono">{v.validTo || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            )}
+          </div>
+        )
       )}
     </div>
   );

@@ -25,6 +25,9 @@ service ConfigService {
   function listSuppliers(asOf: String) returns Map;
 
   @requires: 'authenticated-user'
+  function listSupplierConfigVersions(supplier: String) returns Map;
+
+  @requires: 'authenticated-user'
   function getEffectiveRegionRoute(ood: String, salesOrg: String, asOf: String) returns Map;
 
   @requires: 'authenticated-user'

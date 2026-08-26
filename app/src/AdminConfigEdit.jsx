@@ -525,16 +525,18 @@ function rowsToWarehouses(rows) {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
-/** Supplier-config is global — no region/salesOrg. supplierCountry/MOLV/MOQ are flat,
+/** Supplier-config is global — no region/salesOrg. supplierCountry/MOLV are flat,
  *  supplier-wide fields; freight/duty/tariff vary by destination warehouse, so they're an
  *  editable per-warehouse table (same editable-rows pattern as RegionConfigEditor's build-up
- *  and constraints tables) rather than a flat field. */
-export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }) {
-  const [version, setVersion] = useState('');
+ *  and constraints tables) rather than a flat field. MOQ isn't here — it's an order/part
+ *  property, not a supplier one. Opening this editor always starts as a full copy of the
+ *  current version (every field, every warehouse row) with a ready-to-use next version id —
+ *  editing is "change what's different, then save", never "start from a blank form". */
+export function SupplierConfigEditor({ user, supplier, base, defaultVersion, onSaved, onCancel }) {
+  const [version, setVersion] = useState(defaultVersion || '');
   const [validFrom, setValidFrom] = useState('');
   const [supplierCountry, setSupplierCountry] = useState(base?.supplierCountry ?? '');
   const [molv, setMolv] = useState(base?.molv ?? '');
-  const [moq, setMoq] = useState(base?.moq ?? '');
   const [warehouseRows, setWarehouseRows] = useState(() => warehousesToRows(base?.warehouses));
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -551,7 +553,6 @@ export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }
     if (validFrom) payload.validFrom = validFrom;
     if (supplierCountry.trim()) payload.supplierCountry = supplierCountry.trim();
     if (String(molv).trim() !== '') payload.molv = numberOrString(molv);
-    if (String(moq).trim() !== '') payload.moq = numberOrString(moq);
     const warehouses = rowsToWarehouses(warehouseRows);
     if (warehouses) payload.warehouses = warehouses;
 
@@ -568,18 +569,27 @@ export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }
 
   return (
     <div className="admin-config-detail admin-editor">
-      <h3>New supplier-config version for {supplier}{base ? ` (based on ${base.version})` : ''}</h3>
-      <p className="hint">A supplier is independent of region — supplier country, MOLV and MOQ apply everywhere; freight/duty/tariff are set per destination warehouse below.</p>
+      <div className="config-header">
+        <h3>{supplier}{base ? ` — new version (copied from v${base.version})` : ' — new supplier'}</h3>
+        <div className="editor-actions">
+          <button type="button" onClick={save} disabled={saving || !version.trim()}>{saving ? 'Saving…' : 'Save'}</button>
+          {onCancel && <button type="button" className="link-button" onClick={onCancel}>Cancel</button>}
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
 
       <div className="field-grid">
+        <Field label="Save as version">
+          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 2026.08.1" />
+        </Field>
+        <Field label="Effective from (blank = today)">
+          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+        </Field>
         <Field label="Supplier country">
           <input value={supplierCountry} onChange={(e) => setSupplierCountry(e.target.value)} placeholder="e.g. DE" />
         </Field>
         <Field label="MOLV (supplier-wide)">
           <input className="qty-input" value={molv} onChange={(e) => setMolv(e.target.value)} />
-        </Field>
-        <Field label="MOQ (supplier-wide)">
-          <input className="qty-input" value={moq} onChange={(e) => setMoq(e.target.value)} />
         </Field>
       </div>
 
@@ -602,20 +612,6 @@ export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }
         </tbody>
       </table>
       <button type="button" className="link-button" onClick={() => setWarehouseRows((rows) => [...rows, { code: '', freight: '', duty: '', tariff: '' }])}>+ Add warehouse</button>
-
-      {error && <p className="error">{error}</p>}
-      <div className="save-bar">
-        <Field label="Save as version">
-          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 2026.08.1" />
-        </Field>
-        <Field label="Effective from (blank = today)">
-          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-        </Field>
-        <div className="editor-actions">
-          <button type="button" onClick={save} disabled={saving || !version.trim()}>{saving ? 'Saving…' : 'Save supplier config'}</button>
-          {onCancel && <button type="button" className="link-button" onClick={onCancel}>Cancel</button>}
-        </div>
-      </div>
     </div>
   );
 }
