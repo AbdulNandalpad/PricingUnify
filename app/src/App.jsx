@@ -111,7 +111,7 @@ function MarginWhatIf({ unitPrice, currency }) {
       <h3>Sell price &amp; margin</h3>
       <div className="margin-row">
         <input type="number" step="0.1" min="0" max="99.9" value={margin} onChange={(e) => setMargin(e.target.value)} />
-        <span style={{ color: 'var(--tss-light-grey)', fontSize: 13 }}>%</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>%</span>
         <div className="margin-bar-wrap"><div className="margin-bar" style={{ width: `${Math.min(Math.max(m, 0), 100)}%` }} /></div>
         <span className="margin-result">{sell === null ? '∞' : `${sell.toFixed(2)} ${currency}`}</span>
       </div>
