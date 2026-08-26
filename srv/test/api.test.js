@@ -612,6 +612,48 @@ test('a PricingAdmin can save supplier-config, region-route, and party-config di
   assert.equal(party.body.customerOod, 'SAP');
 });
 
+// Verification parts: one per region, all with a STATIC 100.00 base cost and round charge
+// values, so every factor the config applies is directly readable in the result. These are
+// the numbers the owner verifies the config against by hand.
+test('EU-T100: 100 + 4.7% markup + 10 freight + 5 duty + 8 tariff + 20/10 pick = 129.7 EUR', async () => {
+  const line = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.trace.costCandidate.value, '100.00');
+  assert.equal(line.trace.stockClass, 'NonMTS');
+  assert.equal(line.result.unitPrice, '129.7');
+});
+
+test('CN-T100: JDE China route = 100 × 1.032 = 103.2 CNY; SAP route (US COO) = 136.22 CNY', async () => {
+  const jde = await priceChina({ partNumber: 'CN-T100', quantity: 1, ood: 'CN' });
+  assert.equal(jde.status, 'PRICED');
+  assert.equal(jde.result.unitPrice, '103.2');
+
+  const sap = await priceChina({ partNumber: 'CN-T100', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'US' });
+  assert.equal(sap.status, 'PRICED');
+  assert.equal(sap.result.unitPrice, '136.22'); // 100 + 32 (×1.32 F&D) + 3.2% on 132
+});
+
+test('IN-T100: local supplier = 100 INR flat; overseas (or unresolved) supplier = 140 INR (+40%)', async () => {
+  const local = await priceRegion('INDIA', { partNumber: 'IN-T100', quantity: 1, supplierCountry: 'IN' });
+  assert.equal(local.status, 'PRICED');
+  assert.equal(local.result.unitPrice, '100');
+
+  const overseas = await priceRegion('INDIA', { partNumber: 'IN-T100', quantity: 1 });
+  assert.equal(overseas.status, 'PRICED');
+  assert.equal(overseas.result.unitPrice, '140');
+});
+
+test('US-T100: US supplier = 100 + 6.7% LCA + 10 + 5 + 8 + 34/10 pick = 133.1 USD; overseas = 136.9 USD', async () => {
+  const domestic = await priceRegion('AMERICAS', { partNumber: 'US-T100', quantity: 10, supplierCountry: 'US' });
+  assert.equal(domestic.status, 'PRICED');
+  assert.equal(domestic.trace.stockClass, 'NonMTS');
+  assert.equal(domestic.result.unitPrice, '133.1');
+
+  const overseas = await priceRegion('AMERICAS', { partNumber: 'US-T100', quantity: 10 });
+  assert.equal(overseas.status, 'PRICED');
+  assert.equal(overseas.result.unitPrice, '136.9'); // 10.5% LCA instead of 6.7%
+});
+
 test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {
   const route = await fetch(`${BASE}/rest/config/getEffectiveRegionRoute?ood=SAP&salesOrg=*`, {
     headers: { Authorization: basicAuthHeader('alice') },

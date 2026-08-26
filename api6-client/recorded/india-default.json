@@ -7,7 +7,12 @@
           "value": "50.00",
           "currency": "INR",
           "basis": "STANDARD",
-          "source": { "system": "FS", "table": "ITEM_COST", "field": "RAW_COST", "key": "FS_1" },
+          "source": {
+            "system": "FS",
+            "table": "ITEM_COST",
+            "field": "RAW_COST",
+            "key": "FS_1"
+          },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -21,7 +26,31 @@
           "value": "50.00",
           "currency": "INR",
           "basis": "STANDARD",
-          "source": { "system": "FS", "table": "ITEM_COST", "field": "RAW_COST", "key": "FS_1" },
+          "source": {
+            "system": "FS",
+            "table": "ITEM_COST",
+            "field": "RAW_COST",
+            "key": "FS_1"
+          },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "IN-T100": {
+      "default": "FS_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "INR",
+          "basis": "STANDARD",
+          "source": {
+            "system": "FS",
+            "table": "ITEM_COST",
+            "field": "RAW_COST",
+            "key": "FS_1"
+          },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"

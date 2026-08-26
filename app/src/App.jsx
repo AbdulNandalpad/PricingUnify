@@ -355,13 +355,21 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
         <details className="hint">
           <summary>Sample parts to try (demo data)</summary>
           <p>
-            <code>P-10023</code>, <code>P-20045</code>, <code>P-30078</code> price normally.{' '}
+            <strong>Verification parts</strong> — one per region, each with a static base cost of exactly{' '}
+            <code>100.00</code> and round charges, so every configured factor is directly readable in the
+            result: <code>EU-T100</code> (qty 10 → 129.7 EUR: 4.7% markup + 10 freight + 5 duty + 8 tariff +
+            2 pick), <code>CN-T100</code> (data origin CN → 103.2 CNY; data origin SAP + origin US → 136.22),{' '}
+            <code>IN-T100</code> (supplier country IN → 100; otherwise → 140), <code>US-T100</code> (qty 10,
+            supplier country US → 133.1 USD; otherwise → 136.9).
+          </p>
+          <p>
+            Other parts: <code>P-10023</code>, <code>P-20045</code>, <code>P-30078</code> price normally.{' '}
             <code>P-40012</code> has only an estimated cost — pick the Binding purpose to see it held back.{' '}
             <code>P-60150</code> has a manually entered cost that wins over the ERP one.{' '}
             <code>P-70200</code> with supplier <code>ACME</code> shows supplier-specific charges and order
-            minimums. Switch region to CHINA and try <code>CN-P001</code>…<code>CN-P006</code>, INDIA{' '}
-            <code>IN-P001</code>/<code>IN-P002</code>, AMERICAS <code>US-P001</code>…<code>US-P004</code>.
-            Unknown part numbers come back as Missing.
+            minimums. CHINA: <code>CN-P001</code>…<code>CN-P006</code>; INDIA <code>IN-P001</code>/
+            <code>IN-P002</code>; AMERICAS <code>US-P001</code>…<code>US-P004</code>. Unknown part numbers
+            come back as Missing.
           </p>
         </details>
 

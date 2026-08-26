@@ -7,7 +7,12 @@
           "value": "100.00",
           "currency": "USD",
           "basis": "WEIGHTED_AVG",
-          "source": { "system": "JDE_E1", "table": "F4105", "field": "UNIT_COST", "key": "JDE_E1_1" },
+          "source": {
+            "system": "JDE_E1",
+            "table": "F4105",
+            "field": "UNIT_COST",
+            "key": "JDE_E1_1"
+          },
           "validFrom": "2025-01-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -21,7 +26,12 @@
           "value": "100.00",
           "currency": "USD",
           "basis": "WEIGHTED_AVG",
-          "source": { "system": "JDE_E1", "table": "F4105", "field": "UNIT_COST", "key": "JDE_E1_1" },
+          "source": {
+            "system": "JDE_E1",
+            "table": "F4105",
+            "field": "UNIT_COST",
+            "key": "JDE_E1_1"
+          },
           "validFrom": "2025-01-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -35,7 +45,12 @@
           "value": "100.00",
           "currency": "USD",
           "basis": "WEIGHTED_AVG",
-          "source": { "system": "JDE_E1", "table": "F4105", "field": "UNIT_COST", "key": "JDE_E1_1" },
+          "source": {
+            "system": "JDE_E1",
+            "table": "F4105",
+            "field": "UNIT_COST",
+            "key": "JDE_E1_1"
+          },
           "validFrom": "2025-01-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -49,7 +64,31 @@
           "value": "100.00",
           "currency": "USD",
           "basis": "WEIGHTED_AVG",
-          "source": { "system": "JDE_E1", "table": "F4105", "field": "UNIT_COST", "key": "JDE_E1_1" },
+          "source": {
+            "system": "JDE_E1",
+            "table": "F4105",
+            "field": "UNIT_COST",
+            "key": "JDE_E1_1"
+          },
+          "validFrom": "2025-01-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
+    },
+    "US-T100": {
+      "default": "JDE_E1_1",
+      "candidates": [
+        {
+          "value": "100.00",
+          "currency": "USD",
+          "basis": "WEIGHTED_AVG",
+          "source": {
+            "system": "JDE_E1",
+            "table": "F4105",
+            "field": "UNIT_COST",
+            "key": "JDE_E1_1"
+          },
           "validFrom": "2025-01-01",
           "retrievedAt": "2026-08-20T00:00:00Z",
           "confidence": "EXACT"
@@ -58,16 +97,48 @@
     }
   },
   "elements": {
-    "US-P001": { "freight": "10.00", "duty": "5.00", "tariff": "2.00" },
-    "US-P002": { "freight": "10.00", "duty": "5.00", "tariff": "2.00" },
-    "US-P003": { "freight": "10.00", "duty": "5.00", "tariff": "2.00" },
-    "US-P004": { "freight": "10.00", "duty": "5.00", "tariff": "2.00" }
+    "US-P001": {
+      "freight": "10.00",
+      "duty": "5.00",
+      "tariff": "2.00"
+    },
+    "US-P002": {
+      "freight": "10.00",
+      "duty": "5.00",
+      "tariff": "2.00"
+    },
+    "US-P003": {
+      "freight": "10.00",
+      "duty": "5.00",
+      "tariff": "2.00"
+    },
+    "US-P004": {
+      "freight": "10.00",
+      "duty": "5.00",
+      "tariff": "2.00"
+    },
+    "US-T100": {
+      "freight": "10.00",
+      "duty": "5.00",
+      "tariff": "8.00"
+    }
   },
   "classification": {
-    "US-P001": { "stockClassRaw": "MTS" },
-    "US-P002": { "stockClassRaw": "MTO" },
-    "US-P003": { "stockClassRaw": "MTS" },
-    "US-P004": { "stockClassRaw": "MTO" }
+    "US-P001": {
+      "stockClassRaw": "MTS"
+    },
+    "US-P002": {
+      "stockClassRaw": "MTO"
+    },
+    "US-P003": {
+      "stockClassRaw": "MTS"
+    },
+    "US-P004": {
+      "stockClassRaw": "MTO"
+    },
+    "US-T100": {
+      "stockClassRaw": "MTO"
+    }
   },
   "fx": {}
 }
