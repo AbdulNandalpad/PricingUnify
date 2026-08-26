@@ -12,6 +12,17 @@ const STATUS_LABEL = {
   BLOCKED: 'Blocked',
 };
 
+/** The business's confirmed list of 5 pricing techniques (see CLAUDE.md Parked).
+ *  Only cost-plus/landed-cost is implemented today — the rest are shown so the
+ *  roadmap is visible, but can't be selected until they're actually built. */
+const PRICING_TYPES = [
+  { id: 'COST_PLUS', label: 'Cost-plus / Landed cost', available: true },
+  { id: 'PRICE_LIST', label: 'Price list', available: false },
+  { id: 'VARIANT', label: 'Variant pricing', available: false },
+  { id: 'VALUE_BASED', label: 'Value-based', available: false },
+  { id: 'AI_PROPOSED', label: 'AI-proposed costs', available: false },
+];
+
 function Field({ label, children }) {
   return (
     <label className="field">
@@ -105,7 +116,7 @@ function LineDetail({ line }) {
  *  to the backend, and a results table you drill into per line. Facts are resolved by the
  *  backend's API6 client (recorded payload today) — not entered by hand. */
 function BatchWorkspace() {
-  const [globals, setGlobals] = useState({ user: 'alice', region: 'EUROPE', salesOrg: '*', purpose: PURPOSE.INDICATIVE });
+  const [globals, setGlobals] = useState({ user: 'alice', region: 'EUROPE', salesOrg: '*', purpose: PURPOSE.INDICATIVE, pricingType: 'COST_PLUS' });
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [bulkText, setBulkText] = useState('');
   const [showBulk, setShowBulk] = useState(false);
@@ -202,6 +213,15 @@ function BatchWorkspace() {
             <select value={globals.purpose} onChange={(e) => updateGlobal('purpose', e.target.value)}>
               {Object.values(PURPOSE).map((p) => (
                 <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Pricing type">
+            <select value={globals.pricingType} onChange={(e) => updateGlobal('pricingType', e.target.value)}>
+              {PRICING_TYPES.map((t) => (
+                <option key={t.id} value={t.id} disabled={!t.available}>
+                  {t.label}{t.available ? '' : ' — coming soon'}
+                </option>
               ))}
             </select>
           </Field>
@@ -359,7 +379,7 @@ function DirectWorkspace() {
     <main className="layout">
       <form className="panel" onSubmit={runPricing}>
         <h2>Item &amp; facts</h2>
-        <p className="hint">Sample EUROPE-shaped build-up: BASE → SCM 4.7% FACTOR → freight/duty ADDERs → pick-charge PER_LINE → MOLV floor. One line, hand-edited facts — see the kernel mechanics directly.</p>
+        <p className="hint">Sample EUROPE-shaped calculation: base cost → 4.7% markup → freight/duty → pick charge → MOLV floor. One line, hand-edited facts — see the full step-by-step calculation.</p>
 
         <div className="field-grid">
           <Field label="Part number">
@@ -447,7 +467,7 @@ function DirectWorkspace() {
 
 const MODE_SUBTITLE = {
   backend: 'Batch pricing — React → CAP (srv/) → config-model + api6-client → engine-core',
-  direct: 'Kernel-mechanics demo — engine-core running directly in the browser, no backend',
+  direct: 'Single-line demo — price one part by hand, no backend, see the full calculation step by step',
   admin: 'Admin config — browse region configs, supplier overrides, and the AI-suggestion review queue',
 };
 
@@ -466,7 +486,7 @@ export default function App() {
             Pricing workspace
           </button>
           <button type="button" className={mode === 'direct' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('direct')}>
-            Kernel demo
+            Demo
           </button>
           <button type="button" className={mode === 'admin' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('admin')}>
             Admin config
