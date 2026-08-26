@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ApiError, saveRegionConfig, saveSupplierConfig, saveRegionRoute, savePartyConfig } from './api';
 
 function editErrorMessage(err) {
@@ -14,8 +14,9 @@ function Field({ label, children }) {
   );
 }
 
-/** "a && b" <-> when arrays: the UI edits one text field; multiple AND-ed conditions are
- *  written with " && " between them, matching how the read-only view renders them. */
+/** "a && b" <-> when arrays: the row state holds one text representation; multiple AND-ed
+ *  conditions are written with " && " between them, matching the read-only view. The
+ *  structured builder below edits the same text, so both stay in sync. */
 function whenToText(when) {
   if (!when) return '';
   return Array.isArray(when) ? when.join(' && ') : when;
@@ -25,6 +26,96 @@ function textToWhen(text) {
   if (!trimmed) return undefined;
   const parts = trimmed.split('&&').map((p) => p.trim()).filter(Boolean);
   return parts.length > 1 ? parts : parts[0];
+}
+
+/** The request-item fields `when` conditions actually branch on today — the picker offers
+ *  these, plus a free-text option for anything else the engine's grammar allows. */
+const WHEN_FIELDS = [
+  'item.stockClass',
+  'item.coo',
+  'item.ood',
+  'item.supplier',
+  'item.supplierCountry',
+  'item.warehouse',
+  'item.includeMarkup',
+  'item.includeLandedCost',
+  'item.includeTariff',
+  'item.includePick',
+];
+
+/** One side of the engine's single-comparison grammar: "path OP literal". Returns null for
+ *  anything that doesn't parse — the builder then falls back to free text for that condition. */
+function parseCondition(expr) {
+  const m = String(expr).trim().match(/^(\S+)\s*(===|!==)\s*(.+)$/);
+  if (!m) return null;
+  let value = m[3].trim();
+  if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+    value = value.slice(1, -1);
+  }
+  return { field: m[1], op: m[2], value };
+}
+
+function serializeCondition(c) {
+  const raw = String(c.value).trim();
+  const bare = ['true', 'false', 'null'].includes(raw) || (raw !== '' && !Number.isNaN(Number(raw)));
+  return `${c.field} ${c.op} ${bare ? raw : `'${raw}'`}`;
+}
+
+/** Structured editor for one element's `when`: condition rows (field / is / is not / value),
+ *  AND-ed together. Conditions that don't fit the simple grammar stay editable as raw text. */
+function WhenBuilder({ text, onChange }) {
+  const parts = text.trim() ? text.split('&&').map((p) => p.trim()).filter(Boolean) : [];
+  const conditions = parts.map((p) => ({ raw: p, parsed: parseCondition(p) }));
+
+  const emit = (next) => {
+    onChange(next.map((c) => (c.parsed ? serializeCondition(c.parsed) : c.raw)).join(' && '));
+  };
+  const updateParsed = (i, key, value) => {
+    const next = conditions.map((c, ci) => (ci === i ? { ...c, parsed: { ...c.parsed, [key]: value } } : c));
+    emit(next);
+  };
+  const updateRaw = (i, value) => {
+    const next = conditions.map((c, ci) => (ci === i ? { raw: value, parsed: null } : c));
+    onChange(next.map((c) => (c.parsed ? serializeCondition(c.parsed) : c.raw)).join(' && '));
+  };
+  const remove = (i) => emit(conditions.filter((_, ci) => ci !== i));
+  const add = () => emit([...conditions, { parsed: { field: WHEN_FIELDS[0], op: '===', value: '' } }]);
+
+  return (
+    <div className="when-builder">
+      <p className="hint">
+        This element only applies when <strong>all</strong> conditions below are true. No conditions = always applies.
+      </p>
+      {conditions.map((c, i) => (
+        <div className="when-condition-row" key={i}>
+          {c.parsed ? (
+            <>
+              <select
+                value={WHEN_FIELDS.includes(c.parsed.field) ? c.parsed.field : '__custom__'}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') updateRaw(i, serializeCondition(c.parsed));
+                  else updateParsed(i, 'field', e.target.value);
+                }}
+              >
+                {WHEN_FIELDS.map((f) => <option key={f} value={f}>{f.replace('item.', '')}</option>)}
+                {!WHEN_FIELDS.includes(c.parsed.field) && <option value={c.parsed.field}>{c.parsed.field}</option>}
+                <option value="__custom__">custom expression…</option>
+              </select>
+              <select value={c.parsed.op} onChange={(e) => updateParsed(i, 'op', e.target.value)}>
+                <option value="===">is</option>
+                <option value="!==">is not</option>
+              </select>
+              <input value={c.parsed.value} onChange={(e) => updateParsed(i, 'value', e.target.value)} placeholder="value, e.g. NonMTS or false" />
+            </>
+          ) : (
+            <input className="when-raw" value={c.raw} onChange={(e) => updateRaw(i, e.target.value)} placeholder="custom expression, e.g. item.coo === 'US'" />
+          )}
+          <button type="button" className="row-remove" onClick={() => remove(i)} aria-label="Remove condition">×</button>
+        </div>
+      ))}
+      <button type="button" className="link-button" onClick={add}>+ Add condition</button>
+    </div>
+  );
 }
 
 function numberOrString(value) {
@@ -131,14 +222,25 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
   const [buildUpRows, setBuildUpRows] = useState(() => buildUpToRows(baseConfig.buildUp));
   const [constraintRows, setConstraintRows] = useState(() => constraintsToRows(baseConfig.constraints));
   const [costAccessSequence, setCostAccessSequence] = useState((baseConfig.costAccessSequence || []).join(', '));
-  const [stockClassMap, setStockClassMap] = useState(baseConfig.stockClassMap ? JSON.stringify(baseConfig.stockClassMap, null, 2) : '');
-  const [additionalCostMap, setAdditionalCostMap] = useState(baseConfig.additionalCostMap ? JSON.stringify(baseConfig.additionalCostMap, null, 2) : '');
+  const [stockClassRows, setStockClassRows] = useState(() =>
+    Object.entries(baseConfig.stockClassMap || {}).map(([raw, canonical]) => ({ raw, canonical })));
+  const [acmRows, setAcmRows] = useState(() =>
+    Object.entries(baseConfig.additionalCostMap || {}).map(([flag, m]) => ({
+      flag,
+      markup: m.markup !== false,
+      landedCost: m.landedCost !== false,
+      tariff: m.tariff !== false,
+      pick: m.pick !== false,
+    })));
   const [resolution, setResolution] = useState(baseConfig.resolution ? JSON.stringify(baseConfig.resolution.map(({ provenance, ...r }) => r), null, 2) : '');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [whenOpenIndex, setWhenOpenIndex] = useState(null);
 
   const updateBuildUpRow = (i, key, value) => setBuildUpRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
   const updateConstraintRow = (i, key, value) => setConstraintRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+  const updateStockClassRow = (i, key, value) => setStockClassRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+  const updateAcmRow = (i, key, value) => setAcmRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
 
   const save = async () => {
     setError(null);
@@ -155,10 +257,15 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
     if (validFrom) doc.validFrom = validFrom;
     const seq = costAccessSequence.split(',').map((s) => s.trim()).filter(Boolean);
     if (seq.length > 0) doc.costAccessSequence = seq;
-    const scm = parseJsonField('Stock class map', stockClassMap, clientErrors);
-    if (scm !== undefined) doc.stockClassMap = scm;
-    const acm = parseJsonField('Additional cost map', additionalCostMap, clientErrors);
-    if (acm !== undefined) doc.additionalCostMap = acm;
+    const scmEntries = stockClassRows.filter((r) => r.raw.trim());
+    if (scmEntries.length > 0) doc.stockClassMap = Object.fromEntries(scmEntries.map((r) => [r.raw.trim(), r.canonical]));
+    const acmEntries = acmRows.filter((r) => String(r.flag).trim());
+    if (acmEntries.length > 0) {
+      doc.additionalCostMap = Object.fromEntries(acmEntries.map((r) => [
+        String(r.flag).trim(),
+        { markup: r.markup, landedCost: r.landedCost, tariff: r.tariff, pick: r.pick },
+      ]));
+    }
     const res = parseJsonField('Resolution ladder', resolution, clientErrors);
     if (res !== undefined) doc.resolution = res;
     if (baseConfig.rounding) doc.rounding = baseConfig.rounding;
@@ -201,26 +308,76 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
       <div className="item-grid-scroll">
         <table className="item-grid edit-grid">
           <thead>
-            <tr><th>ID</th><th>Type</th><th>Basis (comma-sep)</th><th>Rate</th><th>Rate ref</th><th>Amount</th><th>Amount ref</th><th>When (use && for AND)</th><th aria-hidden="true"></th></tr>
+            <tr><th>ID</th><th>Type</th><th title="FACTOR only — which earlier steps the multiplier applies to; click to toggle">Applies to (basis)</th><th>Rate</th><th>Rate ref</th><th>Amount</th><th>Amount ref</th><th title="Conditions that must all be true for this element to apply">Applies when</th><th aria-hidden="true"></th></tr>
           </thead>
           <tbody>
-            {buildUpRows.map((row, i) => (
-              <tr key={i}>
-                <td><input value={row.id} onChange={(e) => updateBuildUpRow(i, 'id', e.target.value)} /></td>
-                <td>
-                  <select value={row.type} onChange={(e) => updateBuildUpRow(i, 'type', e.target.value)}>
-                    {ELEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </td>
-                <td><input value={row.basis} onChange={(e) => updateBuildUpRow(i, 'basis', e.target.value)} placeholder="FACTOR only" /></td>
-                <td><input className="qty-input" value={row.rate} onChange={(e) => updateBuildUpRow(i, 'rate', e.target.value)} /></td>
-                <td><input value={row.rateRef} onChange={(e) => updateBuildUpRow(i, 'rateRef', e.target.value)} /></td>
-                <td><input className="qty-input" value={row.amount} onChange={(e) => updateBuildUpRow(i, 'amount', e.target.value)} /></td>
-                <td><input value={row.amountRef} onChange={(e) => updateBuildUpRow(i, 'amountRef', e.target.value)} /></td>
-                <td><input value={row.when} onChange={(e) => updateBuildUpRow(i, 'when', e.target.value)} /></td>
-                <td><button type="button" className="row-remove" onClick={() => setBuildUpRows((rows) => rows.filter((_, idx) => idx !== i))} aria-label="Remove row">×</button></td>
-              </tr>
-            ))}
+            {buildUpRows.map((row, i) => {
+              const priorIds = buildUpRows.slice(0, i).map((r) => r.id.trim()).filter(Boolean);
+              const basisIds = row.basis.split(',').map((b) => b.trim()).filter(Boolean);
+              const toggleBasis = (id) => updateBuildUpRow(
+                i,
+                'basis',
+                (basisIds.includes(id) ? basisIds.filter((b) => b !== id) : [...basisIds, id]).join(', '),
+              );
+              const whenSummary = row.when.trim()
+                ? row.when.split('&&').map((p) => p.trim()).filter(Boolean).length
+                : 0;
+              return (
+                <Fragment key={i}>
+                  <tr>
+                    <td><input value={row.id} onChange={(e) => updateBuildUpRow(i, 'id', e.target.value)} /></td>
+                    <td>
+                      <select value={row.type} onChange={(e) => updateBuildUpRow(i, 'type', e.target.value)}>
+                        {ELEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      {row.type === 'FACTOR' ? (
+                        <div className="basis-chips">
+                          {priorIds.map((id) => (
+                            <button
+                              key={id}
+                              type="button"
+                              className={basisIds.includes(id) ? 'basis-chip basis-chip-on' : 'basis-chip'}
+                              onClick={() => toggleBasis(id)}
+                            >
+                              {id}
+                            </button>
+                          ))}
+                          {priorIds.length === 0 && <span className="hint">no earlier steps</span>}
+                        </div>
+                      ) : (
+                        <span className="hint">—</span>
+                      )}
+                    </td>
+                    <td><input className="qty-input" value={row.rate} onChange={(e) => updateBuildUpRow(i, 'rate', e.target.value)} /></td>
+                    <td><input value={row.rateRef} onChange={(e) => updateBuildUpRow(i, 'rateRef', e.target.value)} /></td>
+                    <td><input className="qty-input" value={row.amount} onChange={(e) => updateBuildUpRow(i, 'amount', e.target.value)} /></td>
+                    <td><input value={row.amountRef} onChange={(e) => updateBuildUpRow(i, 'amountRef', e.target.value)} /></td>
+                    <td>
+                      <button
+                        type="button"
+                        className="kit-toggle"
+                        onClick={() => setWhenOpenIndex((cur) => (cur === i ? null : i))}
+                      >
+                        {whenSummary === 0 ? 'always' : `${whenSummary} condition${whenSummary === 1 ? '' : 's'}`}
+                        {whenOpenIndex === i ? ' ▾' : ' ▸'}
+                      </button>
+                    </td>
+                    <td><button type="button" className="row-remove" onClick={() => { setWhenOpenIndex(null); setBuildUpRows((rows) => rows.filter((_, idx) => idx !== i)); }} aria-label="Remove row">×</button></td>
+                  </tr>
+                  {whenOpenIndex === i && (
+                    <tr className="kit-editor-row">
+                      <td colSpan={9}>
+                        <div className="kit-editor">
+                          <WhenBuilder text={row.when} onChange={(text) => updateBuildUpRow(i, 'when', text)} />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -266,18 +423,55 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
         </Field>
       </div>
 
-      <h4>Maps &amp; resolution (JSON)</h4>
+      <h4>Stock class map</h4>
+      <p className="hint">Maps this region's raw ERP stock-class codes to MTS / Non-MTS. Leave empty if this region doesn't classify by stock class.</p>
+      <table className="item-grid edit-grid-narrow">
+        <thead>
+          <tr><th>Raw ERP code</th><th>Classifies as</th><th aria-hidden="true"></th></tr>
+        </thead>
+        <tbody>
+          {stockClassRows.map((row, i) => (
+            <tr key={i}>
+              <td><input value={row.raw} onChange={(e) => updateStockClassRow(i, 'raw', e.target.value)} placeholder="e.g. OMT" /></td>
+              <td>
+                <select value={row.canonical} onChange={(e) => updateStockClassRow(i, 'canonical', e.target.value)}>
+                  <option value="MTS">MTS</option>
+                  <option value="NonMTS">NonMTS</option>
+                </select>
+              </td>
+              <td><button type="button" className="row-remove" onClick={() => setStockClassRows((rows) => rows.filter((_, idx) => idx !== i))} aria-label="Remove row">×</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="link-button" onClick={() => setStockClassRows((rows) => [...rows, { raw: '', canonical: 'MTS' }])}>+ Add code</button>
+
+      <h4>Additional cost map</h4>
+      <p className="hint">For each value of the line-level Additional Cost flag, which charges apply. Leave empty if this region doesn't use the flag.</p>
+      <table className="item-grid edit-grid-narrow">
+        <thead>
+          <tr><th>Flag value</th><th>Markup</th><th>Landed cost (freight+duty)</th><th>Tariff</th><th>Pick</th><th aria-hidden="true"></th></tr>
+        </thead>
+        <tbody>
+          {acmRows.map((row, i) => (
+            <tr key={i}>
+              <td><input className="qty-input" value={row.flag} onChange={(e) => updateAcmRow(i, 'flag', e.target.value)} placeholder="e.g. 0" /></td>
+              {['markup', 'landedCost', 'tariff', 'pick'].map((key) => (
+                <td key={key} className="checkbox-cell">
+                  <input type="checkbox" checked={row[key]} onChange={(e) => updateAcmRow(i, key, e.target.checked)} />
+                </td>
+              ))}
+              <td><button type="button" className="row-remove" onClick={() => setAcmRows((rows) => rows.filter((_, idx) => idx !== i))} aria-label="Remove row">×</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="link-button" onClick={() => setAcmRows((rows) => [...rows, { flag: '', markup: true, landedCost: true, tariff: true, pick: true }])}>+ Add flag value</button>
+
+      <h4>Resolution ladder (advanced, JSON)</h4>
       <div className="json-editors">
         <label className="field">
-          <span>Stock class map</span>
-          <textarea rows={5} value={stockClassMap} onChange={(e) => setStockClassMap(e.target.value)} placeholder='{"OMT": "NonMTS", "MTS": "MTS"}' />
-        </label>
-        <label className="field">
-          <span>Additional cost map</span>
-          <textarea rows={5} value={additionalCostMap} onChange={(e) => setAdditionalCostMap(e.target.value)} placeholder='{"0": {"markup": false, ...}}' />
-        </label>
-        <label className="field">
-          <span>Resolution ladder</span>
+          <span>Documentation-only today — not read by the pricing engine (cost-source resolution happens in API6)</span>
           <textarea rows={5} value={resolution} onChange={(e) => setResolution(e.target.value)} placeholder='[{"id": "RES_1", "costBasis": "MOVING_AVG"}]' />
         </label>
       </div>

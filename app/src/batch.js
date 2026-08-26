@@ -5,7 +5,13 @@ function nextId() {
 }
 
 export function newRow(overrides = {}) {
-  return { id: nextId(), partNumber: '', quantity: 1, coo: '', supplier: '', supplierCountry: '', ood: '', warehouse: '', mroqOverride: '', ...overrides };
+  return { id: nextId(), partNumber: '', quantity: 1, coo: '', supplier: '', supplierCountry: '', ood: '', warehouse: '', mroqOverride: '', components: [], kitOpen: false, ...overrides };
+}
+
+/** One kit component line — a kit header's price is the sum of its components, each priced
+ *  as a full line by the backend (Americas/China only; see srv's priceWithKits). */
+export function newComponent(overrides = {}) {
+  return { id: nextId(), partNumber: '', quantity: 1, ood: '', ...overrides };
 }
 
 export const DEFAULT_ROWS = [
@@ -41,7 +47,7 @@ export function parseBulkText(text) {
     .filter((row) => row.partNumber);
 }
 
-/** items[] payload for the backend — strips UI-only fields (id), drops empty attributes. */
+/** items[] payload for the backend — strips UI-only fields (id, kitOpen), drops empty attributes. */
 export function toPricingItems(rows) {
   return rows
     .filter((r) => r.partNumber.trim())
@@ -53,6 +59,14 @@ export function toPricingItems(rows) {
       if (r.ood?.trim()) item.ood = r.ood.trim();
       if (r.warehouse?.trim()) item.warehouse = r.warehouse.trim();
       if (r.mroqOverride?.trim()) item.mroqOverride = r.mroqOverride.trim();
+      const components = (r.components || [])
+        .filter((c) => c.partNumber.trim())
+        .map((c) => {
+          const comp = { partNumber: c.partNumber.trim(), quantity: Number(c.quantity) || 1 };
+          if (c.ood?.trim()) comp.ood = c.ood.trim();
+          return comp;
+        });
+      if (components.length > 0) item.components = components;
       return item;
     });
 }

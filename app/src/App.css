@@ -440,9 +440,13 @@
 
 .item-grid {
   width: 100%;
-  min-width: 760px;
+  min-width: 520px;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.item-grid-advanced {
+  min-width: 860px;
 }
 
 .item-grid th {
@@ -866,4 +870,245 @@
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+/* --- Quote-style results header --- */
+
+.quote-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.quote-headline {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.quote-header .candidate-line {
+  margin-bottom: 0;
+}
+
+.order-totals {
+  display: flex;
+  gap: 18px;
+}
+
+.order-total {
+  text-align: right;
+}
+
+.order-total-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.order-total-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+details.hint summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+details.hint p {
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* --- Kit authoring & kit results --- */
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.kit-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.kit-toggle:hover {
+  border-color: var(--navy);
+}
+
+.kit-editor-row td {
+  padding: 0 6px 8px;
+}
+
+.kit-editor {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--navy);
+  border-radius: 8px;
+  background: #f5f6f9;
+  padding: 10px 14px 12px;
+}
+
+.kit-editor .hint {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.kit-component-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.kit-component-row input {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.kit-component-row input:first-child {
+  flex: 1;
+}
+
+.kit-editor .link-button {
+  margin-top: 4px;
+}
+
+.kit-components {
+  margin-top: 16px;
+}
+
+.kit-components h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.kit-component-detail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.kit-component-detail summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.kit-component-detail > *:not(summary) {
+  margin-top: 10px;
+}
+
+/* --- Structured admin editor pieces --- */
+
+.basis-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.basis-chip {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.basis-chip-on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.when-builder .hint {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.when-condition-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.when-condition-row select,
+.when-condition-row input {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.when-condition-row input {
+  flex: 1;
+}
+
+.when-condition-row .when-raw {
+  flex: 1;
+}
+
+.edit-grid-narrow {
+  min-width: 0;
+  width: auto;
+}
+
+.edit-grid-narrow th {
+  padding-right: 16px;
+}
+
+.checkbox-cell {
+  text-align: center;
+}
+
+.checkbox-cell input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--navy);
+}
+
+/* Inside the build-up table, .edit-grid's 100%-width selects must not apply to the
+   condition builder's own selects — they size to content, the value input takes the rest. */
+.edit-grid .when-condition-row select,
+.when-condition-row select {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.edit-grid .when-condition-row input {
+  width: auto;
+  flex: 1 1 160px;
+  min-width: 120px;
 }

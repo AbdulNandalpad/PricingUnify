@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { price, PURPOSE, CONFIDENCE } from '@tss-pricing/engine-core';
 import { DEFAULT_FORM, buildPricingInput } from './sampleData';
 import { priceViaBackend, DEMO_USERS, ApiError } from './api';
-import { DEFAULT_ROWS, newRow, parseBulkText, toPricingItems } from './batch';
+import { DEFAULT_ROWS, newRow, newComponent, parseBulkText, toPricingItems } from './batch';
 import AdminConfig from './AdminConfig.jsx';
 import './App.css';
 
@@ -23,6 +23,14 @@ const PRICING_TYPES = [
   { id: 'AI_PROPOSED', label: 'AI-proposed costs', available: false },
 ];
 
+/** Plain-language labels for the request purpose — the raw enum values read as engine jargon. */
+const PURPOSE_LABEL = {
+  INDICATIVE: 'Indicative — early estimate',
+  BINDING: 'Binding — firm quote',
+  REPRICE: 'Reprice — as of a past date',
+  SIMULATION: 'Simulation — what-if',
+};
+
 function Field({ label, children }) {
   return (
     <label className="field">
@@ -33,7 +41,7 @@ function Field({ label, children }) {
 }
 
 function TraceTable({ steps }) {
-  if (!steps.length) return null;
+  if (!steps?.length) return null;
   return (
     <table className="trace-table">
       <thead>
@@ -72,9 +80,9 @@ function TraceTable({ steps }) {
 function describeSelection(selectedBy) {
   if (selectedBy === 'USER') return 'manually selected';
   if (selectedBy?.startsWith('ACCESS_SEQUENCE:')) {
-    return `via cost access sequence → ${selectedBy.split(':')[1]}`;
+    return `picked by cost source order → ${selectedBy.split(':')[1]}`;
   }
-  return 'default candidate';
+  return 'default source';
 }
 
 /** Mockup-style per-element breakdown cards, derived straight from the trace steps —
@@ -123,6 +131,29 @@ function MarginWhatIf({ unitPrice, currency }) {
   );
 }
 
+/** A kit header line: unit price = Σ(component price × component qty). Each component is a
+ *  full priced line of its own — expandable to its complete calculation. */
+function KitComponents({ components }) {
+  if (!components?.length) return null;
+  return (
+    <div className="kit-components">
+      <h3>Kit components</h3>
+      {components.map((comp, i) => (
+        <details key={`${comp.partNumber}-${i}`} className="kit-component-detail">
+          <summary>
+            <span className="mono">{comp.partNumber}</span>
+            {' — '}
+            {comp.status === 'PRICED'
+              ? `${comp.result.quantity} × ${comp.result.unitPrice} ${comp.result.currency}`
+              : (comp.missing?.reason || comp.status)}
+          </summary>
+          <LineDetail line={comp} />
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function LineDetail({ line }) {
   return (
     <>
@@ -130,24 +161,26 @@ function LineDetail({ line }) {
         <p className="missing-reason">
           {line.missing.reason}
           {line.missing.elementId ? ` (element: ${line.missing.elementId})` : ''}
+          {line.missing.componentPartNumber ? ` (component: ${line.missing.componentPartNumber})` : ''}
         </p>
       )}
       {line.trace.costCandidate && (
         <p className="candidate-line">
-          Cost candidate: <strong>{line.trace.costCandidate.value} {line.trace.costCandidate.currency}</strong>{' '}
+          Cost used: <strong>{line.trace.costCandidate.value} {line.trace.costCandidate.currency}</strong>{' '}
           ({line.trace.costCandidate.confidence}, {line.trace.costCandidate.basis}
-          {line.trace.costCandidate.source?.system ? `, ${line.trace.costCandidate.source.system}` : ''}) —{' '}
+          {line.trace.costCandidate.source?.system ? `, from ${line.trace.costCandidate.source.system}` : ''}) —{' '}
           {describeSelection(line.trace.costCandidate.selectedBy)}
         </p>
       )}
       <BreakdownCards steps={line.trace.steps} currency={line.result?.currency} />
       <TraceTable steps={line.trace.steps} />
+      {line.trace.kit && <KitComponents components={line.trace.components} />}
       {line.status === 'PRICED' && line.result && (
         <MarginWhatIf unitPrice={line.result.unitPrice} currency={line.result.currency} />
       )}
       {line.trace.constraintPasses?.length > 0 && (
         <div className="constraints">
-          <h3>Constraint passes</h3>
+          <h3>Order rules applied (minimums, floors)</h3>
           <ul>
             {line.trace.constraintPasses.map((c, i) => (
               <li key={i} className="mono">
@@ -174,6 +207,7 @@ function BatchWorkspace() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   function updateGlobal(key, value) {
     setGlobals((g) => ({ ...g, [key]: value }));
@@ -186,6 +220,27 @@ function BatchWorkspace() {
   }
   function addRow() {
     setRows((rs) => [...rs, newRow()]);
+  }
+  function toggleKit(index) {
+    setRows((rs) => rs.map((r, i) => {
+      if (i !== index) return r;
+      // Opening the editor on a row with no components yet seeds one blank component line.
+      const components = !r.kitOpen && r.components.length === 0 ? [newComponent()] : r.components;
+      return { ...r, kitOpen: !r.kitOpen, components };
+    }));
+  }
+  function updateComponent(rowIndex, compIndex, key, value) {
+    setRows((rs) => rs.map((r, i) => (i === rowIndex
+      ? { ...r, components: r.components.map((c, ci) => (ci === compIndex ? { ...c, [key]: value } : c)) }
+      : r)));
+  }
+  function addComponent(rowIndex) {
+    setRows((rs) => rs.map((r, i) => (i === rowIndex ? { ...r, components: [...r.components, newComponent()] } : r)));
+  }
+  function removeComponent(rowIndex, compIndex) {
+    setRows((rs) => rs.map((r, i) => (i === rowIndex
+      ? { ...r, components: r.components.filter((_, ci) => ci !== compIndex) }
+      : r)));
   }
   function addBulkRows() {
     const parsed = parseBulkText(bulkText);
@@ -230,20 +285,42 @@ function BatchWorkspace() {
   const lines = result?.items;
   const counts = lines?.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
 
+  // Display-only order math: line total = unit price × (possibly rule-adjusted) quantity,
+  // summed per currency across PRICED lines. The engine prices per line; these totals are a
+  // UI convenience, so plain Number arithmetic (not decimal.js) is acceptable here.
+  const lineTotal = (line) =>
+    line.status === 'PRICED' ? Number(line.result.unitPrice) * Number(line.result.quantity) : null;
+  const orderTotals = lines
+    ? Object.entries(
+        lines.reduce((acc, l) => {
+          const t = lineTotal(l);
+          if (t === null || Number.isNaN(t)) return acc;
+          acc[l.result.currency] = (acc[l.result.currency] || 0) + t;
+          return acc;
+        }, {}),
+      )
+    : [];
+
   return (
     <main className="layout layout-wide">
       <form className="panel" onSubmit={runBatch}>
         <h2>Parts to price</h2>
         <p className="hint">
-          Facts (cost, freight, duty, pick charge, MOLV) are resolved server-side by the backend's API6
-          client — enter part numbers, not costs. Recorded mode knows <code>P-10023</code>, <code>P-20045</code>,{' '}
-          <code>P-30078</code>, <code>P-40012</code> (FALLBACK-confidence — try BINDING purpose to see it get
-          blocked), <code>P-50099</code> (only CCD/CCP candidates — try it to see the cost access sequence fall
-          through), <code>P-60150</code> (has both ERP and C4C candidates — C4C wins), and <code>P-70200</code>
-          (try supplier <code>ACME</code> to see supplier-specific freight/duty/tariff/MOLV/MOQ override the
-          generic ones — small quantities also trip ACME's MOQ, shown but never silently changing price).
-          Anything else comes back MISSING.
+          Enter part numbers and quantities — costs, freight, duty and other charges are looked up
+          automatically. Open any priced line in the results to see exactly how its price was built.
         </p>
+        <details className="hint">
+          <summary>Sample parts to try (demo data)</summary>
+          <p>
+            <code>P-10023</code>, <code>P-20045</code>, <code>P-30078</code> price normally.{' '}
+            <code>P-40012</code> has only an estimated cost — pick the Binding purpose to see it held back.{' '}
+            <code>P-60150</code> has a manually entered cost that wins over the ERP one.{' '}
+            <code>P-70200</code> with supplier <code>ACME</code> shows supplier-specific charges and order
+            minimums. Switch region to CHINA and try <code>CN-P001</code>…<code>CN-P006</code>, INDIA{' '}
+            <code>IN-P001</code>/<code>IN-P002</code>, AMERICAS <code>US-P001</code>…<code>US-P004</code>.
+            Unknown part numbers come back as Missing.
+          </p>
+        </details>
 
         <div className="field-grid">
           <Field label="Signed in as">
@@ -273,7 +350,7 @@ function BatchWorkspace() {
           <Field label="Purpose">
             <select value={globals.purpose} onChange={(e) => updateGlobal('purpose', e.target.value)}>
               {Object.values(PURPOSE).map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>{PURPOSE_LABEL[p] || p}</option>
               ))}
             </select>
           </Field>
@@ -289,40 +366,86 @@ function BatchWorkspace() {
         </div>
 
         <div className="item-grid-scroll">
-          <table className="item-grid">
+          <table className={showAdvanced ? 'item-grid item-grid-advanced' : 'item-grid'}>
             <thead>
               <tr>
                 <th>Part number</th>
-                <th>Quantity</th>
-                <th>COO / classification</th>
-                <th>Supplier</th>
-                <th>Supplier country</th>
-                <th>OOD</th>
-                <th>MROQ override</th>
+                <th>Qty</th>
+                <th title="Country of origin of the goods — some regions price freight & duty differently by origin">Country of origin</th>
+                <th title="Supplier for this line — supplier-specific charges and order minimums apply when set">Supplier</th>
+                {showAdvanced && (
+                  <>
+                    <th title="The supplier's own country — drives the local vs. overseas handling rate in Americas and India">Supplier country</th>
+                    <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
+                    <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
+                  </>
+                )}
                 <th aria-hidden="true"></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.id}>
-                  <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
-                  <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
-                  <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
-                  <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
-                  <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
-                  <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
-                  <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
-                  <td>
-                    <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((row, i) => {
+                const colCount = showAdvanced ? 8 : 5;
+                const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
+                return (
+                  <Fragment key={row.id}>
+                    <tr>
+                      <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
+                      <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
+                      <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
+                      <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
+                      {showAdvanced && (
+                        <>
+                          <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
+                          <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
+                          <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
+                        </>
+                      )}
+                      <td className="row-actions">
+                        <button
+                          type="button"
+                          className="kit-toggle"
+                          onClick={() => toggleKit(i)}
+                          title="A kit line is priced as the sum of its components (Americas and China only)"
+                        >
+                          {componentCount > 0 ? `kit (${componentCount})` : '+ kit'}
+                        </button>
+                        <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
+                      </td>
+                    </tr>
+                    {row.kitOpen && (
+                      <tr className="kit-editor-row">
+                        <td colSpan={colCount}>
+                          <div className="kit-editor">
+                            <p className="hint">
+                              Components of <strong>{row.partNumber || 'this kit'}</strong> — the kit's unit price is the
+                              sum of its component prices. Kits are supported for AMERICAS and CHINA.
+                            </p>
+                            {row.components.map((c, ci) => (
+                              <div className="kit-component-row" key={c.id}>
+                                <input value={c.partNumber} onChange={(e) => updateComponent(i, ci, 'partNumber', e.target.value)} placeholder="Component part number" />
+                                <input className="qty-input" type="number" min="1" value={c.quantity} onChange={(e) => updateComponent(i, ci, 'quantity', e.target.value)} title="Quantity of this component per kit" />
+                                <input className="ood-input" value={c.ood} onChange={(e) => updateComponent(i, ci, 'ood', e.target.value)} placeholder="Data origin" title="Data origin (OOD) of the component's cost data" />
+                                <button type="button" className="row-remove" onClick={() => removeComponent(i, ci)} aria-label="Remove component">×</button>
+                              </div>
+                            ))}
+                            <button type="button" className="link-button" onClick={() => addComponent(i)}>+ Add component</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         <div className="grid-actions">
           <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
+          <button type="button" className="link-button" onClick={() => setShowAdvanced((s) => !s)}>
+            {showAdvanced ? 'Hide advanced fields' : 'Show advanced fields'}
+          </button>
           <button type="button" className="link-button" onClick={() => setShowBulk((s) => !s)}>
             {showBulk ? 'Hide' : 'Paste or upload multiple parts'}
           </button>
@@ -330,10 +453,10 @@ function BatchWorkspace() {
 
         {showBulk && (
           <div className="bulk-add">
-            <p className="hint">One part per line: <code>partNumber, quantity, COO, supplier, OOD, warehouse, MROQ override</code> (everything but partNumber is optional).</p>
+            <p className="hint">One part per line: <code>part number, qty, country of origin, supplier, supplier country, data origin, warehouse, qty override</code> — everything after the part number is optional.</p>
             <textarea
               rows={4}
-              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME\nP-90500, 60, , , SMA, 1020, 60'}
+              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME\nP-90500, 60, , , , SMA, 1020, 60'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
@@ -357,10 +480,27 @@ function BatchWorkspace() {
 
         {result && (
           <>
-            <p className="candidate-line">
-              Config <strong>{result.config.region}/{result.config.salesOrg}</strong> v{result.config.version} ({result.config.status})
-              {' '}— requested by <strong>{result.requestedBy}</strong> on {result.priceDate}
-            </p>
+            <div className="quote-header">
+              <div>
+                <p className="quote-headline">
+                  {counts?.PRICED || 0} of {lines.length} line{lines.length === 1 ? '' : 's'} priced
+                  {result.region?.entityLabel ? ` · ${result.region.entityLabel}` : ''}
+                </p>
+                <p className="candidate-line">
+                  {result.config.region} pricing rules v{result.config.version} · price date {result.priceDate}
+                </p>
+              </div>
+              {orderTotals.length > 0 && (
+                <div className="order-totals">
+                  {orderTotals.map(([currency, total]) => (
+                    <div className="order-total" key={currency}>
+                      <span className="order-total-label">Order total</span>
+                      <span className="order-total-value">{total.toFixed(2)} {currency}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="summary-chips">
               {counts?.PRICED > 0 && <span className="chip chip-priced">{counts.PRICED} priced</span>}
@@ -375,6 +515,7 @@ function BatchWorkspace() {
                   <th className="num">Qty</th>
                   <th>Status</th>
                   <th className="num">Unit price</th>
+                  <th className="num">Line total</th>
                   <th aria-hidden="true"></th>
                 </tr>
               </thead>
@@ -393,11 +534,14 @@ function BatchWorkspace() {
                       </td>
                       <td><span className={`badge-status badge-status-${line.status.toLowerCase()}`}>{STATUS_LABEL[line.status] || line.status}</span></td>
                       <td className="num mono">{line.status === 'PRICED' ? `${line.result.unitPrice} ${line.result.currency}` : '—'}</td>
+                      <td className="num mono">
+                        {line.status === 'PRICED' ? `${lineTotal(line).toFixed(2)} ${line.result.currency}` : '—'}
+                      </td>
                       <td className="expand-chevron">{expandedIndex === i ? '▾' : '▸'}</td>
                     </tr>
                     {expandedIndex === i && (
                       <tr className="results-detail-row">
-                        <td colSpan={5}><LineDetail line={line} /></td>
+                        <td colSpan={6}><LineDetail line={line} /></td>
                       </tr>
                     )}
                   </Fragment>
