@@ -1,10 +1,9 @@
 import { CONFIDENCE, PURPOSE } from '@tss-pricing/engine-core';
 
 /**
- * Synthetic Europe-shaped region config — NOT real TSS rates. Mirrors the concept deck's
- * build-up (moving-avg BASE, SCM 4.7% FACTOR, freight/duty ADDERs, pick-charge PER_LINE,
- * MOLV floor CONSTRAINT) so the kernel has something real to run in this standalone demo.
- * Real, finance-verified region configs land via config-model + tests/golden in Phase 1/2.
+ * Synthetic Europe-shaped region config — NOT real TSS rates. Only the fallback for when the
+ * backend isn't running; normally the Demo fetches the selected region's real effective
+ * config and derives its input fields from it.
  */
 export const DEMO_CONFIG = {
   region: 'EUROPE',
@@ -29,11 +28,6 @@ export const DEFAULT_FORM = {
   confidence: CONFIDENCE.EXACT,
   overrideStaleCost: false,
   simulateMissingCost: false,
-  freight: '5.00',
-  duty: '2.00',
-  tariff: '0',
-  pickCharge: '21.00',
-  molv: '50.00',
   stockClass: '',
   ood: '',
   coo: '',
@@ -41,12 +35,63 @@ export const DEFAULT_FORM = {
   supplierCountry: '',
 };
 
-/** Builds the { request, facts, config } shape engine-core's price() expects, straight from
- *  the form. `config` defaults to the synthetic demo config; passing a real region config
- *  (fetched from the backend) makes the demo price against exactly what's saved for that
- *  region — the item-level fields (stock class, data origin, origins, supplier) feed its
- *  `when` conditions directly, no srv normalization in between. */
-export function buildPricingInput(form, config = DEMO_CONFIG) {
+/** Sensible starting values for the fact fields a region's config references — anything the
+ *  config asks for that isn't listed here starts at 0. */
+export const DEFAULT_FACT_VALUES = {
+  freight: '5.00',
+  duty: '2.00',
+  tariff: '0',
+  pickCharge: '21.00',
+  molv: '50.00',
+  moq: '1',
+};
+
+/** Which per-part fact fields a config actually reads (amountRef/rateRef on build-up steps,
+ *  minRef/stepRef on order rules) — the Demo renders exactly these as inputs, nothing more.
+ *  A region whose config references no freight has no freight field: the attributes come
+ *  from the config, not from a hardcoded form. Returns [{ ref, usedBy: [stepIds] }]. */
+export function factRefsOf(config) {
+  const refs = new Map();
+  const add = (ref, id) => {
+    if (!ref) return;
+    if (!refs.has(ref)) refs.set(ref, []);
+    refs.get(ref).push(id);
+  };
+  for (const el of config.buildUp || []) {
+    add(el.amountRef, el.id);
+    add(el.rateRef, el.id);
+  }
+  for (const c of config.constraints || []) {
+    add(c.minRef, c.id);
+    add(c.stepRef, c.id);
+  }
+  return [...refs.entries()].map(([ref, usedBy]) => ({ ref, usedBy }));
+}
+
+/** Which item-level fields the config's `when` conditions branch on (stock class, data
+ *  origin, …) — the Demo only offers the fields this region's rules actually look at.
+ *  The include* flags are excluded: they come from the Additional Cost flag resolution in
+ *  srv, not from direct user input. */
+export function itemFieldsOf(config) {
+  const fields = new Set();
+  const scan = (when) => {
+    for (const expr of Array.isArray(when) ? when : when ? [when] : []) {
+      for (const m of String(expr).match(/item\.([A-Za-z0-9_]+)/g) || []) {
+        fields.add(m.replace('item.', ''));
+      }
+    }
+  };
+  (config.buildUp || []).forEach((el) => scan(el.when));
+  (config.constraints || []).forEach((c) => scan(c.when));
+  for (const internal of ['includeMarkup', 'includeLandedCost', 'includeTariff', 'includePick']) {
+    fields.delete(internal);
+  }
+  return fields;
+}
+
+/** Builds the { request, facts, config } shape engine-core's price() expects. `factValues`
+ *  holds exactly the fields `factRefsOf(config)` derived — the demo's per-part facts. */
+export function buildPricingInput(form, config = DEMO_CONFIG, factValues = DEFAULT_FACT_VALUES) {
   const item = {
     partNumber: form.partNumber,
     quantity: Number(form.quantity),
@@ -85,13 +130,7 @@ export function buildPricingInput(form, config = DEMO_CONFIG) {
           },
         },
     elements: {
-      [form.partNumber]: {
-        freight: form.freight,
-        duty: form.duty,
-        tariff: form.tariff,
-        pickCharge: form.pickCharge,
-        molv: form.molv,
-      },
+      [form.partNumber]: { ...factValues },
     },
   };
 

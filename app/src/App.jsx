@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { price, PURPOSE, CONFIDENCE } from '@tss-pricing/engine-core';
-import { DEFAULT_FORM, buildPricingInput } from './sampleData';
+import { DEFAULT_FORM, DEMO_CONFIG, DEFAULT_FACT_VALUES, buildPricingInput, factRefsOf, itemFieldsOf } from './sampleData';
 import { priceViaBackend, getEffectiveConfig, listSuppliers, DEMO_USERS, ApiError } from './api';
 import { DEFAULT_ROWS, newRow, newComponent, parseBulkText, toPricingItems } from './batch';
 import AdminConfig from './AdminConfig.jsx';
@@ -435,7 +435,21 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                       <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
                       <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
                       <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
-                      <td><input list="supplier-options" value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
+                      <td>
+                    {knownSuppliers.length > 0 ? (
+                      <select value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)}>
+                        <option value="">— none —</option>
+                        {knownSuppliers.map((s) => (
+                          <option key={s.supplier} value={s.supplier}>{s.supplier}</option>
+                        ))}
+                        {row.supplier && !knownSuppliers.some((s) => s.supplier === row.supplier) && (
+                          <option value={row.supplier}>{row.supplier}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" />
+                    )}
+                  </td>
                       {showAdvanced && (
                         <>
                           <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
@@ -482,14 +496,6 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </tbody>
           </table>
         </div>
-
-        <datalist id="supplier-options">
-          {knownSuppliers.map((s) => (
-            <option key={s.supplier} value={s.supplier}>
-              {s.tariff != null ? `freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff}` : s.supplierCountry ? `country ${s.supplierCountry}` : ''}
-            </option>
-          ))}
-        </datalist>
 
         <div className="grid-actions">
           <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
@@ -628,20 +634,38 @@ function DirectWorkspace({ region, setRegion }) {
   const [liveConfig, setLiveConfig] = useState(null);
   const [configNote, setConfigNote] = useState('');
   const [suppliers, setSuppliers] = useState([]);
+  const [factValues, setFactValues] = useState({});
+
+  // Which inputs this demo shows comes FROM THE CONFIG: fact fields are exactly the
+  // amount/rate/min refs the region's steps and rules read; item fields are exactly what
+  // its "applies when" conditions branch on. A region that doesn't use freight has no
+  // freight field.
+  const activeConfig = liveConfig || DEMO_CONFIG;
+  const factRefs = factRefsOf(activeConfig);
+  const itemFields = itemFieldsOf(activeConfig);
+
+  function seedFactValues(config) {
+    setFactValues(Object.fromEntries(
+      factRefsOf(config).map(({ ref }) => [ref, DEFAULT_FACT_VALUES[ref] ?? '0']),
+    ));
+  }
 
   useEffect(() => {
     let cancelled = false;
     setLiveConfig(null);
     setSuppliers([]);
+    setOutcome(null);
     setConfigNote(`Loading ${region} configuration…`);
     getEffectiveConfig({ user: 'alice', region, salesOrg: '*' })
       .then((config) => {
         if (cancelled) return;
         setLiveConfig(config);
-        setConfigNote(`Using the real ${region} configuration v${config.version} — the same one the calculator and the Configuration tab use.`);
+        seedFactValues(config);
+        setConfigNote(`Using the real ${region} configuration v${config.version} — the same one the calculator and the Configuration tab use. Its steps decide which fields appear below.`);
       })
       .catch(() => {
         if (cancelled) return;
+        seedFactValues(DEMO_CONFIG);
         setConfigNote(`Backend not reachable — falling back to the built-in synthetic EUROPE-shaped sample config.`);
       });
     listSuppliers({ user: 'alice', region, salesOrg: '*' })
@@ -654,26 +678,31 @@ function DirectWorkspace({ region, setRegion }) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  /** Picking a supplier pulls its configured charges into the form (still editable after) —
-   *  the in-browser mirror of what srv's applySupplierOverrides does for the calculator. */
+  /** Picking a supplier pulls its terms into the fact fields the config actually reads
+   *  (still editable after) — the in-browser mirror of srv's applySupplierOverrides. */
   function pickSupplier(supplierId) {
     const s = suppliers.find((x) => x.supplier === supplierId);
     setForm((f) => ({
       ...f,
       supplier: supplierId,
-      ...(s?.freight != null ? { freight: String(s.freight) } : {}),
-      ...(s?.duty != null ? { duty: String(s.duty) } : {}),
-      ...(s?.tariff != null ? { tariff: String(s.tariff) } : {}),
-      ...(s?.molv != null ? { molv: String(s.molv) } : {}),
       ...(s?.supplierCountry != null ? { supplierCountry: s.supplierCountry } : {}),
     }));
+    if (s) {
+      setFactValues((cur) => {
+        const next = { ...cur };
+        for (const field of ['freight', 'duty', 'tariff', 'molv', 'moq']) {
+          if (s[field] != null && field in next) next[field] = String(s[field]);
+        }
+        return next;
+      });
+    }
   }
 
   function runPricing(e) {
     e.preventDefault();
     setError(null);
     try {
-      const input = buildPricingInput(form, liveConfig || undefined);
+      const input = buildPricingInput(form, activeConfig, factValues);
       const result = price(input);
       setOutcome({ input, line: result.items[0] });
     } catch (err) {
@@ -722,56 +751,74 @@ function DirectWorkspace({ region, setRegion }) {
               ))}
             </select>
           </Field>
-          <Field label="Freight (adder)">
-            <input value={form.freight} onChange={(e) => update('freight', e.target.value)} />
-          </Field>
-          <Field label="Duty (adder)">
-            <input value={form.duty} onChange={(e) => update('duty', e.target.value)} />
-          </Field>
-          <Field label="Pick charge (per line)">
-            <input value={form.pickCharge} onChange={(e) => update('pickCharge', e.target.value)} />
-          </Field>
-          <Field label="MOLV floor">
-            <input value={form.molv} onChange={(e) => update('molv', e.target.value)} />
-          </Field>
-          <Field label="Tariff (adder)">
-            <input value={form.tariff} onChange={(e) => update('tariff', e.target.value)} />
-          </Field>
-          <Field label="Stock class">
-            <select value={form.stockClass} onChange={(e) => update('stockClass', e.target.value)}>
-              <option value="">— not set —</option>
-              <option value="MTS">MTS</option>
-              <option value="NonMTS">NonMTS</option>
-            </select>
-          </Field>
-          <Field label="Data origin (OOD)">
-            <input value={form.ood} onChange={(e) => update('ood', e.target.value)} placeholder="e.g. CN, SAP, SMA, IN" />
-          </Field>
-          <Field label="Country of origin">
-            <input value={form.coo} onChange={(e) => update('coo', e.target.value)} placeholder="e.g. US" />
-          </Field>
-          <Field label="Supplier">
-            {suppliers.length > 0 ? (
-              <select value={form.supplier} onChange={(e) => pickSupplier(e.target.value)}>
-                <option value="">— none —</option>
-                {suppliers.map((s) => (
-                  <option key={s.supplier} value={s.supplier}>
-                    {s.supplier}{s.tariff != null ? ` (freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff})` : ''}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
-            )}
-          </Field>
-          <Field label="Supplier country">
-            <input value={form.supplierCountry} onChange={(e) => update('supplierCountry', e.target.value)} placeholder="e.g. US, IN" />
-          </Field>
         </div>
-        <p className="hint">
-          Stock class, data origin, origins and supplier feed the region's "applies when" conditions
-          directly — e.g. CHINA branches on data origin CN vs SAP, INDIA and AMERICAS on supplier country.
-        </p>
+
+        {(suppliers.length > 0 || itemFields.has('supplier')) && (
+          <div className="field-grid">
+            <Field label="Supplier (its terms fill the charge fields below)">
+              {suppliers.length > 0 ? (
+                <select value={form.supplier} onChange={(e) => pickSupplier(e.target.value)}>
+                  <option value="">— none —</option>
+                  {suppliers.map((s) => (
+                    <option key={s.supplier} value={s.supplier}>
+                      {s.supplier}{s.tariff != null ? ` (freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
+              )}
+            </Field>
+          </div>
+        )}
+
+        {factRefs.length > 0 && (
+          <>
+            <h3 className="demo-section-title">Charges &amp; limits this configuration reads</h3>
+            <div className="field-grid">
+              {factRefs.map(({ ref, usedBy }) => (
+                <Field key={ref} label={`${ref} — used by ${usedBy.join(', ')}`}>
+                  <input
+                    value={factValues[ref] ?? ''}
+                    onChange={(e) => setFactValues((cur) => ({ ...cur, [ref]: e.target.value }))}
+                  />
+                </Field>
+              ))}
+            </div>
+          </>
+        )}
+
+        {(itemFields.has('stockClass') || itemFields.has('ood') || itemFields.has('coo') || itemFields.has('supplierCountry')) && (
+          <>
+            <h3 className="demo-section-title">Item attributes this configuration branches on</h3>
+            <div className="field-grid">
+              {itemFields.has('stockClass') && (
+                <Field label="Stock class">
+                  <select value={form.stockClass} onChange={(e) => update('stockClass', e.target.value)}>
+                    <option value="">— not set —</option>
+                    <option value="MTS">MTS</option>
+                    <option value="NonMTS">NonMTS</option>
+                  </select>
+                </Field>
+              )}
+              {itemFields.has('ood') && (
+                <Field label="Data origin (OOD)">
+                  <input value={form.ood} onChange={(e) => update('ood', e.target.value)} placeholder="e.g. CN, SAP" />
+                </Field>
+              )}
+              {itemFields.has('coo') && (
+                <Field label="Country of origin">
+                  <input value={form.coo} onChange={(e) => update('coo', e.target.value)} placeholder="e.g. US" />
+                </Field>
+              )}
+              {itemFields.has('supplierCountry') && (
+                <Field label="Supplier country">
+                  <input value={form.supplierCountry} onChange={(e) => update('supplierCountry', e.target.value)} placeholder="e.g. US, IN" />
+                </Field>
+              )}
+            </div>
+          </>
+        )}
 
         <label className="checkbox-field">
           <input type="checkbox" checked={form.simulateMissingCost} onChange={(e) => update('simulateMissingCost', e.target.checked)} />

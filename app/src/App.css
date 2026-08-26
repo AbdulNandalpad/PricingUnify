@@ -1418,3 +1418,21 @@ details.hint p {
 .edit-grid td:first-child input {
   min-width: 140px;
 }
+
+.demo-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 18px 0 0;
+}
+
+.item-grid select {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
