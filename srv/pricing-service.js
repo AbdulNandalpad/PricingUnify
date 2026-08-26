@@ -52,8 +52,8 @@ function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
  * Normalizes each item's raw ERP stock-class code (facts.classification[partNumber]
  * .stockClassRaw — e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) into the canonical
  * item.stockClass ('MTS'|'NonMTS') engine-core's `when` conditions branch on, using this
- * region's config.stockClassMap. Mutates items in place, mirroring how item.coo already
- * arrives pre-resolved. A no-op for any region that hasn't declared a stockClassMap — stock
+ * region's config.stockClassMap. Mutates items in place, mirroring how item.supplierCountry
+ * already arrives pre-resolved. A no-op for any region that hasn't declared a stockClassMap — stock
  * class isn't a concern there yet, so existing parts keep pricing exactly as before.
  *
  * Once a region does declare a map, every item must resolve to a mapped code or it comes

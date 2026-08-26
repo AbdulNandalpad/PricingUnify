@@ -30,7 +30,6 @@ export const DEFAULT_FORM = {
   simulateMissingCost: false,
   stockClass: '',
   ood: '',
-  coo: '',
   supplier: '',
   supplierCountry: '',
 };
@@ -99,7 +98,6 @@ export function buildPricingInput(form, config = DEMO_CONFIG, factValues = DEFAU
   };
   if (form.stockClass) item.stockClass = form.stockClass;
   if (form.ood?.trim()) item.ood = form.ood.trim();
-  if (form.coo?.trim()) item.coo = form.coo.trim();
   if (form.supplier?.trim()) item.supplier = form.supplier.trim();
   if (form.supplierCountry?.trim()) item.supplierCountry = form.supplierCountry.trim();
 

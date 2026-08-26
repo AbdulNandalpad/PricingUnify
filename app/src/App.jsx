@@ -363,7 +363,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             <strong>Verification parts</strong> — one per region, each with a static base cost of exactly{' '}
             <code>100.00</code> and round charges, so every configured factor is directly readable in the
             result: <code>EU-T100</code> (qty 10 → 129.7 EUR: 4.7% markup + 10 freight + 5 duty + 8 tariff +
-            2 pick), <code>CN-T100</code> (data origin CN → 103.2 CNY; data origin SAP + origin US → 136.22),{' '}
+            2 pick), <code>CN-T100</code> (data origin CN → 103.2 CNY; data origin SAP + supplier country US → 136.22),{' '}
             <code>IN-T100</code> (supplier country IN → 100; otherwise → 140), <code>US-T100</code> (qty 10,
             supplier country US → 133.1 USD; otherwise → 136.9).
           </p>
@@ -413,11 +413,10 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
               <tr>
                 <th>Part number</th>
                 <th>Qty</th>
-                <th title="Country of origin of the goods — some regions price freight & duty differently by origin">Country of origin</th>
                 <th title="Supplier for this line — supplier-specific charges and order minimums apply when set">Supplier</th>
+                <th title="The supplier's own country — drives freight/duty and the local vs. overseas handling rate in China, Americas and India">Supplier country</th>
                 {showAdvanced && (
                   <>
-                    <th title="The supplier's own country — drives the local vs. overseas handling rate in Americas and India">Supplier country</th>
                     <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
                     <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
                   </>
@@ -427,14 +426,13 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const colCount = showAdvanced ? 8 : 5;
+                const colCount = showAdvanced ? 7 : 5;
                 const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
                 return (
                   <Fragment key={row.id}>
                     <tr>
                       <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
                       <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
-                      <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
                       <td>
                     {knownSuppliers.length > 0 ? (
                       <select value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)}>
@@ -450,9 +448,9 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                       <input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" />
                     )}
                   </td>
+                      <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
                       {showAdvanced && (
                         <>
-                          <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
                           <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
                           <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
                         </>
@@ -509,10 +507,10 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
 
         {showBulk && (
           <div className="bulk-add">
-            <p className="hint">One part per line: <code>part number, qty, country of origin, supplier, supplier country, data origin, warehouse, qty override</code> — everything after the part number is optional.</p>
+            <p className="hint">One part per line: <code>part number, qty, supplier, supplier country, data origin, warehouse, qty override</code> — everything after the part number is optional.</p>
             <textarea
               rows={4}
-              placeholder={'P-10023, 10, DE\nP-20045, 25\nP-70200, 30, , ACME\nP-90500, 60, , , , SMA, 1020, 60'}
+              placeholder={'P-10023, 10\nP-20045, 25\nP-70200, 30, ACME\nP-90500, 60, , , SMA, , 60'}
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
             />
@@ -788,7 +786,7 @@ function DirectWorkspace({ region, setRegion }) {
           </>
         )}
 
-        {(itemFields.has('stockClass') || itemFields.has('ood') || itemFields.has('coo') || itemFields.has('supplierCountry')) && (
+        {(itemFields.has('stockClass') || itemFields.has('ood') || itemFields.has('supplierCountry')) && (
           <>
             <h3 className="demo-section-title">Item attributes this configuration branches on</h3>
             <div className="field-grid">
@@ -804,11 +802,6 @@ function DirectWorkspace({ region, setRegion }) {
               {itemFields.has('ood') && (
                 <Field label="Data origin (OOD)">
                   <input value={form.ood} onChange={(e) => update('ood', e.target.value)} placeholder="e.g. CN, SAP" />
-                </Field>
-              )}
-              {itemFields.has('coo') && (
-                <Field label="Country of origin">
-                  <input value={form.coo} onChange={(e) => update('coo', e.target.value)} placeholder="e.g. US" />
                 </Field>
               )}
               {itemFields.has('supplierCountry') && (

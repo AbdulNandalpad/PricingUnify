@@ -68,15 +68,19 @@ function seedRegionConfig() {
 
 /**
  * China's real cost-route logic (topic 3 of the reference-doc review): which multiplier
- * stack applies is a genuine 3-way branch on origin of data, supplier, and COO — not a
- * generic per-region markup. Per the owner's stakeholder-corrected reference doc: "OOD needs
- * to be considered in the logic, and NOT the Supplier Country."
+ * stack applies is a genuine 3-way branch on origin of data, supplier, and the country the
+ * F&D rate keys on — not a generic per-region markup. Originally (topic 3) that third
+ * dimension was COO, per the owner's stakeholder-corrected reference doc at the time: "OOD
+ * needs to be considered in the logic, and NOT the Supplier Country." Later, the owner
+ * decided COO and supplierCountry are the same input in practice ("supplier country and
+ * country of origin is same so keep only supplier country") and had `item.coo` removed
+ * app-wide — China's branch now keys on `item.supplierCountry` instead, same real formula.
  *   - OOD is JDE China ("CN"): the cost JDE China returns is already landed (freight+duty
  *     baked in) — only the 3.2% LCS markup applies.
  *   - OOD is not JDE China, sourced directly from an actual supplier (not 88058/LCE):
- *     freight&duty by COO (US ×1.32, non-US ×1.21 — a COMPOSITE factor per requirements
- *     §5.1, since the real data is one blended rate, not separate freight/duty percentages),
- *     then the 3.2% LCS markup on top.
+ *     freight&duty by supplierCountry (US ×1.32, non-US ×1.21 — a COMPOSITE factor per
+ *     requirements §5.1, since the real data is one blended rate, not separate freight/duty
+ *     percentages), then the 3.2% LCS markup on top.
  *   - OOD is not JDE China, sourced via LCE/SAP Europe (supplier "88058"): same freight&duty
  *     + LCS markup chain, plus a further 6% LCE markup.
  * Real China Pick cost is documented as always 0, so no PER_LINE element at all; no MOLV/MOQ
@@ -110,8 +114,8 @@ function seedChinaRegionConfig() {
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'ROUTE_JDE_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.032, when: "item.ood === 'CN'", provenance: HUMAN_PROVENANCE },
-      { id: 'FREIGHT_DUTY_US', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.32, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.coo === 'US'"], provenance: HUMAN_PROVENANCE },
-      { id: 'FREIGHT_DUTY_NONUS', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.21, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.coo !== 'US'"], provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT_DUTY_US', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.32, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.supplierCountry === 'US'"], provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT_DUTY_NONUS', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.21, composite: true, allocatable: false, when: ["item.ood !== 'CN'", "item.supplierCountry !== 'US'"], provenance: HUMAN_PROVENANCE },
       { id: 'DIRECT_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier !== '88058'"], provenance: HUMAN_PROVENANCE },
       { id: 'LCE_MARKUP_BASE', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
       { id: 'LCE_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS', 'LCE_MARKUP_BASE'], rate: 0.06, when: ["item.ood !== 'CN'", "item.supplier === '88058'"], provenance: HUMAN_PROVENANCE },
@@ -309,7 +313,7 @@ function seedRegionRoutes() {
  * agnostic request has carried since Phase 1 (requirements §7) but nothing previously read.
  * CUST-DE-001's customerOod (SAP) matches its country; CUST-US-002 is the "can diverge"
  * demo from the C4C payload review — a US customer (ood SMA) who can still order a part
- * whose own item-level ood/coo point elsewhere, since item-level routing is independent.
+ * whose own item-level ood/supplierCountry point elsewhere, since item-level routing is independent.
  */
 function seedPartyConfigs() {
   if (store.listPartyConfigVersions('CUST-DE-001').length > 0) return;

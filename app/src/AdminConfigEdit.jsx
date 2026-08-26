@@ -32,7 +32,6 @@ function textToWhen(text) {
  *  these, plus a free-text option for anything else the engine's grammar allows. */
 const WHEN_FIELDS = [
   'item.stockClass',
-  'item.coo',
   'item.ood',
   'item.supplier',
   'item.supplierCountry',
@@ -108,7 +107,7 @@ function WhenBuilder({ text, onChange }) {
               <input value={c.parsed.value} onChange={(e) => updateParsed(i, 'value', e.target.value)} placeholder="value, e.g. NonMTS or false" />
             </>
           ) : (
-            <input className="when-raw" value={c.raw} onChange={(e) => updateRaw(i, e.target.value)} placeholder="custom expression, e.g. item.coo === 'US'" />
+            <input className="when-raw" value={c.raw} onChange={(e) => updateRaw(i, e.target.value)} placeholder="custom expression, e.g. item.warehouse === 'US01'" />
           )}
           <button type="button" className="row-remove" onClick={() => remove(i)} aria-label="Remove condition">×</button>
         </div>

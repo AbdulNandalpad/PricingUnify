@@ -158,32 +158,32 @@ test('China route 1: OOD is JDE China -- the cost is already landed, only the 3.
   assert.equal(line.result.unitPrice, '103.2');
 });
 
-test('China route 2 (US COO): direct from a non-LCE supplier -- freight&duty x1.32, then 3.2% markup', async () => {
-  const line = await priceChina({ partNumber: 'CN-P002', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'US' });
+test('China route 2 (US supplier country): direct from a non-LCE supplier -- freight&duty x1.32, then 3.2% markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P002', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', supplierCountry: 'US' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '136.22');
 });
 
-test('China route 2 (non-US COO): direct from a non-LCE supplier -- freight&duty x1.21, then 3.2% markup', async () => {
-  const line = await priceChina({ partNumber: 'CN-P003', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'IT' });
+test('China route 2 (non-US supplier country): direct from a non-LCE supplier -- freight&duty x1.21, then 3.2% markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P003', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', supplierCountry: 'IT' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '124.87');
 });
 
-test('China route 3 (US COO, via LCE/SAP Europe): freight&duty, 3.2% markup, then a further 6% LCE markup', async () => {
-  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'US' });
+test('China route 3 (US supplier country, via LCE/SAP Europe): freight&duty, 3.2% markup, then a further 6% LCE markup', async () => {
+  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', supplierCountry: 'US' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '144.4');
 });
 
-test('China route 3 (non-US COO, via LCE/SAP Europe): same chain at the non-US freight&duty rate', async () => {
-  const line = await priceChina({ partNumber: 'CN-P005', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'IT' });
+test('China route 3 (non-US supplier country, via LCE/SAP Europe): same chain at the non-US freight&duty rate', async () => {
+  const line = await priceChina({ partNumber: 'CN-P005', quantity: 1, ood: 'SAP', supplier: '88058', supplierCountry: 'IT' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '132.36');
 });
 
-test('the supplier "88058" (LCE) is not a real supplier-config entry -- China route branching depends only on ood/coo/supplier `when`-conditions, not supplier-config overrides', async () => {
-  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', coo: 'US' });
+test('the supplier "88058" (LCE) is not a real supplier-config entry -- China route branching depends only on ood/supplierCountry/supplier `when`-conditions, not supplier-config overrides', async () => {
+  const line = await priceChina({ partNumber: 'CN-P004', quantity: 1, ood: 'SAP', supplier: '88058', supplierCountry: 'US' });
   assert.equal(line.trace.constraintPasses.length, 0); // no supplier-config seeded for CHINA, so no unexpected adders/constraints sneak in
 });
 
@@ -623,12 +623,12 @@ test('EU-T100: 100 + 4.7% markup + 10 freight + 5 duty + 8 tariff + 20/10 pick =
   assert.equal(line.result.unitPrice, '129.7');
 });
 
-test('CN-T100: JDE China route = 100 × 1.032 = 103.2 CNY; SAP route (US COO) = 136.22 CNY', async () => {
+test('CN-T100: JDE China route = 100 × 1.032 = 103.2 CNY; SAP route (US supplier country) = 136.22 CNY', async () => {
   const jde = await priceChina({ partNumber: 'CN-T100', quantity: 1, ood: 'CN' });
   assert.equal(jde.status, 'PRICED');
   assert.equal(jde.result.unitPrice, '103.2');
 
-  const sap = await priceChina({ partNumber: 'CN-T100', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', coo: 'US' });
+  const sap = await priceChina({ partNumber: 'CN-T100', quantity: 1, ood: 'SAP', supplier: 'TSS_LIVORNO', supplierCountry: 'US' });
   assert.equal(sap.status, 'PRICED');
   assert.equal(sap.result.unitPrice, '136.22'); // 100 + 32 (×1.32 F&D) + 3.2% on 132
 });

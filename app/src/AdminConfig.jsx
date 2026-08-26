@@ -478,7 +478,7 @@ function RegionRouteSection({ user, salesOrg, asOf }) {
 }
 
 /** Customer/party master data — territory, country, currency, and the customer's own OOD
- *  (which can diverge from an item's own ood/coo on the same order). First real consumer of
+ *  (which can diverge from an item's own ood on the same order). First real consumer of
  *  the `party.customerId` field the object-agnostic request has carried since Phase 1 but
  *  nothing previously read. Read-only browse, same shape as SupplierConfigSection. */
 function PartyConfigSection({ user, asOf }) {
