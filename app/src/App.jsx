@@ -242,9 +242,13 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   const [bulkText, setBulkText] = useState('');
   const [showBulk, setShowBulk] = useState(false);
   const [result, setResult] = useState(null);
+  // Which row ids were actually sent, in the exact order sent — toPricingItems drops blank
+  // rows, so this is what lets a result line be matched back to the row it came from even
+  // after rows are added/removed/reordered.
+  const [pricedRowIds, setPricedRowIds] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [expandedIndex, setExpandedIndex] = useState(null);
+  const [expandedRowId, setExpandedRowId] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [knownSuppliers, setKnownSuppliers] = useState([]);
 
@@ -324,18 +328,21 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   async function runBatch(e) {
     e.preventDefault();
     setError(null);
+    const pricedRows = rows.filter((r) => r.partNumber.trim());
     const items = toPricingItems(rows);
     if (items.length === 0) {
       setError('Add at least one part number.');
       return;
     }
     setLoading(true);
-    setExpandedIndex(null);
+    setExpandedRowId(null);
     try {
       const body = await priceViaBackend({ ...globals, region, items });
       setResult({ ...body, submittedItems: items });
+      setPricedRowIds(pricedRows.map((r) => r.id));
     } catch (err) {
       setResult(null);
+      setPricedRowIds([]);
       setError(err instanceof ApiError ? `${err.status}: ${err.message}` : err.message);
     } finally {
       setLoading(false);
@@ -344,6 +351,16 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
 
   const lines = result?.items;
   const counts = lines?.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
+  // Maps a row id back to its priced line (and submitted item, for the "was X" quantity note)
+  // — a row not in the last submitted batch (blank, or added since) simply has no entry.
+  const lineByRowId = {};
+  const submittedByRowId = {};
+  if (lines) {
+    pricedRowIds.forEach((id, idx) => {
+      lineByRowId[id] = lines[idx];
+      submittedByRowId[id] = result.submittedItems[idx];
+    });
+  }
 
   // Display-only order math: line total = unit price × (possibly rule-adjusted) quantity,
   // summed per currency across PRICED lines. The engine prices per line; these totals are a
@@ -362,12 +379,13 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
     : [];
 
   return (
-    <main className="layout layout-wide">
-      <form className="panel" onSubmit={runBatch}>
+    <main className="layout-single">
+      <section className="panel panel-wide">
         <h2>Parts to price</h2>
         <p className="hint">
           Enter part numbers and quantities — costs, freight, duty and other charges are looked up
-          automatically. Open any priced line in the results to see exactly how its price was built.
+          automatically. Price the batch, then expand any line right here to see exactly how its
+          price was built.
         </p>
         <details className="hint">
           <summary>Sample parts to try (demo data)</summary>
@@ -419,223 +437,209 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           </Field>
         </div>
 
-        <div className="item-grid-scroll">
-          <table className={showAdvanced ? 'item-grid item-grid-advanced' : 'item-grid'}>
-            <thead>
-              <tr>
-                <th>Part number</th>
-                <th>Qty</th>
-                <th title="Supplier for this line — supplier-specific charges and order minimums apply when set">Supplier</th>
-                <th title="The supplier's own country — drives freight/duty and the local vs. overseas handling rate in China, Americas and India">Supplier country</th>
-                <th title="MTS/Non-MTS — leave on auto to classify from the part's own ERP stock-class code; set it directly to override that">Stock class</th>
-                <th title="Destination warehouse — which of the supplier's per-warehouse freight/duty/tariff terms apply (e.g. EU01, US01, CN01, IN01)">Warehouse</th>
-                {showAdvanced && (
-                  <>
-                    <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
-                    <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
-                  </>
-                )}
-                <th aria-hidden="true"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => {
-                const colCount = showAdvanced ? 9 : 7;
-                const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
-                return (
-                  <Fragment key={row.id}>
-                    <tr>
-                      <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
-                      <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
-                      <td>
-                    {knownSuppliers.length > 0 ? (
-                      <select value={row.supplier} onChange={(e) => pickSupplier(i, e.target.value)}>
-                        <option value="">— none —</option>
-                        {knownSuppliers.map((s) => (
-                          <option key={s.supplier} value={s.supplier}>{s.supplier}{s.supplierCountry ? ` (${s.supplierCountry})` : ''}</option>
-                        ))}
-                        {row.supplier && !knownSuppliers.some((s) => s.supplier === row.supplier) && (
-                          <option value={row.supplier}>{row.supplier}</option>
-                        )}
-                      </select>
-                    ) : (
-                      <input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" />
-                    )}
-                  </td>
-                      <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
-                      <td>
-                        <select value={row.stockClass} onChange={(e) => updateRow(i, 'stockClass', e.target.value)}>
-                          <option value="">— auto —</option>
-                          <option value="MTS">MTS</option>
-                          <option value="NonMTS">NonMTS</option>
-                        </select>
-                      </td>
-                      <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
-                      {showAdvanced && (
-                        <>
-                          <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
-                          <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
-                        </>
-                      )}
-                      <td className="row-actions">
-                        <button
-                          type="button"
-                          className="kit-toggle"
-                          onClick={() => toggleKit(i)}
-                          title="A kit line is priced as the sum of its components (Americas and China only)"
-                        >
-                          {componentCount > 0 ? `kit (${componentCount})` : '+ kit'}
-                        </button>
-                        <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
-                      </td>
-                    </tr>
-                    {row.kitOpen && (
-                      <tr className="kit-editor-row">
-                        <td colSpan={colCount}>
-                          <div className="kit-editor">
-                            <p className="hint">
-                              Components of <strong>{row.partNumber || 'this kit'}</strong> — the kit's unit price is the
-                              sum of its component prices. Kits are supported for AMERICAS and CHINA.
-                            </p>
-                            {row.components.map((c, ci) => (
-                              <div className="kit-component-row" key={c.id}>
-                                <input value={c.partNumber} onChange={(e) => updateComponent(i, ci, 'partNumber', e.target.value)} placeholder="Component part number" />
-                                <input className="qty-input" type="number" min="1" value={c.quantity} onChange={(e) => updateComponent(i, ci, 'quantity', e.target.value)} title="Quantity of this component per kit" />
-                                <input className="ood-input" value={c.ood} onChange={(e) => updateComponent(i, ci, 'ood', e.target.value)} placeholder="Data origin" title="Data origin (OOD) of the component's cost data" />
-                                <button type="button" className="row-remove" onClick={() => removeComponent(i, ci)} aria-label="Remove component">×</button>
-                              </div>
-                            ))}
-                            <button type="button" className="link-button" onClick={() => addComponent(i)}>+ Add component</button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid-actions">
-          <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
-          <button type="button" className="link-button" onClick={() => setShowAdvanced((s) => !s)}>
-            {showAdvanced ? 'Hide advanced fields' : 'Show advanced fields'}
-          </button>
-          <button type="button" className="link-button" onClick={() => setShowBulk((s) => !s)}>
-            {showBulk ? 'Hide' : 'Paste or upload multiple parts'}
-          </button>
-        </div>
-
-        {showBulk && (
-          <div className="bulk-add">
-            <p className="hint">One part per line: <code>part number, qty, supplier, supplier country, data origin, warehouse, qty override</code> — everything after the part number is optional.</p>
-            <textarea
-              rows={4}
-              placeholder={'P-10023, 10\nP-20045, 25\nP-70200, 30, ACME\nP-90500, 60, , , SMA, , 60'}
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-            />
-            <div className="bulk-add-actions">
-              <button type="button" onClick={addBulkRows} disabled={!bulkText.trim()}>Add these rows</button>
-              <label className="file-upload">
-                Upload .csv
-                <input type="file" accept=".csv,.txt" onChange={handleFileUpload} />
-              </label>
-            </div>
-          </div>
-        )}
-
-        <button type="submit" disabled={loading}>{loading ? 'Pricing…' : `Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}</button>
-      </form>
-
-      <section className="panel">
-        <h2>Results</h2>
-        {error && <p className="error">{error}</p>}
-        {!result && !error && <p className="hint">Add parts and price the batch to see results here.</p>}
-
-        {result && (
-          <>
-            <div className="quote-header">
-              <div>
-                <p className="quote-headline">
-                  {counts?.PRICED || 0} of {lines.length} line{lines.length === 1 ? '' : 's'} priced
-                  {result.region?.entityLabel ? ` · ${result.region.entityLabel}` : ''}
-                </p>
-                <p className="candidate-line">
-                  {result.config.region} pricing rules v{result.config.version} · price date {result.priceDate}
-                  {goToConfig && (
-                    <>
-                      {' · '}
-                      <button type="button" className="link-button link-inline" onClick={goToConfig}>
-                        view / edit configuration →
-                      </button>
-                    </>
-                  )}
-                </p>
-              </div>
-              {orderTotals.length > 0 && (
-                <div className="order-totals">
-                  {orderTotals.map(([currency, total]) => (
-                    <div className="order-total" key={currency}>
-                      <span className="order-total-label">Order total</span>
-                      <span className="order-total-value">{total.toFixed(2)} {currency}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="summary-chips">
-              {counts?.PRICED > 0 && <span className="chip chip-priced">{counts.PRICED} priced</span>}
-              {counts?.MISSING > 0 && <span className="chip chip-missing">{counts.MISSING} missing</span>}
-              {counts?.BLOCKED > 0 && <span className="chip chip-blocked">{counts.BLOCKED} blocked</span>}
-            </div>
-
-            <table className="results-table">
+        <form onSubmit={runBatch}>
+          <div className="item-grid-scroll">
+            <table className={showAdvanced ? 'item-grid item-grid-advanced' : 'item-grid'}>
               <thead>
                 <tr>
-                  <th>Part</th>
-                  <th className="num">Qty</th>
+                  <th>Part number</th>
+                  <th>Qty</th>
+                  <th title="Supplier for this line — supplier-specific charges and order minimums apply when set">Supplier</th>
+                  <th title="The supplier's own country — drives freight/duty and the local vs. overseas handling rate in China, Americas and India">Supplier country</th>
+                  <th title="MTS/Non-MTS — leave on auto to classify from the part's own ERP stock-class code; set it directly to override that">Stock class</th>
+                  <th title="Destination warehouse — which of the supplier's per-warehouse freight/duty/tariff terms apply (e.g. EU01, US01, CN01, IN01)">Warehouse</th>
+                  {showAdvanced && (
+                    <>
+                      <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
+                      <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
+                    </>
+                  )}
                   <th>Status</th>
                   <th className="num">Unit price</th>
                   <th className="num">Line total</th>
                   <th aria-hidden="true"></th>
+                  <th aria-hidden="true"></th>
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line, i) => (
-                  <Fragment key={`${line.partNumber}-${i}`}>
-                    <tr
-                      className={`results-row status-row-${line.status.toLowerCase()}`}
-                      onClick={() => setExpandedIndex((cur) => (cur === i ? null : i))}
-                    >
-                      <td className="mono">{line.partNumber}</td>
-                      <td className="num mono">
-                        {line.status === 'PRICED' && line.result.quantity !== result.submittedItems[i]?.quantity
-                          ? `${line.result.quantity} (was ${result.submittedItems[i]?.quantity})`
-                          : result.submittedItems[i]?.quantity}
-                      </td>
-                      <td><span className={`badge-status badge-status-${line.status.toLowerCase()}`}>{STATUS_LABEL[line.status] || line.status}</span></td>
-                      <td className="num mono">{line.status === 'PRICED' ? `${line.result.unitPrice} ${line.result.currency}` : '—'}</td>
-                      <td className="num mono">
-                        {line.status === 'PRICED' ? `${lineTotal(line).toFixed(2)} ${line.result.currency}` : '—'}
-                      </td>
-                      <td className="expand-chevron">{expandedIndex === i ? '▾' : '▸'}</td>
-                    </tr>
-                    {expandedIndex === i && (
-                      <tr className="results-detail-row">
-                        <td colSpan={6}>
-                          <DetailHeader line={line} regionLabel={result.region?.entityLabel || result.config.region} />
-                          <LineDetail line={line} />
+                {rows.map((row, i) => {
+                  const colCount = showAdvanced ? 13 : 11;
+                  const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
+                  const line = lineByRowId[row.id];
+                  const submitted = submittedByRowId[row.id];
+                  const expanded = expandedRowId === row.id;
+                  return (
+                    <Fragment key={row.id}>
+                      <tr className={line ? `status-row-${line.status.toLowerCase()}` : undefined}>
+                        <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
+                        <td>
+                          <input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} />
+                          {line?.status === 'PRICED' && submitted && line.result.quantity !== submitted.quantity && (
+                            <div className="hint-inline">→ {line.result.quantity}</div>
+                          )}
+                        </td>
+                        <td>
+                      {knownSuppliers.length > 0 ? (
+                        <select value={row.supplier} onChange={(e) => pickSupplier(i, e.target.value)}>
+                          <option value="">— none —</option>
+                          {knownSuppliers.map((s) => (
+                            <option key={s.supplier} value={s.supplier}>{s.supplier}{s.supplierCountry ? ` (${s.supplierCountry})` : ''}</option>
+                          ))}
+                          {row.supplier && !knownSuppliers.some((s) => s.supplier === row.supplier) && (
+                            <option value={row.supplier}>{row.supplier}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" />
+                      )}
+                    </td>
+                        <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
+                        <td>
+                          <select value={row.stockClass} onChange={(e) => updateRow(i, 'stockClass', e.target.value)}>
+                            <option value="">— auto —</option>
+                            <option value="MTS">MTS</option>
+                            <option value="NonMTS">NonMTS</option>
+                          </select>
+                        </td>
+                        <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
+                        {showAdvanced && (
+                          <>
+                            <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
+                            <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
+                          </>
+                        )}
+                        <td>{line ? <span className={`badge-status badge-status-${line.status.toLowerCase()}`}>{STATUS_LABEL[line.status] || line.status}</span> : '—'}</td>
+                        <td className="num mono">{line?.status === 'PRICED' ? `${line.result.unitPrice} ${line.result.currency}` : '—'}</td>
+                        <td className="num mono">{line?.status === 'PRICED' ? `${lineTotal(line).toFixed(2)} ${line.result.currency}` : '—'}</td>
+                        <td className="expand-chevron">
+                          {line && (
+                            <button
+                              type="button"
+                              className="expand-toggle"
+                              onClick={() => setExpandedRowId((cur) => (cur === row.id ? null : row.id))}
+                              aria-label={expanded ? 'Hide calculation' : 'Show calculation'}
+                            >
+                              {expanded ? '▾' : '▸'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="row-actions">
+                          <button
+                            type="button"
+                            className="kit-toggle"
+                            onClick={() => toggleKit(i)}
+                            title="A kit line is priced as the sum of its components (Americas and China only)"
+                          >
+                            {componentCount > 0 ? `kit (${componentCount})` : '+ kit'}
+                          </button>
+                          <button type="button" className="row-remove" onClick={() => removeRow(i)} aria-label={`Remove ${row.partNumber || 'row'}`}>×</button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                ))}
+                      {expanded && line && (
+                        <tr className="results-detail-row">
+                          <td colSpan={colCount}>
+                            <DetailHeader line={line} regionLabel={result.region?.entityLabel || result.config.region} />
+                            <LineDetail line={line} />
+                          </td>
+                        </tr>
+                      )}
+                      {row.kitOpen && (
+                        <tr className="kit-editor-row">
+                          <td colSpan={colCount}>
+                            <div className="kit-editor">
+                              <p className="hint">
+                                Components of <strong>{row.partNumber || 'this kit'}</strong> — the kit's unit price is the
+                                sum of its component prices. Kits are supported for AMERICAS and CHINA.
+                              </p>
+                              {row.components.map((c, ci) => (
+                                <div className="kit-component-row" key={c.id}>
+                                  <input value={c.partNumber} onChange={(e) => updateComponent(i, ci, 'partNumber', e.target.value)} placeholder="Component part number" />
+                                  <input className="qty-input" type="number" min="1" value={c.quantity} onChange={(e) => updateComponent(i, ci, 'quantity', e.target.value)} title="Quantity of this component per kit" />
+                                  <input className="ood-input" value={c.ood} onChange={(e) => updateComponent(i, ci, 'ood', e.target.value)} placeholder="Data origin" title="Data origin (OOD) of the component's cost data" />
+                                  <button type="button" className="row-remove" onClick={() => removeComponent(i, ci)} aria-label="Remove component">×</button>
+                                </div>
+                              ))}
+                              <button type="button" className="link-button" onClick={() => addComponent(i)}>+ Add component</button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
-          </>
+          </div>
+
+          <div className="grid-actions">
+            <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
+            <button type="button" className="link-button" onClick={() => setShowAdvanced((s) => !s)}>
+              {showAdvanced ? 'Hide advanced fields' : 'Show advanced fields'}
+            </button>
+            <button type="button" className="link-button" onClick={() => setShowBulk((s) => !s)}>
+              {showBulk ? 'Hide' : 'Paste or upload multiple parts'}
+            </button>
+          </div>
+
+          {showBulk && (
+            <div className="bulk-add">
+              <p className="hint">One part per line: <code>part number, qty, supplier, supplier country, data origin, warehouse, qty override</code> — everything after the part number is optional.</p>
+              <textarea
+                rows={4}
+                placeholder={'P-10023, 10\nP-20045, 25\nP-70200, 30, ACME\nP-90500, 60, , , SMA, , 60'}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+              />
+              <div className="bulk-add-actions">
+                <button type="button" onClick={addBulkRows} disabled={!bulkText.trim()}>Add these rows</button>
+                <label className="file-upload">
+                  Upload .csv
+                  <input type="file" accept=".csv,.txt" onChange={handleFileUpload} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <button type="submit" disabled={loading}>{loading ? 'Pricing…' : `Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}</button>
+        </form>
+
+        {error && <p className="error">{error}</p>}
+
+        {result && (
+          <div className="quote-header">
+            <div>
+              <p className="quote-headline">
+                {counts?.PRICED || 0} of {lines.length} line{lines.length === 1 ? '' : 's'} priced
+                {result.region?.entityLabel ? ` · ${result.region.entityLabel}` : ''}
+              </p>
+              <p className="candidate-line">
+                {result.config.region} pricing rules v{result.config.version} · price date {result.priceDate}
+                {goToConfig && (
+                  <>
+                    {' · '}
+                    <button type="button" className="link-button link-inline" onClick={goToConfig}>
+                      view / edit configuration →
+                    </button>
+                  </>
+                )}
+              </p>
+              <div className="summary-chips">
+                {counts?.PRICED > 0 && <span className="chip chip-priced">{counts.PRICED} priced</span>}
+                {counts?.MISSING > 0 && <span className="chip chip-missing">{counts.MISSING} missing</span>}
+                {counts?.BLOCKED > 0 && <span className="chip chip-blocked">{counts.BLOCKED} blocked</span>}
+              </div>
+            </div>
+            {orderTotals.length > 0 && (
+              <div className="order-totals">
+                {orderTotals.map(([currency, total]) => (
+                  <div className="order-total" key={currency}>
+                    <span className="order-total-label">Order total</span>
+                    <span className="order-total-value">{total.toFixed(2)} {currency}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </section>
     </main>

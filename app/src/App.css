@@ -112,6 +112,18 @@
   }
 }
 
+/* Single wide panel — parts-to-price and their results live in one table, one section, so
+   there's no left/right split to size for; just give the table room to breathe. */
+.layout-single {
+  padding: 24px 32px 48px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.panel-wide {
+  width: 100%;
+}
+
 /* --- Admin config --- */
 
 .admin-layout {
@@ -440,13 +452,13 @@
 
 .item-grid {
   width: 100%;
-  min-width: 520px;
+  min-width: 1080px;
   border-collapse: collapse;
   font-size: 13px;
 }
 
 .item-grid-advanced {
-  min-width: 860px;
+  min-width: 1320px;
 }
 
 .item-grid th {
@@ -571,7 +583,7 @@
 .summary-chips {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-top: 10px;
 }
 
 .chip {
@@ -644,6 +656,16 @@
 .expand-chevron {
   color: var(--text-muted);
   text-align: right;
+}
+
+.expand-toggle {
+  background: none;
+  border: none;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
 }
 
 .results-detail-row td {
@@ -888,7 +910,9 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .quote-headline {
