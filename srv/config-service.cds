@@ -1,9 +1,11 @@
 /**
  * Config API. Thin REST surface over config-model's ConfigStore + AI-suggestion pipeline.
- * Read actions are open to any authenticated user; anything that can change a live config
- * (requesting an AI suggestion, approving, rejecting) requires the PricingAdmin role —
- * this is the "any approvedBy string is accepted, no role check" gap CLAUDE.md flags,
- * narrowed to at least requiring an authenticated PricingAdmin, not just any caller.
+ * Read actions are open to any authenticated user; anything that can change a live config —
+ * a direct human edit (saveRegionConfig/saveSupplierConfig/saveRegionRoute/savePartyConfig)
+ * or the AI-suggestion pipeline (requesting, approving, rejecting) — requires the
+ * PricingAdmin role. A direct save always creates a brand-new version (config is never
+ * mutated in place, per the versioning non-negotiable); provenance is always stamped
+ * HUMAN/the calling user server-side, never trusted from the payload.
  */
 @protocol: 'rest'
 service ConfigService {
@@ -30,6 +32,18 @@ service ConfigService {
 
   @requires: 'authenticated-user'
   function listPartyConfigVersions(customerId: String) returns Map;
+
+  @requires: 'PricingAdmin'
+  action saveRegionConfig(payload: Map) returns Map;
+
+  @requires: 'PricingAdmin'
+  action saveSupplierConfig(payload: Map) returns Map;
+
+  @requires: 'PricingAdmin'
+  action saveRegionRoute(payload: Map) returns Map;
+
+  @requires: 'PricingAdmin'
+  action savePartyConfig(payload: Map) returns Map;
 
   @requires: 'PricingAdmin'
   action suggestChange(payload: Map) returns Map;

@@ -324,52 +324,61 @@ test('topic 10: an unrecognized additionalCost value is a typed MISSING, not a g
   assert.equal(line.missing.detail, 'ADDITIONAL_COST_UNMAPPED:9');
 });
 
-test('India: sourced locally (OOD is IN) -- raw cost, no markup at all', async () => {
-  const line = await priceRegion('INDIA', { partNumber: 'IN-P001', quantity: 1, ood: 'IN' });
+test('India: local supplier (supplierCountry IN) -- raw cost, no markup at all', async () => {
+  const line = await priceRegion('INDIA', { partNumber: 'IN-P001', quantity: 1, supplierCountry: 'IN' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '50');
 });
 
-test('India: sourced overseas (OOD is not IN) -- the +40% markup applies', async () => {
-  const line = await priceRegion('INDIA', { partNumber: 'IN-P002', quantity: 1, ood: 'DE' });
-  assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '70'); // 50 * 1.40
+test('India: overseas supplier (or unresolved supplier country) -- the +40% markup applies, conservatively', async () => {
+  const overseas = await priceRegion('INDIA', { partNumber: 'IN-P002', quantity: 1, supplierCountry: 'DE' });
+  assert.equal(overseas.status, 'PRICED');
+  assert.equal(overseas.result.unitPrice, '70'); // 50 * 1.40
+
+  const unknown = await priceRegion('INDIA', { partNumber: 'IN-P002', quantity: 1 }); // no supplier country at all
+  assert.equal(unknown.result.unitPrice, '70', 'an unresolved supplier country falls in the overseas branch -- the higher rate, never a silent under-price');
 });
 
-test('Americas: MTS, local (OOD=SMA) -- LCA Handling Fee only, no freight/duty/tariff', async () => {
-  const line = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, ood: 'SMA' });
+test('Americas: MTS, US supplier -- LCA Handling Fee only, no freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, supplierCountry: 'US' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '110.1'); // 100 + 100*0.067(=6.7) + 34/10(=3.4)
 });
 
-test('Americas: Non-MTS, local (OOD=SMA) -- LCA Handling Fee plus freight/duty/tariff', async () => {
-  const line = await priceRegion('AMERICAS', { partNumber: 'US-P002', quantity: 10, ood: 'SMA' });
+test('Americas: Non-MTS, US supplier -- LCA Handling Fee plus freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P002', quantity: 10, supplierCountry: 'US' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '127.1'); // 100 + 6.7 + (10+5+2) + 3.4
 });
 
-test('Americas: MTS, overseas (OOD != SMA) -- the higher overseas LCA Handling Fee tier applies', async () => {
-  const line = await priceRegion('AMERICAS', { partNumber: 'US-P003', quantity: 10, ood: 'EU' });
+test('Americas: MTS, overseas supplier -- the higher overseas LCA Handling Fee tier applies', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P003', quantity: 10, supplierCountry: 'CN' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '113.9'); // 100 + 100*0.105(=10.5) + 3.4
 });
 
-test('Americas: Non-MTS, overseas (OOD != SMA) -- overseas LCA Handling Fee plus freight/duty/tariff', async () => {
-  const line = await priceRegion('AMERICAS', { partNumber: 'US-P004', quantity: 10, ood: 'EU' });
+test('Americas: Non-MTS, overseas supplier -- overseas LCA Handling Fee plus freight/duty/tariff', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P004', quantity: 10, supplierCountry: 'CN' });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.result.unitPrice, '130.9'); // 100 + 10.5 + 17 + 3.4
+});
+
+test('Americas: supplierCountry resolves from supplier-config when the item only names a supplier', async () => {
+  const line = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, supplier: 'US-ACME' });
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, '110.1', 'US-ACME is seeded with supplierCountry US, so the local 6.7% rate applies without the caller sending a country');
 });
 
 test('Americas: effective-dated LCA Handling Fee -- the real 6.2%->6.7% (Jan 2026) rate change reprices historical dates correctly', async () => {
   const before = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
-    body: JSON.stringify({ payload: { region: 'AMERICAS', salesOrg: '*', priceDate: '2025-08-01', items: [{ partNumber: 'US-P001', quantity: 10, ood: 'SMA' }] } }),
+    body: JSON.stringify({ payload: { region: 'AMERICAS', salesOrg: '*', priceDate: '2025-08-01', items: [{ partNumber: 'US-P001', quantity: 10, supplierCountry: 'US' }] } }),
   }).then((r) => r.json());
   assert.equal(before.items[0].result.unitPrice, '109.6'); // 100 + 100*0.062(=6.2) + 3.4, the pre-Jan-2026 rate
   assert.equal(before.config.version, '2025.06.0');
 
-  const after = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, ood: 'SMA' }); // defaults to today (2026-08-25)
+  const after = await priceRegion('AMERICAS', { partNumber: 'US-P001', quantity: 10, supplierCountry: 'US' }); // defaults to today
   assert.equal(after.result.unitPrice, '110.1'); // the current 6.7% rate
 });
 
@@ -510,6 +519,97 @@ test('C4C payload review: no region, no customerId/customerOod, and no route mat
 
   const unmapped = await priceRaw({ salesOrg: '*', customerOod: 'ZZZ', items: [{ partNumber: 'P-10023', quantity: 1 }] });
   assert.equal(unmapped.status, 400);
+});
+
+async function callConfigAction(action, user, payload) {
+  const res = await fetch(`${BASE}/rest/config/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader(user) },
+    body: JSON.stringify({ payload }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+test('direct config edits (saveRegionConfig/saveSupplierConfig/saveRegionRoute/savePartyConfig) are PricingAdmin-only', async () => {
+  const asAlice = await Promise.all([
+    callConfigAction('saveRegionConfig', 'alice', { region: 'EUROPE', salesOrg: 'DE99', version: 'x' }),
+    callConfigAction('saveSupplierConfig', 'alice', { region: 'EUROPE', salesOrg: '*', supplier: 'X', version: 'x' }),
+    callConfigAction('saveRegionRoute', 'alice', { ood: 'ZZ', salesOrg: '*', region: 'EUROPE', version: 'x' }),
+    callConfigAction('savePartyConfig', 'alice', { customerId: 'CUST-X', version: 'x' }),
+  ]);
+  for (const r of asAlice) assert.equal(r.status, 403);
+});
+
+test('a PricingAdmin can save a brand-new region-config version, and pricing picks it up immediately -- no restart needed', async () => {
+  const doc = {
+    region: 'EUROPE',
+    salesOrg: 'DE99', // a fresh sales-org-specific document -- doesn't touch the "*" default other tests rely on
+    version: 'DE99-2026.08.0',
+    status: 'ACTIVE',
+    validFrom: '2026-08-01',
+    resolution: [{ id: 'RES_TEST', costBasis: 'STANDARD' }],
+    buildUp: [
+      { id: 'BASE_COST', type: 'BASE' },
+      { id: 'FLAT_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.10 },
+    ],
+  };
+  const { status, body } = await callConfigAction('saveRegionConfig', 'bob', doc);
+  assert.equal(status, 200);
+  assert.equal(body.version, 'DE99-2026.08.0');
+  assert.equal(body.provenance.source, 'HUMAN', 'provenance is stamped server-side, never trusted from the payload');
+  assert.equal(body.provenance.authoredBy, 'bob');
+
+  const sanity = await priceRegion('EUROPE', { partNumber: 'P-10023', quantity: 1 }); // the unrelated "*" default config still prices fine too
+  assert.equal(sanity.status, 'PRICED');
+
+  // price against the new DE99-specific config directly, proving the edit is live immediately -- no restart needed
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: 'DE99', items: [{ partNumber: 'P-10023', quantity: 1 }] } }),
+  }).then((r) => r.json());
+  assert.equal(res.items[0].status, 'PRICED');
+  assert.equal(res.items[0].result.unitPrice, '110'); // 100 base * 1.10 -- from the just-saved config, not the "*" default
+});
+
+test('saveRegionConfig rejects an invalid document (FACTOR with no basis) with a clear 422, and never touches the store', async () => {
+  const before = await fetch(`${BASE}/rest/config/listVersions?region=EUROPE&salesOrg=DE98`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  }).then((r) => r.json());
+  assert.equal(before.versions.length, 0);
+
+  const { status } = await callConfigAction('saveRegionConfig', 'bob', {
+    region: 'EUROPE',
+    salesOrg: 'DE98',
+    version: 'bad-1',
+    buildUp: [{ id: 'BASE_COST', type: 'BASE' }, { id: 'BAD_FACTOR', type: 'FACTOR' }], // FACTOR with no basis
+  });
+  assert.equal(status, 422);
+
+  const after = await fetch(`${BASE}/rest/config/listVersions?region=EUROPE&salesOrg=DE98`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  }).then((r) => r.json());
+  assert.equal(after.versions.length, 0, 'a rejected save leaves the store completely untouched');
+});
+
+test('a PricingAdmin can save supplier-config, region-route, and party-config directly', async () => {
+  const supplier = await callConfigAction('saveSupplierConfig', 'bob', {
+    region: 'EUROPE', salesOrg: '*', supplier: 'DIRECTEDIT', version: 'v1', validFrom: '2026-08-01', freight: '7.50',
+  });
+  assert.equal(supplier.status, 200);
+  assert.equal(supplier.body.freight, '7.50');
+
+  const route = await callConfigAction('saveRegionRoute', 'bob', {
+    ood: 'ZZ', salesOrg: '*', region: 'EUROPE', entityLabel: 'Test Entity', version: 'v1', validFrom: '2026-08-01',
+  });
+  assert.equal(route.status, 200);
+  assert.equal(route.body.region, 'EUROPE');
+
+  const party = await callConfigAction('savePartyConfig', 'bob', {
+    customerId: 'CUST-DIRECT-EDIT', version: 'v1', validFrom: '2026-08-01', territory: 'TEST', customerOod: 'SAP',
+  });
+  assert.equal(party.status, 200);
+  assert.equal(party.body.customerOod, 'SAP');
 });
 
 test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {

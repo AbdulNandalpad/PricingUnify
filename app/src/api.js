@@ -70,6 +70,22 @@ export function listPartyConfigVersions({ user, customerId }) {
   return callAction('/rest/config/listPartyConfigVersions', { user, method: 'GET', payload: { customerId } });
 }
 
+export function saveRegionConfig({ user, payload }) {
+  return callAction('/rest/config/saveRegionConfig', { user, payload });
+}
+
+export function saveSupplierConfig({ user, payload }) {
+  return callAction('/rest/config/saveSupplierConfig', { user, payload });
+}
+
+export function saveRegionRoute({ user, payload }) {
+  return callAction('/rest/config/saveRegionRoute', { user, payload });
+}
+
+export function savePartyConfig({ user, payload }) {
+  return callAction('/rest/config/savePartyConfig', { user, payload });
+}
+
 export function listSuggestions({ user, region, status }) {
   return callAction('/rest/config/listSuggestions', { user, method: 'GET', payload: { region, status } });
 }

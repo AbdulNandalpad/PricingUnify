@@ -1,14 +1,28 @@
 :root {
-  --navy: #1e2761;
-  --navy-dark: #141b45;
-  --text: #1c1e26;
-  --text-muted: #5b5f6e;
-  --bg: #f5f6f9;
-  --panel-bg: #ffffff;
-  --border: #dde0e8;
+  /* TSS dark/orange theme, per the owner's mockup (2026-08-26). The old light-navy names are
+     kept as aliases so every existing rule keeps working: --navy is now the orange accent. */
+  --tss-orange: #f26522;
+  --tss-orange-dark: #d4551a;
+  --tss-black: #1a1a1a;
+  --tss-surface: #242424;
+  --tss-surface2: #2c2c2c;
+  --tss-surface3: #323232;
+  --tss-border: #2e2e2e;
+  --tss-white: #f5f5f0;
+  --tss-white-dim: #b0afa8;
+  --tss-light-grey: #8a8a8a;
+
+  --navy: var(--tss-orange);
+  --navy-dark: var(--tss-orange-dark);
+  --text: var(--tss-white);
+  --text-muted: var(--tss-white-dim);
+  --bg: var(--tss-black);
+  --panel-bg: var(--tss-surface);
+  --border: var(--tss-border);
   --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --sans: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  color-scheme: light;
+  --sans: 'Barlow', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --condensed: 'Barlow Condensed', var(--sans);
+  color-scheme: dark;
 }
 
 * {

@@ -154,7 +154,10 @@ function seedIndiaRegionConfig() {
     resolution: [{ id: 'RES_LOCAL', originOfData: 'IN', costBasis: 'STANDARD', provenance: HUMAN_PROVENANCE }],
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
-      { id: 'OVERSEAS_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.40, when: "item.ood !== 'IN'", provenance: HUMAN_PROVENANCE },
+      // Owner decision (2026-08-26, mockup review): "overseas" means the supplier's actual
+      // country, not the item's ood. Unresolved supplierCountry -> overseas branch (+40%),
+      // the conservative higher rate — never a silent under-price.
+      { id: 'OVERSEAS_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.40, when: "item.supplierCountry !== 'IN'", provenance: HUMAN_PROVENANCE },
     ],
     constraints: [],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
@@ -182,8 +185,12 @@ function seedAmericasRegionConfig() {
   const stockClassMap = { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' };
   const buildUpFor = (localRate, overseasRate) => [
     { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
-    { id: 'LCA_HANDLING_LOCAL', type: 'FACTOR', basis: ['BASE_COST'], rate: localRate, when: "item.ood === 'SMA'", provenance: HUMAN_PROVENANCE },
-    { id: 'LCA_HANDLING_OVERSEAS', type: 'FACTOR', basis: ['BASE_COST'], rate: overseasRate, when: "item.ood !== 'SMA'", provenance: HUMAN_PROVENANCE },
+    // Owner decision (2026-08-26, mockup review): the domestic/overseas split keys off the
+    // SUPPLIER's actual country, not the item's ood — the two can genuinely diverge. An
+    // unresolved supplierCountry falls into the overseas branch (undefined !== 'US'): the
+    // conservative higher rate, never a silent under-price, and visible in the trace.
+    { id: 'LCA_HANDLING_LOCAL', type: 'FACTOR', basis: ['BASE_COST'], rate: localRate, when: "item.supplierCountry === 'US'", provenance: HUMAN_PROVENANCE },
+    { id: 'LCA_HANDLING_OVERSEAS', type: 'FACTOR', basis: ['BASE_COST'], rate: overseasRate, when: "item.supplierCountry !== 'US'", provenance: HUMAN_PROVENANCE },
     { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
     { id: 'DUTY', type: 'ADDER', amountRef: 'duty', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
     { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
@@ -244,6 +251,21 @@ function seedSupplierConfigs() {
     tariff: '12.00',
     molv: '300.00',
     moq: '25',
+    supplierCountry: 'DE',
+    provenance: HUMAN_PROVENANCE,
+  });
+  // Americas demo supplier: exists purely so pricing can resolve item.supplierCountry from
+  // supplier master data (owner decision 2026-08-26: the LCA domestic/overseas split keys off
+  // the supplier's country, not ood) — no adder overrides, just the country.
+  store.saveSupplierConfig({
+    region: 'AMERICAS',
+    salesOrg: '*',
+    supplier: 'US-ACME',
+    version: '2026.08.0',
+    status: 'ACTIVE',
+    validFrom: '2026-08-01',
+    validTo: null,
+    supplierCountry: 'US',
     provenance: HUMAN_PROVENANCE,
   });
 }

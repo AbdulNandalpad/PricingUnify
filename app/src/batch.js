@@ -5,7 +5,7 @@ function nextId() {
 }
 
 export function newRow(overrides = {}) {
-  return { id: nextId(), partNumber: '', quantity: 1, coo: '', supplier: '', ood: '', warehouse: '', mroqOverride: '', ...overrides };
+  return { id: nextId(), partNumber: '', quantity: 1, coo: '', supplier: '', supplierCountry: '', ood: '', warehouse: '', mroqOverride: '', ...overrides };
 }
 
 export const DEFAULT_ROWS = [
@@ -16,7 +16,7 @@ export const DEFAULT_ROWS = [
 
 /**
  * Bulk-add: one line per part, comma or tab separated:
- * partNumber, quantity[, COO[, supplier[, OOD[, warehouse[, mroqOverride]]]]].
+ * partNumber, quantity[, COO[, supplier[, supplierCountry[, OOD[, warehouse[, mroqOverride]]]]]].
  * Quantity defaults to 1 if omitted or not a number. Blank lines are skipped.
  */
 export function parseBulkText(text) {
@@ -25,13 +25,14 @@ export function parseBulkText(text) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [partNumber, quantity, coo, supplier, ood, warehouse, mroqOverride] = line.split(/[,\t]/).map((s) => (s ?? '').trim());
+      const [partNumber, quantity, coo, supplier, supplierCountry, ood, warehouse, mroqOverride] = line.split(/[,\t]/).map((s) => (s ?? '').trim());
       const qty = Number(quantity);
       return newRow({
         partNumber,
         quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
         coo: coo || '',
         supplier: supplier || '',
+        supplierCountry: supplierCountry || '',
         ood: ood || '',
         warehouse: warehouse || '',
         mroqOverride: mroqOverride || '',
@@ -48,6 +49,7 @@ export function toPricingItems(rows) {
       const item = { partNumber: r.partNumber.trim(), quantity: Number(r.quantity) || 1 };
       if (r.coo?.trim()) item.coo = r.coo.trim();
       if (r.supplier?.trim()) item.supplier = r.supplier.trim();
+      if (r.supplierCountry?.trim()) item.supplierCountry = r.supplierCountry.trim();
       if (r.ood?.trim()) item.ood = r.ood.trim();
       if (r.warehouse?.trim()) item.warehouse = r.warehouse.trim();
       if (r.mroqOverride?.trim()) item.mroqOverride = r.mroqOverride.trim();

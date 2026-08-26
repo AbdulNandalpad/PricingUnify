@@ -77,6 +77,52 @@ function describeSelection(selectedBy) {
   return 'default candidate';
 }
 
+/** Mockup-style per-element breakdown cards, derived straight from the trace steps —
+ *  a skipped (when-condition) element shows as N/A rather than disappearing. */
+function BreakdownCards({ steps, currency }) {
+  if (!steps?.length) return null;
+  return (
+    <div className="breakdown-grid">
+      {steps.map((s) => {
+        const skipped = s.note?.skipped || s.missing;
+        const dotClass = skipped ? 'dot-skipped' : `dot-${s.type.toLowerCase()}`;
+        return (
+          <div className="breakdown-card" key={s.id}>
+            <div className="breakdown-card-label"><span className={`dot ${dotClass}`}></span>{s.id.replaceAll('_', ' ')}</div>
+            <div className={`breakdown-card-value ${skipped ? 'zero' : ''}`}>
+              {skipped ? 'N/A' : `${s.delta ?? '—'}${currency ? ` ${currency}` : ''}`}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Sell-price what-if on top of the landed cost, straight from the owner's mockup:
+ *  sell = landed / (1 − margin%). UI-only — engine margin logic itself is still parked. */
+function MarginWhatIf({ unitPrice, currency }) {
+  const [margin, setMargin] = useState(30);
+  const lc = Number(unitPrice);
+  const m = Number(margin) || 0;
+  const sell = m >= 100 || Number.isNaN(lc) ? null : lc / (1 - m / 100);
+  return (
+    <div className="margin-section">
+      <h3>Sell price &amp; margin</h3>
+      <div className="margin-row">
+        <input type="number" step="0.1" min="0" max="99.9" value={margin} onChange={(e) => setMargin(e.target.value)} />
+        <span style={{ color: 'var(--tss-light-grey)', fontSize: 13 }}>%</span>
+        <div className="margin-bar-wrap"><div className="margin-bar" style={{ width: `${Math.min(Math.max(m, 0), 100)}%` }} /></div>
+        <span className="margin-result">{sell === null ? '∞' : `${sell.toFixed(2)} ${currency}`}</span>
+      </div>
+      <p className="margin-note">
+        Sell price = landed cost ÷ (1 − margin%). What-if only — margin never changes the calculated landed cost
+        {sell !== null && !Number.isNaN(lc) ? `; margin/unit ${(sell - lc).toFixed(2)} ${currency}` : ''}.
+      </p>
+    </div>
+  );
+}
+
 function LineDetail({ line }) {
   return (
     <>
@@ -94,7 +140,11 @@ function LineDetail({ line }) {
           {describeSelection(line.trace.costCandidate.selectedBy)}
         </p>
       )}
+      <BreakdownCards steps={line.trace.steps} currency={line.result?.currency} />
       <TraceTable steps={line.trace.steps} />
+      {line.status === 'PRICED' && line.result && (
+        <MarginWhatIf unitPrice={line.result.unitPrice} currency={line.result.currency} />
+      )}
       {line.trace.constraintPasses?.length > 0 && (
         <div className="constraints">
           <h3>Constraint passes</h3>
@@ -204,7 +254,18 @@ function BatchWorkspace() {
             </select>
           </Field>
           <Field label="Region">
-            <input value={globals.region} onChange={(e) => updateGlobal('region', e.target.value)} />
+            <div className="region-pills">
+              {['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'].map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={globals.region === r ? 'region-pill region-pill-active' : 'region-pill'}
+                  onClick={() => updateGlobal('region', r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </Field>
           <Field label="Sales org">
             <input value={globals.salesOrg} onChange={(e) => updateGlobal('salesOrg', e.target.value)} />
@@ -235,6 +296,7 @@ function BatchWorkspace() {
                 <th>Quantity</th>
                 <th>COO / classification</th>
                 <th>Supplier</th>
+                <th>Supplier country</th>
                 <th>OOD</th>
                 <th>MROQ override</th>
                 <th aria-hidden="true"></th>
@@ -247,6 +309,7 @@ function BatchWorkspace() {
                   <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
                   <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
                   <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
+                  <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
                   <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
                   <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
                   <td>

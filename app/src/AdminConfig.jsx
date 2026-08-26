@@ -14,6 +14,7 @@ import {
   approveSuggestion,
   rejectSuggestion,
 } from './api';
+import { RegionConfigEditor, SupplierConfigEditor, RegionRouteEditor, PartyConfigEditor } from './AdminConfigEdit.jsx';
 
 const REGIONS = ['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'];
 const ADMIN_SECTIONS = ['Region config', 'Supplier config', 'Region routing', 'Party config', 'AI suggestions'];
@@ -153,11 +154,14 @@ function RegionConfigDetail({ config }) {
 }
 
 function RegionConfigSection({ user, region, salesOrg, asOf }) {
+  const isAdmin = user === 'bob';
   const [current, setCurrent] = useState(null);
   const [versions, setVersions] = useState(null);
   const [expandedVersion, setExpandedVersion] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -165,6 +169,7 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
     setCurrent(null);
     setVersions(null);
     setExpandedVersion(null);
+    setEditing(false);
     try {
       const [config, versionList] = await Promise.all([
         getEffectiveConfig({ user, region, salesOrg, asOf }),
@@ -185,12 +190,29 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
         {loading ? 'Loading…' : `Load ${region}/${salesOrg} config`}
       </button>
       {error && <p className="error">{error}</p>}
+      {savedNote && <p className="hint">{savedNote}</p>}
 
-      {current && (
+      {current && !editing && (
         <>
           <h3>Effective as of {asOf || 'today'}</h3>
+          {isAdmin && (
+            <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
+              Edit as new version
+            </button>
+          )}
           <RegionConfigDetail config={current} />
         </>
+      )}
+
+      {current && editing && (
+        <RegionConfigEditor
+          user={user}
+          region={region}
+          salesOrg={salesOrg}
+          baseConfig={current}
+          onSaved={(saved) => { setEditing(false); setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
+          onCancel={() => setEditing(false)}
+        />
       )}
 
       {versions && (
@@ -229,17 +251,21 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
 }
 
 function SupplierConfigSection({ user, region, salesOrg, asOf }) {
+  const isAdmin = user === 'bob';
   const [supplier, setSupplier] = useState('ACME');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(null);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
     setNotFound(false);
+    setEditing(false);
     try {
       const config = await getEffectiveSupplierConfig({ user, region, salesOrg, supplier, asOf });
       setResult(config);
@@ -262,8 +288,16 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
         {loading ? 'Loading…' : `Look up ${region}/${salesOrg}/${supplier || '…'}`}
       </button>
       {error && <p className="error">{error}</p>}
+      {savedNote && <p className="hint">{savedNote}</p>}
       {notFound && <p className="missing-reason">No effective supplier-config for "{supplier}" in {region}/{salesOrg}.</p>}
-      {result && (
+
+      {isAdmin && (result || notFound) && !editing && (
+        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
+          {result ? 'Edit as new version' : 'Create supplier config'}
+        </button>
+      )}
+
+      {result && !editing && (
         <dl className="config-meta">
           <div><dt>Version</dt><dd className="mono">{result.version}</dd></div>
           <div><dt>Valid from</dt><dd className="mono">{result.validFrom}</dd></div>
@@ -272,7 +306,20 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
           <div><dt>Tariff</dt><dd className="mono">{result.tariff ?? '—'}</dd></div>
           <div><dt>MOLV</dt><dd className="mono">{result.molv ?? '—'}</dd></div>
           <div><dt>MOQ</dt><dd className="mono">{result.moq ?? '—'}</dd></div>
+          <div><dt>Supplier country</dt><dd className="mono">{result.supplierCountry ?? '—'}</dd></div>
         </dl>
+      )}
+
+      {editing && (
+        <SupplierConfigEditor
+          user={user}
+          region={region}
+          salesOrg={salesOrg}
+          supplier={supplier}
+          base={result}
+          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
+          onCancel={() => setEditing(false)}
+        />
       )}
     </div>
   );
@@ -283,12 +330,15 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
  *  region, so a pricing request can omit `region` entirely (see srv/pricing-service.js
  *  resolveRegion). Read-only browse, same shape as SupplierConfigSection. */
 function RegionRouteSection({ user, salesOrg, asOf }) {
+  const isAdmin = user === 'bob';
   const [ood, setOod] = useState('SAP');
   const [current, setCurrent] = useState(null);
   const [versions, setVersions] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -296,6 +346,7 @@ function RegionRouteSection({ user, salesOrg, asOf }) {
     setCurrent(null);
     setVersions(null);
     setNotFound(false);
+    setEditing(false);
     try {
       const [route, versionList] = await Promise.all([
         getEffectiveRegionRoute({ user, ood, salesOrg, asOf }),
@@ -323,15 +374,33 @@ function RegionRouteSection({ user, salesOrg, asOf }) {
         {loading ? 'Loading…' : `Look up ${ood || '…'}/${salesOrg}`}
       </button>
       {error && <p className="error">{error}</p>}
+      {savedNote && <p className="hint">{savedNote}</p>}
       {notFound && <p className="missing-reason">No effective region-route for "{ood}" / {salesOrg}.</p>}
 
-      {current && (
+      {isAdmin && (current || notFound) && !editing && (
+        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
+          {current ? 'Edit as new version' : 'Create region route'}
+        </button>
+      )}
+
+      {current && !editing && (
         <dl className="config-meta">
           <div><dt>Region</dt><dd className="mono">{current.region}</dd></div>
           <div><dt>Entity label</dt><dd>{current.entityLabel || '—'}</dd></div>
           <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
           <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
         </dl>
+      )}
+
+      {editing && (
+        <RegionRouteEditor
+          user={user}
+          ood={ood}
+          salesOrg={salesOrg}
+          base={current}
+          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
+          onCancel={() => setEditing(false)}
+        />
       )}
 
       {versions && versions.length > 0 && (
@@ -362,12 +431,15 @@ function RegionRouteSection({ user, salesOrg, asOf }) {
  *  the `party.customerId` field the object-agnostic request has carried since Phase 1 but
  *  nothing previously read. Read-only browse, same shape as SupplierConfigSection. */
 function PartyConfigSection({ user, asOf }) {
+  const isAdmin = user === 'bob';
   const [customerId, setCustomerId] = useState('CUST-DE-001');
   const [current, setCurrent] = useState(null);
   const [versions, setVersions] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -375,6 +447,7 @@ function PartyConfigSection({ user, asOf }) {
     setCurrent(null);
     setVersions(null);
     setNotFound(false);
+    setEditing(false);
     try {
       const [config, versionList] = await Promise.all([
         getEffectivePartyConfig({ user, customerId, asOf }),
@@ -402,9 +475,16 @@ function PartyConfigSection({ user, asOf }) {
         {loading ? 'Loading…' : `Look up ${customerId || '…'}`}
       </button>
       {error && <p className="error">{error}</p>}
+      {savedNote && <p className="hint">{savedNote}</p>}
       {notFound && <p className="missing-reason">No effective party-config for "{customerId}".</p>}
 
-      {current && (
+      {isAdmin && (current || notFound) && !editing && (
+        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
+          {current ? 'Edit as new version' : 'Create party config'}
+        </button>
+      )}
+
+      {current && !editing && (
         <dl className="config-meta">
           <div><dt>Territory</dt><dd>{current.territory || '—'}</dd></div>
           <div><dt>Customer country</dt><dd className="mono">{current.customerCountry || '—'}</dd></div>
@@ -413,6 +493,16 @@ function PartyConfigSection({ user, asOf }) {
           <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
           <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
         </dl>
+      )}
+
+      {editing && (
+        <PartyConfigEditor
+          user={user}
+          customerId={customerId}
+          base={current}
+          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
+          onCancel={() => setEditing(false)}
+        />
       )}
 
       {versions && versions.length > 0 && (

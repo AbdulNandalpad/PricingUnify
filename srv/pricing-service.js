@@ -28,6 +28,16 @@ function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
     const supplierConfig = store.getEffectiveSupplierConfig(region, salesOrg, item.supplier, priceDate);
     if (!supplierConfig) continue;
 
+    // Owner decision (2026-08-26, mockup review): Americas' LCA domestic/overseas split and
+    // India's +40% key off the SUPPLIER's actual country, not the item's ood. An explicit
+    // item.supplierCountry always wins (same precedence as everywhere else); otherwise it
+    // resolves from supplier-config. Left unresolved, `when` conditions like
+    // "item.supplierCountry !== 'US'" put the line in the OVERSEAS branch — the conservative
+    // higher rate, never a silent under-price, and always visible in the trace.
+    if (!item.supplierCountry && supplierConfig.supplierCountry) {
+      item.supplierCountry = supplierConfig.supplierCountry;
+    }
+
     const overrides = {};
     for (const field of SUPPLIER_ADDER_FIELDS) {
       if (supplierConfig[field] !== undefined && supplierConfig[field] !== null) overrides[field] = supplierConfig[field];
