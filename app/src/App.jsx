@@ -624,7 +624,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
 
 const MODE_SUBTITLE = {
   backend: 'Region-aware landed cost pricing — Europe · China · India · Americas',
-  admin: 'Region pricing sheets, supplier overrides, routing, customers, and AI suggestions',
+  admin: 'Region pricing sheets and supplier overrides',
 };
 
 export default function App() {
