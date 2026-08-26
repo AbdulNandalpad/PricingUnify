@@ -2,7 +2,7 @@
  *  Signature: price({ request, facts, config }) -> { items: [{ partNumber, status, result?, missing?, trace }] }
  *  Pure: no I/O, no wall-clock, no randomness. Same input -> same output (requirements §5.3). */
 const Decimal = require('decimal.js');
-const { resolveCandidate, purposeAllows, PURPOSE } = require('./cost');
+const { resolveCandidate, resolveAccessSequence, purposeAllows, PURPOSE } = require('./cost');
 const { applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath } = require('./elements');
 const trace = require('./trace');
 
@@ -83,7 +83,8 @@ function priceItem(item, request, facts, config) {
 
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
-  const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, config.costAccessSequence);
+  const accessSequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);
+  const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, accessSequence);
 
   if (!chosen) {
     return {

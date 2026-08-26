@@ -70,6 +70,33 @@ test('an explicit user selection still overrides the access sequence', () => {
   assert.equal(line.trace.costCandidate.selectedBy, 'USER');
 });
 
+test('costAccessSequence can be keyed by stock class -- Non-MTS parts try CCD first, everything else keeps the original order', () => {
+  const stockClassAwareConfig = {
+    ...CONFIG,
+    costAccessSequence: {
+      NonMTS: ['CCD', 'C4C', 'ERP', 'CCP'],
+      '*': ['C4C', 'ERP', 'CCD', 'CCP'],
+    },
+  };
+  const priceWith = (stockClass) => {
+    const request = { context: { purpose: PURPOSE.INDICATIVE }, items: [{ partNumber: 'P-1', quantity: 1, ...(stockClass ? { stockClass } : {}) }] };
+    const candidates = [candidate('ERP', '100.00'), candidate('CCD', '80.00')];
+    const facts = { costs: { 'P-1': { default: 'ERP_1', candidates } }, elements: {} };
+    return price({ request, facts, config: stockClassAwareConfig }).items[0];
+  };
+
+  const nonMts = priceWith('NonMTS');
+  assert.equal(nonMts.trace.costCandidate.source.system, 'CCD');
+  assert.equal(nonMts.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:CCD');
+
+  const mts = priceWith('MTS'); // not a key in the map -- falls back to '*'
+  assert.equal(mts.trace.costCandidate.source.system, 'ERP');
+  assert.equal(mts.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:ERP');
+
+  const unclassified = priceWith(undefined); // no stock class at all -- also falls back to '*'
+  assert.equal(unclassified.trace.costCandidate.source.system, 'ERP');
+});
+
 test('with no costAccessSequence configured, resolution is unchanged (falls back to default/first candidate)', () => {
   const configWithoutSequence = { ...CONFIG, costAccessSequence: undefined };
   const request = { context: { purpose: PURPOSE.INDICATIVE }, items: [{ partNumber: 'P-1', quantity: 1 }] };

@@ -93,7 +93,18 @@ function RegionConfigDetail({ config }) {
       {config.costAccessSequence && (
         <>
           <h4>Cost access sequence</h4>
-          <p className="mono">{config.costAccessSequence.join(' → ')}</p>
+          {Array.isArray(config.costAccessSequence) ? (
+            <p className="mono">{config.costAccessSequence.join(' → ')}</p>
+          ) : (
+            <dl className="config-meta">
+              {Object.entries(config.costAccessSequence).map(([key, seq]) => (
+                <div key={key}>
+                  <dt>{key === '*' ? 'Default' : key}</dt>
+                  <dd className="mono">{seq.join(' → ')}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </>
       )}
 

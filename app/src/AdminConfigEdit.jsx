@@ -242,7 +242,18 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
   const [validFrom, setValidFrom] = useState(defaultValidFrom || '');
   const [buildUpRows, setBuildUpRows] = useState(() => buildUpToRows(baseConfig.buildUp));
   const [constraintRows, setConstraintRows] = useState(() => constraintsToRows(baseConfig.constraints));
-  const [costAccessSequence, setCostAccessSequence] = useState((baseConfig.costAccessSequence || []).join(', '));
+  // costAccessSequence supports two shapes: a flat array (same order for every part, the
+  // original form) or an object keyed by stock class ('MTS'/'NonMTS') plus an optional '*'
+  // default for anything else — e.g. Europe's real rule that NonMTS parts' cost comes from
+  // PIR data (CCD) first. Three fields cover both: leaving MTS/NonMTS blank and saving keeps
+  // the flat-array shape (backward compatible with every other region).
+  const existingSeq = baseConfig.costAccessSequence;
+  const [caSeqDefault, setCaSeqDefault] = useState(
+    !existingSeq ? '' : (Array.isArray(existingSeq) ? existingSeq : existingSeq['*'] || []).join(', '));
+  const [caSeqMTS, setCaSeqMTS] = useState(
+    !existingSeq || Array.isArray(existingSeq) ? '' : (existingSeq.MTS || []).join(', '));
+  const [caSeqNonMTS, setCaSeqNonMTS] = useState(
+    !existingSeq || Array.isArray(existingSeq) ? '' : (existingSeq.NonMTS || []).join(', '));
   const [stockClassRows, setStockClassRows] = useState(() =>
     Object.entries(baseConfig.stockClassMap || {}).map(([raw, canonical]) => ({ raw, canonical })));
   const [acmRows, setAcmRows] = useState(() =>
@@ -276,8 +287,19 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
       constraints: rowsToConstraints(constraintRows),
     };
     if (validFrom) doc.validFrom = validFrom;
-    const seq = costAccessSequence.split(',').map((s) => s.trim()).filter(Boolean);
-    if (seq.length > 0) doc.costAccessSequence = seq;
+    const parseSeq = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
+    const defSeq = parseSeq(caSeqDefault);
+    const mtsSeq = parseSeq(caSeqMTS);
+    const nonMtsSeq = parseSeq(caSeqNonMTS);
+    if (mtsSeq.length > 0 || nonMtsSeq.length > 0) {
+      const seqObj = {};
+      if (defSeq.length > 0) seqObj['*'] = defSeq;
+      if (mtsSeq.length > 0) seqObj.MTS = mtsSeq;
+      if (nonMtsSeq.length > 0) seqObj.NonMTS = nonMtsSeq;
+      doc.costAccessSequence = seqObj;
+    } else if (defSeq.length > 0) {
+      doc.costAccessSequence = defSeq;
+    }
     const scmEntries = stockClassRows.filter((r) => r.raw.trim());
     if (scmEntries.length > 0) doc.stockClassMap = Object.fromEntries(scmEntries.map((r) => [r.raw.trim(), r.canonical]));
     const acmEntries = acmRows.filter((r) => String(r.flag).trim());
@@ -431,9 +453,20 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
       <button type="button" className="link-button" onClick={() => setConstraintRows((rows) => [...rows, newConstraintRow()])}>+ Add constraint</button>
 
       <h4>Cost access sequence</h4>
+      <p className="hint">
+        The order to try cost sources in when a part has more than one. Leave MTS/Non-MTS blank
+        to use one order for every part; fill either in to give that stock class its own order
+        (e.g. Non-MTS pulling PIR data from CCD first) — Default covers anything else.
+      </p>
       <div className="field-grid">
-        <Field label="Ordered systems (comma-separated, blank = none)">
-          <input value={costAccessSequence} onChange={(e) => setCostAccessSequence(e.target.value)} placeholder="e.g. C4C, ERP, CCD, CCP" />
+        <Field label="Default (comma-separated, blank = none)">
+          <input value={caSeqDefault} onChange={(e) => setCaSeqDefault(e.target.value)} placeholder="e.g. C4C, ERP, CCD, CCP" />
+        </Field>
+        <Field label="MTS override (optional)">
+          <input value={caSeqMTS} onChange={(e) => setCaSeqMTS(e.target.value)} placeholder="leave blank to use Default" />
+        </Field>
+        <Field label="Non-MTS override (optional)">
+          <input value={caSeqNonMTS} onChange={(e) => setCaSeqNonMTS(e.target.value)} placeholder="e.g. CCD, C4C, ERP, CCP" />
         </Field>
       </div>
 

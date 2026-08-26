@@ -9,6 +9,13 @@ test('costAccessSequence is a valid optional field on region-config', () => {
   assert.equal(validateRegionConfig(config), true);
 });
 
+test('costAccessSequence also accepts an object keyed by stock class, with an optional "*" default', () => {
+  const config = europeConfig({
+    costAccessSequence: { NonMTS: ['CCD', 'C4C', 'ERP', 'CCP'], '*': ['C4C', 'ERP', 'CCD', 'CCP'] },
+  });
+  assert.equal(validateRegionConfig(config), true);
+});
+
 test('a config-model-authored costAccessSequence actually drives cost resolution through engine-core', () => {
   const config = europeConfig({ costAccessSequence: ['C4C', 'ERP', 'CCD', 'CCP'], provenance: HUMAN_PROVENANCE });
 

@@ -39,17 +39,17 @@
       ]
     },
     "P-30078": {
-      "default": "MOVING_AVG_1",
+      "default": "PIR_1",
       "candidates": [
         {
           "value": "312.75",
           "currency": "EUR",
-          "basis": "MOVING_AVG",
+          "basis": "SUPPLIER_CATALOG",
           "source": {
-            "system": "ERP",
-            "table": "MBEW",
-            "field": "VERPR",
-            "key": "MOVING_AVG_1"
+            "system": "CCD",
+            "table": "EINE",
+            "field": "NETPR",
+            "key": "PIR_1"
           },
           "validFrom": "2026-08-01",
           "retrievedAt": "2026-08-20T00:00:00Z",

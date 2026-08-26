@@ -19,10 +19,15 @@
       "description": "Ladder: stockClass -> originOfData -> supplier/COO/OOD -> costBasis -> fallback chain. MROQ is routing input here, not a constraint."
     },
     "costAccessSequence": {
-      "type": "array",
-      "items": { "type": "string" },
-      "minItems": 1,
-      "description": "TSS's own cost-source resolution order — not SAP's condition technique. An ordered list of source systems to try when a part has cost candidates from more than one, e.g. [\"C4C\", \"ERP\", \"CCD\", \"CCP\"] (C4C manual entry first, then ERP, then CCD, then CCP). The first system in the list with a candidate wins; matched against candidate.source.system by engine-core's resolveCandidate(). Optional — omitting it falls back to the facts' own `default` candidate id, same as before this existed."
+      "description": "TSS's own cost-source resolution order — not SAP's condition technique. Either a flat ordered list of source systems to try when a part has cost candidates from more than one, e.g. [\"C4C\", \"ERP\", \"CCD\", \"CCP\"] (same order for every part in the region), OR an object keyed by canonical stock class ('MTS'/'NonMTS') with an optional '*' entry as the default for anything else — needed when the real access order genuinely differs by stock class (e.g. Europe: Non-MTS parts' cost is PIR data sourced from CCD first, everything else keeps C4C/ERP/CCD/CCP). The first system in the resolved list with a candidate wins; matched against candidate.source.system by engine-core's resolveCandidate(). Optional — omitting it falls back to the facts' own `default` candidate id, same as before this existed.",
+      "oneOf": [
+        { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "minProperties": 1
+        }
+      ]
     },
     "stockClassMap": {
       "type": "object",

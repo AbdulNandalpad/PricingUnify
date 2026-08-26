@@ -29,7 +29,13 @@ function seedRegionConfig() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_MOVING_AVG', stockClass: 'MTS', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE }],
-    costAccessSequence: ['C4C', 'ERP', 'CCD', 'CCP'],
+    // Non-MTS's real cost source is PIR (Purchase Info Record) data — downloaded from SAP ERP
+    // but held for consumption in BI, tagged CCD — so it's tried first for Non-MTS parts,
+    // ahead of the original C4C/ERP/CCD/CCP order everything else (including MTS) still uses.
+    costAccessSequence: {
+      NonMTS: ['CCD', 'C4C', 'ERP', 'CCP'],
+      '*': ['C4C', 'ERP', 'CCD', 'CCP'],
+    },
     // Normalizes this region's raw ERP stock-class codes into the two canonical buckets
     // buildUp `when` conditions can branch on — see srv/pricing-service.js's
     // applyStockClassNormalization and engine-core/src/kernel.js.

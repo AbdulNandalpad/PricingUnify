@@ -76,6 +76,18 @@ test('a raw ERP stock-class code normalizes to NonMTS via the region stockClassM
   assert.equal(line.trace.stockClass, 'NonMTS'); // P-30078's recorded raw code is "OMT"
 });
 
+test('EUROPE Non-MTS cost resolves via CCD (PIR data) first, per the stock-class-aware access sequence', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-30078', quantity: 4 }] } }),
+  }).then((r) => r.json());
+  const line = res.items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.trace.costCandidate.source.system, 'CCD'); // PIR data, downloaded from SAP ERP but held for consumption in BI as CCD
+  assert.equal(line.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:CCD');
+});
+
 test('a part whose raw stock-class code is not in the region stockClassMap comes back MISSING, not silently priced', async () => {
   const res = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',

@@ -44,6 +44,20 @@ function resolveCandidate(costFacts, itemSelection, accessSequence) {
   return { chosen, reason: null, matchedStep: null };
 }
 
+/**
+ * Resolves region-config's `costAccessSequence` into the flat ordered list to use for THIS
+ * item. Two supported shapes: a plain array (the original form — same order for every item,
+ * unaffected by stock class) or an object keyed by canonical stock class ('MTS'|'NonMTS')
+ * with an optional '*' entry as the default for anything else (e.g. Europe: Non-MTS parts'
+ * cost is PIR data sourced from CCD first, everything else keeps the original C4C/ERP/CCD/CCP
+ * order). Returns undefined if nothing applies, same as an absent costAccessSequence always has.
+ */
+function resolveAccessSequence(costAccessSequence, stockClass) {
+  if (!costAccessSequence) return undefined;
+  if (Array.isArray(costAccessSequence)) return costAccessSequence;
+  return costAccessSequence[stockClass] || costAccessSequence['*'] || undefined;
+}
+
 /** Purpose gate per requirements §7: BINDING refuses FALLBACK/STALE/MISSING costs without explicit override. */
 function purposeAllows(confidence, purpose, override) {
   if (confidence === CONFIDENCE.MISSING) return false;
@@ -53,4 +67,4 @@ function purposeAllows(confidence, purpose, override) {
   return true;
 }
 
-module.exports = { CONFIDENCE, BASIS, PURPOSE, resolveCandidate, purposeAllows };
+module.exports = { CONFIDENCE, BASIS, PURPOSE, resolveCandidate, resolveAccessSequence, purposeAllows };
