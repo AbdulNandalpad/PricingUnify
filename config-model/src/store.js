@@ -74,10 +74,6 @@ function regionSalesOrgKey(region, salesOrg) {
   return `${region}::${salesOrg}`;
 }
 
-function supplierKey(region, salesOrg, supplier) {
-  return `${region}::${salesOrg}::${supplier}`;
-}
-
 function regionRouteKey(ood, salesOrg) {
   return `${ood}::${salesOrg}`;
 }
@@ -88,9 +84,9 @@ function regionRouteKey(ood, salesOrg) {
  * is a persistence-layer change, not a config-model API change.
  *
  * region-config is scoped by (region, salesOrg): salesOrg "*" is a region-wide default.
- * supplier-config is scoped by (region, salesOrg, supplier): supplier "*" is a region-wide
- * default landed-cost adder set, and any supplier-specific document overrides it for dates
- * it covers — see getEffectiveSupplierConfig.
+ * supplier-config is scoped by supplier ALONE — a supplier is independent of region, it just
+ * ships to warehouses in different regions (see supplier-config.schema.json). No wildcard
+ * fallback, same as party-config: a supplier either has a document on file or doesn't.
  */
 class ConfigStore {
   constructor() {
@@ -101,8 +97,8 @@ class ConfigStore {
     });
     this._supplierConfigs = new VersionedBucketStore({
       validate: validateSupplierConfig,
-      entityLabel: 'region/salesOrg/supplier',
-      keyOf: (doc) => supplierKey(doc.region, doc.salesOrg, doc.supplier),
+      entityLabel: 'supplier',
+      keyOf: (doc) => doc.supplier,
     });
     this._regionRoutes = new VersionedBucketStore({
       validate: validateRegionRoute,
@@ -141,36 +137,26 @@ class ConfigStore {
     return this._supplierConfigs.saveVersion(config);
   }
 
-  getSupplierConfigVersion(region, salesOrg, supplier, version) {
-    return this._supplierConfigs.getVersion(supplierKey(region, salesOrg, supplier), version);
+  getSupplierConfigVersion(supplier, version) {
+    return this._supplierConfigs.getVersion(supplier, version);
   }
 
-  listSupplierConfigVersions(region, salesOrg, supplier) {
-    return this._supplierConfigs.listVersions(supplierKey(region, salesOrg, supplier));
+  listSupplierConfigVersions(supplier) {
+    return this._supplierConfigs.listVersions(supplier);
   }
 
-  /** Falls back supplier -> "*" (region-wide default adders), same convention as
-   *  region-config's salesOrg fallback — a supplier only needs its own document where its
-   *  terms actually diverge from the default. */
-  getEffectiveSupplierConfig(region, salesOrg, supplier, date) {
-    return this._supplierConfigs.getEffectiveAsOf(
-      supplierKey(region, salesOrg, supplier),
-      supplierKey(region, salesOrg, WILDCARD),
-      date,
-    );
+  /** No wildcard fallback — a supplier either has master data on file or doesn't, same as
+   *  party-config. */
+  getEffectiveSupplierConfig(supplier, date) {
+    return this._supplierConfigs.getEffectiveAsOf(supplier, supplier, date);
   }
 
-  /** Every named supplier with an effective config for (region, salesOrg) as of `date` —
-   *  scans both the sales-org-specific and "*" buckets, resolves each supplier through the
-   *  normal effective lookup, and excludes the "*" wildcard default itself (it's a fallback,
-   *  not a supplier anyone can pick from a dropdown). */
-  listSuppliers(region, salesOrg, date) {
+  /** Every supplier with an effective document as of `date` — global, not scoped to any
+   *  region, since a supplier ships to warehouses across regions. */
+  listSuppliers(date) {
     const seen = new Map();
-    for (const key of this._supplierConfigs.versionsByKey.keys()) {
-      const [r, so, supplier] = key.split('::');
-      if (r !== region || (so !== salesOrg && so !== WILDCARD)) continue;
-      if (supplier === WILDCARD || seen.has(supplier)) continue;
-      const effective = this.getEffectiveSupplierConfig(region, salesOrg, supplier, date);
+    for (const supplier of this._supplierConfigs.versionsByKey.keys()) {
+      const effective = this.getEffectiveSupplierConfig(supplier, date);
       if (effective) seen.set(supplier, effective);
     }
     return [...seen.values()];

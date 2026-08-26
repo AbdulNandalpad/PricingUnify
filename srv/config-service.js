@@ -69,17 +69,16 @@ module.exports = (srv) => {
   });
 
   srv.on('getEffectiveSupplierConfig', (req) => {
-    const { region, salesOrg = '*', supplier, asOf } = req.data;
-    if (!region || !supplier) return req.reject(400, 'region and supplier are required.');
-    const config = store.getEffectiveSupplierConfig(region, salesOrg, supplier, asOf || todayIso());
-    if (!config) return req.reject(404, `No effective supplier-config for region "${region}" / salesOrg "${salesOrg}" / supplier "${supplier}".`);
+    const { supplier, asOf } = req.data;
+    if (!supplier) return req.reject(400, 'supplier is required.');
+    const config = store.getEffectiveSupplierConfig(supplier, asOf || todayIso());
+    if (!config) return req.reject(404, `No effective supplier-config for supplier "${supplier}".`);
     return config;
   });
 
   srv.on('listSuppliers', (req) => {
-    const { region, salesOrg = '*', asOf } = req.data;
-    if (!region) return req.reject(400, 'region is required.');
-    return { suppliers: store.listSuppliers(region, salesOrg, asOf || todayIso()) };
+    const { asOf } = req.data;
+    return { suppliers: store.listSuppliers(asOf || todayIso()) };
   });
 
   srv.on('getEffectiveRegionRoute', (req) => {
@@ -118,8 +117,8 @@ module.exports = (srv) => {
 
   srv.on('saveSupplierConfig', (req) => {
     const doc = req.data.payload || {};
-    if (!doc.region || !doc.salesOrg || !doc.supplier || !doc.version) {
-      return req.reject(400, 'payload.region, payload.salesOrg, payload.supplier, and payload.version are required.');
+    if (!doc.supplier || !doc.version) {
+      return req.reject(400, 'payload.supplier and payload.version are required.');
     }
     return trySave(req, () => store.saveSupplierConfig(withHumanProvenance(doc, req)));
   });

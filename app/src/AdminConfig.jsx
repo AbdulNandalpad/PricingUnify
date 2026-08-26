@@ -259,7 +259,12 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
   );
 }
 
-function SupplierConfigSection({ user, region, salesOrg, asOf }) {
+/** A supplier is independent of region: it manufactures in one country and ships to
+ *  warehouses across every region that orders from it. supplierCountry/MOLV/MOQ are
+ *  supplier-wide; freight/duty/tariff vary by destination warehouse, so they render as a
+ *  per-warehouse table rather than flat columns. No region/salesOrg scoping — same shape as
+ *  PartyConfigSection (a supplier either has a document on file or it doesn't). */
+function SupplierConfigSection({ user, asOf }) {
   const isAdmin = user === 'bob';
   const [supplier, setSupplier] = useState('ACME');
   const [supplierList, setSupplierList] = useState([]);
@@ -273,11 +278,11 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
 
   useEffect(() => {
     let cancelled = false;
-    listSuppliers({ user, region, salesOrg, asOf })
+    listSuppliers({ user, asOf })
       .then((res) => { if (!cancelled) setSupplierList(res.suppliers || []); })
       .catch(() => { if (!cancelled) setSupplierList([]); });
     return () => { cancelled = true; };
-  }, [user, region, salesOrg, asOf, listTick]);
+  }, [user, asOf, listTick]);
 
   const load = async (supplierId = supplier) => {
     setLoading(true);
@@ -286,7 +291,7 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
     setNotFound(false);
     setEditing(false);
     try {
-      const config = await getEffectiveSupplierConfig({ user, region, salesOrg, supplier: supplierId, asOf });
+      const config = await getEffectiveSupplierConfig({ user, supplier: supplierId, asOf });
       setResult(config);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setNotFound(true);
@@ -299,15 +304,16 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
   return (
     <div>
       <p className="hint">
-        Freight, duty and tariff are supplier terms, not region ones — the region sheet only says
-        <em> which</em> charges apply and when; the values below are what each supplier actually
-        charges. A line that names a supplier prices with that supplier's numbers.
+        A supplier is independent of region — it manufactures goods in one country and ships to
+        warehouses in whichever regions order from it. Supplier country, MOLV and MOQ are
+        supplier-wide; freight, duty and tariff vary by <em>destination warehouse</em> — a line
+        that names both a supplier and a warehouse prices with that specific row's numbers.
       </p>
 
       {supplierList.length > 0 && (
         <table className="results-table">
           <thead>
-            <tr><th>Supplier</th><th>Country</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th><th className="num">MOLV</th><th className="num">MOQ</th></tr>
+            <tr><th>Supplier</th><th>Country</th><th className="num">MOLV</th><th className="num">MOQ</th><th>Warehouses</th></tr>
           </thead>
           <tbody>
             {supplierList.map((s) => (
@@ -319,11 +325,9 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
               >
                 <td className="mono">{s.supplier}</td>
                 <td className="mono">{s.supplierCountry ?? '—'}</td>
-                <td className="num mono">{s.freight ?? '—'}</td>
-                <td className="num mono">{s.duty ?? '—'}</td>
-                <td className="num mono">{s.tariff ?? '—'}</td>
                 <td className="num mono">{s.molv ?? '—'}</td>
                 <td className="num mono">{s.moq ?? '—'}</td>
+                <td className="mono">{s.warehouses && Object.keys(s.warehouses).length > 0 ? Object.keys(s.warehouses).join(', ') : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -336,11 +340,11 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
         </Field>
       </div>
       <button type="button" onClick={() => load()} disabled={loading || !supplier.trim()}>
-        {loading ? 'Loading…' : `Look up ${region}/${salesOrg}/${supplier || '…'}`}
+        {loading ? 'Loading…' : `Look up ${supplier || '…'}`}
       </button>
       {error && <p className="error">{error}</p>}
       {savedNote && <p className="hint">{savedNote}</p>}
-      {notFound && <p className="missing-reason">No effective supplier-config for "{supplier}" in {region}/{salesOrg}.</p>}
+      {notFound && <p className="missing-reason">No effective supplier-config for "{supplier}".</p>}
 
       {isAdmin && (result || notFound) && !editing && (
         <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
@@ -349,23 +353,38 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
       )}
 
       {result && !editing && (
-        <dl className="config-meta">
-          <div><dt>Version</dt><dd className="mono">{result.version}</dd></div>
-          <div><dt>Valid from</dt><dd className="mono">{result.validFrom}</dd></div>
-          <div><dt>Freight</dt><dd className="mono">{result.freight ?? '—'}</dd></div>
-          <div><dt>Duty</dt><dd className="mono">{result.duty ?? '—'}</dd></div>
-          <div><dt>Tariff</dt><dd className="mono">{result.tariff ?? '—'}</dd></div>
-          <div><dt>MOLV</dt><dd className="mono">{result.molv ?? '—'}</dd></div>
-          <div><dt>MOQ</dt><dd className="mono">{result.moq ?? '—'}</dd></div>
-          <div><dt>Supplier country</dt><dd className="mono">{result.supplierCountry ?? '—'}</dd></div>
-        </dl>
+        <>
+          <dl className="config-meta">
+            <div><dt>Version</dt><dd className="mono">{result.version}</dd></div>
+            <div><dt>Valid from</dt><dd className="mono">{result.validFrom}</dd></div>
+            <div><dt>Supplier country</dt><dd className="mono">{result.supplierCountry ?? '—'}</dd></div>
+            <div><dt>MOLV</dt><dd className="mono">{result.molv ?? '—'}</dd></div>
+            <div><dt>MOQ</dt><dd className="mono">{result.moq ?? '—'}</dd></div>
+          </dl>
+          <h4>Warehouses</h4>
+          {result.warehouses && Object.keys(result.warehouses).length > 0 ? (
+            <table className="trace-table">
+              <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th></tr></thead>
+              <tbody>
+                {Object.entries(result.warehouses).map(([code, terms]) => (
+                  <tr key={code}>
+                    <td className="mono">{code}</td>
+                    <td className="num mono">{terms.freight ?? '—'}</td>
+                    <td className="num mono">{terms.duty ?? '—'}</td>
+                    <td className="num mono">{terms.tariff ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="hint">No per-warehouse charges declared — a line shipped to any warehouse falls back to whatever API6 already put in facts.</p>
+          )}
+        </>
       )}
 
       {editing && (
         <SupplierConfigEditor
           user={user}
-          region={region}
-          salesOrg={salesOrg}
           supplier={supplier}
           base={result}
           onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); setListTick((t) => t + 1); load(); }}
@@ -712,7 +731,8 @@ export default function AdminConfig({ region: regionProp, setRegion: setRegionPr
   const [asOf, setAsOf] = useState('');
   const [section, setSection] = useState(ADMIN_SECTIONS[0]);
 
-  const regionMatters = section === 'Region pricing' || section === 'Suppliers' || section === 'AI suggestions';
+  // Suppliers are global (independent of region) — the region pills don't apply there.
+  const regionMatters = section === 'Region pricing' || section === 'AI suggestions';
 
   return (
     <main className="admin-layout">
@@ -770,7 +790,7 @@ export default function AdminConfig({ region: regionProp, setRegion: setRegionPr
         </details>
 
         {section === 'Region pricing' && <RegionConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
-        {section === 'Suppliers' && <SupplierConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Suppliers' && <SupplierConfigSection user={user} asOf={asOf} />}
         {section === 'Routing' && <RegionRouteSection user={user} salesOrg={salesOrg} asOf={asOf} />}
         {section === 'Customers' && <PartyConfigSection user={user} asOf={asOf} />}
         {section === 'AI suggestions' && <AiSuggestionsSection user={user} region={region} salesOrg={salesOrg} />}

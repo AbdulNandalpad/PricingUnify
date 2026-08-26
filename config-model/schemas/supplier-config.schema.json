@@ -2,24 +2,32 @@
   "$id": "supplier-config.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "SupplierConfig",
-  "description": "Landed-cost adders and constraints that vary by supplier — freight, duty, tariff, MOLV, MOQ. Independent of the cost access sequence (which picks WHICH cost candidate to use): this is what gets added on top once a supplier is known for the line. One (region, salesOrg, supplier) triple = one versioned, effective-dated document, scoped exactly like region-config. supplier \"*\" is a region-wide default; a specific supplier only needs its own document where its terms actually diverge.",
+  "description": "A supplier is independent of region: it manufactures goods in one country and ships them to warehouses in whichever regions order from it (a US warehouse, a CN warehouse, an EU warehouse, ...). One supplier id = one versioned, effective-dated document, keyed by supplier alone — no region/salesOrg scoping. `supplierCountry` is a single supplier-wide attribute (where the supplier itself is based). Freight, duty, and tariff are NOT supplier-wide flat numbers — they vary by which warehouse receives the shipment, so they live in `warehouses`, keyed by warehouse code. MOLV and MOQ are supplier-wide order minimums, not warehouse-specific.",
   "type": "object",
-  "required": ["region", "salesOrg", "supplier", "version", "validFrom", "status", "provenance"],
+  "required": ["supplier", "version", "validFrom", "status", "provenance"],
   "properties": {
-    "region": { "type": "string" },
-    "salesOrg": { "type": "string", "minLength": 1 },
-    "supplier": { "type": "string", "minLength": 1, "description": "A specific supplier id (e.g. \"ACME\"), or \"*\" for a region-wide default used when the item's supplier has no override." },
+    "supplier": { "type": "string", "minLength": 1, "description": "A specific supplier id (e.g. \"ACME\")." },
     "version": { "type": "string" },
     "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
     "supersedes": { "type": ["string", "null"] },
     "validFrom": { "type": "string", "format": "date" },
     "validTo": { "type": ["string", "null"], "format": "date" },
-    "freight": { "type": ["string", "number", "null"], "description": "Overrides the part's freight adder for this supplier, if set." },
-    "duty": { "type": ["string", "number", "null"] },
-    "tariff": { "type": ["string", "number", "null"] },
-    "molv": { "type": ["string", "number", "null"], "description": "Minimum order line value for this supplier." },
-    "moq": { "type": ["string", "number", "null"], "description": "Minimum order quantity for this supplier — informational (see constraint.schema.json kind MIN_QTY), never silently changes price." },
-    "supplierCountry": { "type": ["string", "null"], "description": "The supplier's own country of registration — distinct from an item's COO (country of origin of the goods) or a customer's country. Informational/audit today; not yet read by any build-up or resolution logic." },
+    "supplierCountry": { "type": ["string", "null"], "description": "The supplier's own country — where it manufactures/is registered. Drives region logic that keys off the supplier's country (e.g. China's freight&duty branch, Americas'/India's local-vs-overseas split)." },
+    "molv": { "type": ["string", "number", "null"], "description": "Minimum order line value for this supplier — supplier-wide, not per-warehouse." },
+    "moq": { "type": ["string", "number", "null"], "description": "Minimum order quantity for this supplier — informational (see constraint.schema.json kind MIN_QTY), never silently changes price. Supplier-wide, not per-warehouse." },
+    "warehouses": {
+      "type": "object",
+      "description": "Per-destination-warehouse landed-cost charges this supplier bills, keyed by warehouse code (e.g. \"US01\", \"EU01\", \"CN01\", \"IN01\") — matches an item's `warehouse` field. A warehouse this supplier doesn't ship to simply has no entry; the line then falls back to whatever API6 already put in facts.elements for freight/duty/tariff, same as a supplier with no override at all.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "freight": { "type": ["string", "number", "null"] },
+          "duty": { "type": ["string", "number", "null"] },
+          "tariff": { "type": ["string", "number", "null"] }
+        },
+        "additionalProperties": false
+      }
+    },
     "provenance": { "$ref": "provenance.schema.json" }
   },
   "additionalProperties": false

@@ -236,25 +236,60 @@ function seedAmericasRegionConfig() {
 /**
  * Landed-cost adders/constraints that vary by supplier — independent of the cost access
  * sequence (which only picks WHICH cost candidate to use). A line only gets these when the
- * caller sets item.supplier; with no supplier given, pricing uses whatever API6 already put
- * in facts.elements (see api6-client/recorded/europe-default.json's tariff:"0", moq:"1"
- * defaults) — there's no need for a "*" wildcard supplier-config entry to fall back to.
+ * caller names BOTH a supplier and a warehouse that supplier has terms for; with no supplier,
+ * no warehouse, or a warehouse the supplier doesn't ship to, pricing uses whatever API6
+ * already put in facts.elements (see api6-client/recorded/europe-default.json's tariff:"0",
+ * moq:"1" defaults) — there's no wildcard supplier-config entry to fall back to.
+ *
+ * A supplier is independent of region (owner, 2026-08-26: "supplier is independent of the
+ * region... they manufacture items and they send it to warehouse in US or CN or IN or EUR") —
+ * one supplier document per supplier id, no region/salesOrg scoping. `supplierCountry` is a
+ * single supplier-wide attribute; freight/duty/tariff are per-destination-warehouse, since
+ * the same supplier ships the same goods to different warehouses at different logistics
+ * costs. ACME deliberately ships to all four regions' warehouses to demonstrate that; GLOBEX
+ * and INITECH each ship to a subset.
  */
 function seedSupplierConfigs() {
-  if (store.listSupplierConfigVersions('EUROPE', '*', 'ACME').length > 0) return;
-  // Three EUROPE demo suppliers with deliberately different freight/duty/tariff, per owner
-  // ("freight duty and tariff is based on supplier and not linked with region"): the region
-  // config only declares THAT these charges apply (and when); the VALUES come from whichever
-  // supplier the line names — same part, three suppliers, three different landed costs.
-  const europeSuppliers = [
-    { supplier: 'ACME', freight: '18.00', duty: '9.50', tariff: '12.00', molv: '300.00', moq: '25', supplierCountry: 'DE' },
-    { supplier: 'GLOBEX', freight: '8.00', duty: '4.00', tariff: '5.00', molv: '50.00', moq: '1', supplierCountry: 'NL' },
-    { supplier: 'INITECH', freight: '12.00', duty: '6.00', tariff: '20.00', molv: '50.00', moq: '1', supplierCountry: 'CN' },
+  if (store.listSupplierConfigVersions('ACME').length > 0) return;
+  const suppliers = [
+    {
+      supplier: 'ACME',
+      supplierCountry: 'DE',
+      molv: '300.00',
+      moq: '25',
+      warehouses: {
+        EU01: { freight: '18.00', duty: '9.50', tariff: '12.00' },
+        US01: { freight: '25.00', duty: '15.00', tariff: '20.00' },
+        CN01: { freight: '30.00', duty: '20.00', tariff: '28.00' },
+        IN01: { freight: '22.00', duty: '12.00', tariff: '15.00' },
+      },
+    },
+    {
+      supplier: 'GLOBEX',
+      supplierCountry: 'NL',
+      molv: '50.00',
+      moq: '1',
+      warehouses: {
+        EU01: { freight: '8.00', duty: '4.00', tariff: '5.00' },
+      },
+    },
+    {
+      supplier: 'INITECH',
+      supplierCountry: 'CN',
+      molv: '50.00',
+      moq: '1',
+      warehouses: {
+        EU01: { freight: '12.00', duty: '6.00', tariff: '20.00' },
+        CN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
+      },
+    },
+    // Exists purely so pricing can resolve item.supplierCountry from supplier master data
+    // (owner decision 2026-08-26: the LCA domestic/overseas split keys off the supplier's
+    // country, not ood) — no warehouse terms of its own.
+    { supplier: 'US-ACME', supplierCountry: 'US' },
   ];
-  for (const s of europeSuppliers) {
+  for (const s of suppliers) {
     store.saveSupplierConfig({
-      region: 'EUROPE',
-      salesOrg: '*',
       version: '2026.08.0',
       status: 'ACTIVE',
       validFrom: '2026-08-01',
@@ -263,20 +298,6 @@ function seedSupplierConfigs() {
       ...s,
     });
   }
-  // Americas demo supplier: exists purely so pricing can resolve item.supplierCountry from
-  // supplier master data (owner decision 2026-08-26: the LCA domestic/overseas split keys off
-  // the supplier's country, not ood) — no adder overrides, just the country.
-  store.saveSupplierConfig({
-    region: 'AMERICAS',
-    salesOrg: '*',
-    supplier: 'US-ACME',
-    version: '2026.08.0',
-    status: 'ACTIVE',
-    validFrom: '2026-08-01',
-    validTo: null,
-    supplierCountry: 'US',
-    provenance: HUMAN_PROVENANCE,
-  });
 }
 
 /**

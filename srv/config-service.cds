@@ -19,10 +19,10 @@ service ConfigService {
   function listSuggestions(region: String, status: String) returns Map;
 
   @requires: 'authenticated-user'
-  function getEffectiveSupplierConfig(region: String, salesOrg: String, supplier: String, asOf: String) returns Map;
+  function getEffectiveSupplierConfig(supplier: String, asOf: String) returns Map;
 
   @requires: 'authenticated-user'
-  function listSuppliers(region: String, salesOrg: String, asOf: String) returns Map;
+  function listSuppliers(asOf: String) returns Map;
 
   @requires: 'authenticated-user'
   function getEffectiveRegionRoute(ood: String, salesOrg: String, asOf: String) returns Map;

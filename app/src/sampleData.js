@@ -32,6 +32,7 @@ export const DEFAULT_FORM = {
   ood: '',
   supplier: '',
   supplierCountry: '',
+  warehouse: '',
 };
 
 /** Sensible starting values for the fact fields a region's config references — anything the
@@ -100,6 +101,7 @@ export function buildPricingInput(form, config = DEMO_CONFIG, factValues = DEFAU
   if (form.ood?.trim()) item.ood = form.ood.trim();
   if (form.supplier?.trim()) item.supplier = form.supplier.trim();
   if (form.supplierCountry?.trim()) item.supplierCountry = form.supplierCountry.trim();
+  if (form.warehouse?.trim()) item.warehouse = form.warehouse.trim();
 
   const request = {
     context: { hostSystem: 'DEV_CONSOLE', hostObjectType: 'QUOTE', purpose: form.purpose },

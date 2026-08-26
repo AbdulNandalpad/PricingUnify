@@ -251,11 +251,12 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
 
   useEffect(() => {
     let cancelled = false;
-    listSuppliers({ user: 'alice', region, salesOrg: '*' })
+    // Suppliers are global (independent of region) — fetched once, not per-region.
+    listSuppliers({ user: 'alice' })
       .then((res) => { if (!cancelled) setKnownSuppliers(res.suppliers || []); })
       .catch(() => { if (!cancelled) setKnownSuppliers([]); });
     return () => { cancelled = true; };
-  }, [region]);
+  }, []);
 
   function updateGlobal(key, value) {
     setGlobals((g) => ({ ...g, [key]: value }));
@@ -418,6 +419,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                 {showAdvanced && (
                   <>
                     <th title="Origin of Data — which system the part's cost data comes from (e.g. SMA, SAP, CN, IN)">Data origin (OOD)</th>
+                    <th title="Destination warehouse — which of the supplier's per-warehouse freight/duty/tariff terms apply (e.g. EU01, US01, CN01, IN01)">Warehouse</th>
                     <th title="What-if: price at this hypothetical order quantity instead of the entered one (Americas quantity breaks)">Qty override</th>
                   </>
                 )}
@@ -426,7 +428,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const colCount = showAdvanced ? 7 : 5;
+                const colCount = showAdvanced ? 8 : 5;
                 const componentCount = row.components.filter((c) => c.partNumber.trim()).length;
                 return (
                   <Fragment key={row.id}>
@@ -452,6 +454,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                       {showAdvanced && (
                         <>
                           <td><input className="ood-input" value={row.ood} onChange={(e) => updateRow(i, 'ood', e.target.value)} placeholder="e.g. SMA" /></td>
+                          <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
                           <td><input className="qty-input" type="number" min="0" value={row.mroqOverride} onChange={(e) => updateRow(i, 'mroqOverride', e.target.value)} placeholder="qty" /></td>
                         </>
                       )}
@@ -666,7 +669,9 @@ function DirectWorkspace({ region, setRegion }) {
         seedFactValues(DEMO_CONFIG);
         setConfigNote(`Backend not reachable — falling back to the built-in synthetic EUROPE-shaped sample config.`);
       });
-    listSuppliers({ user: 'alice', region, salesOrg: '*' })
+    // Suppliers are global (independent of region) — every supplier can ship to a warehouse
+    // in any region, so the list isn't filtered by the selected region.
+    listSuppliers({ user: 'alice' })
       .then((res) => { if (!cancelled) setSuppliers(res.suppliers || []); })
       .catch(() => { if (!cancelled) setSuppliers([]); });
     return () => { cancelled = true; };
@@ -676,8 +681,28 @@ function DirectWorkspace({ region, setRegion }) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  /** Picking a supplier pulls its terms into the fact fields the config actually reads
-   *  (still editable after) — the in-browser mirror of srv's applySupplierOverrides. */
+  /** Picking a supplier (and/or its destination warehouse) pulls terms into the fact fields
+   *  the config actually reads (still editable after) — the in-browser mirror of srv's
+   *  applySupplierOverrides. MOLV/MOQ are supplier-wide; freight/duty/tariff live per
+   *  warehouse, so they only fill in once both a supplier AND a warehouse are picked. */
+  function applySupplierTerms(supplierId, warehouseId) {
+    const s = suppliers.find((x) => x.supplier === supplierId);
+    if (!s) return;
+    setFactValues((cur) => {
+      const next = { ...cur };
+      for (const field of ['molv', 'moq']) {
+        if (s[field] != null && field in next) next[field] = String(s[field]);
+      }
+      const warehouseTerms = warehouseId && s.warehouses?.[warehouseId];
+      if (warehouseTerms) {
+        for (const field of ['freight', 'duty', 'tariff']) {
+          if (warehouseTerms[field] != null && field in next) next[field] = String(warehouseTerms[field]);
+        }
+      }
+      return next;
+    });
+  }
+
   function pickSupplier(supplierId) {
     const s = suppliers.find((x) => x.supplier === supplierId);
     setForm((f) => ({
@@ -685,15 +710,12 @@ function DirectWorkspace({ region, setRegion }) {
       supplier: supplierId,
       ...(s?.supplierCountry != null ? { supplierCountry: s.supplierCountry } : {}),
     }));
-    if (s) {
-      setFactValues((cur) => {
-        const next = { ...cur };
-        for (const field of ['freight', 'duty', 'tariff', 'molv', 'moq']) {
-          if (s[field] != null && field in next) next[field] = String(s[field]);
-        }
-        return next;
-      });
-    }
+    applySupplierTerms(supplierId, form.warehouse);
+  }
+
+  function pickWarehouse(warehouseId) {
+    update('warehouse', warehouseId);
+    applySupplierTerms(form.supplier, warehouseId);
   }
 
   function runPricing(e) {
@@ -759,7 +781,7 @@ function DirectWorkspace({ region, setRegion }) {
                   <option value="">— none —</option>
                   {suppliers.map((s) => (
                     <option key={s.supplier} value={s.supplier}>
-                      {s.supplier}{s.tariff != null ? ` (freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff})` : ''}
+                      {s.supplier}{s.supplierCountry ? ` (${s.supplierCountry})` : ''}
                     </option>
                   ))}
                 </select>
@@ -767,6 +789,18 @@ function DirectWorkspace({ region, setRegion }) {
                 <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
               )}
             </Field>
+            {form.supplier && suppliers.find((s) => s.supplier === form.supplier)?.warehouses && (
+              <Field label="Destination warehouse (freight/duty/tariff vary by warehouse, not by supplier alone)">
+                <select value={form.warehouse} onChange={(e) => pickWarehouse(e.target.value)}>
+                  <option value="">— none —</option>
+                  {Object.entries(suppliers.find((s) => s.supplier === form.supplier).warehouses).map(([code, terms]) => (
+                    <option key={code} value={code}>
+                      {code} (freight {terms.freight ?? '—'} / duty {terms.duty ?? '—'} / tariff {terms.tariff ?? '—'})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </div>
         )}
 

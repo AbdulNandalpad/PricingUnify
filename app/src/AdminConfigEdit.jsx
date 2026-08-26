@@ -561,23 +561,119 @@ function SimpleDocEditor({ title, fields, fixed, save, onSaved, onCancel }) {
   );
 }
 
-export function SupplierConfigEditor({ user, region, salesOrg, supplier, base, onSaved, onCancel }) {
+function warehousesToRows(warehouses) {
+  return Object.entries(warehouses || {}).map(([code, terms]) => ({
+    code,
+    freight: terms?.freight ?? '',
+    duty: terms?.duty ?? '',
+    tariff: terms?.tariff ?? '',
+  }));
+}
+function rowsToWarehouses(rows) {
+  const entries = rows
+    .filter((r) => r.code.trim())
+    .map((r) => {
+      const terms = {};
+      if (String(r.freight).trim() !== '') terms.freight = numberOrString(r.freight);
+      if (String(r.duty).trim() !== '') terms.duty = numberOrString(r.duty);
+      if (String(r.tariff).trim() !== '') terms.tariff = numberOrString(r.tariff);
+      return [r.code.trim(), terms];
+    });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+/** Supplier-config is global — no region/salesOrg. supplierCountry/MOLV/MOQ are flat,
+ *  supplier-wide fields; freight/duty/tariff vary by destination warehouse, so they're an
+ *  editable per-warehouse table (same editable-rows pattern as RegionConfigEditor's build-up
+ *  and constraints tables) rather than a flat SimpleDocEditor field. */
+export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }) {
+  const [version, setVersion] = useState('');
+  const [validFrom, setValidFrom] = useState('');
+  const [supplierCountry, setSupplierCountry] = useState(base?.supplierCountry ?? '');
+  const [molv, setMolv] = useState(base?.molv ?? '');
+  const [moq, setMoq] = useState(base?.moq ?? '');
+  const [warehouseRows, setWarehouseRows] = useState(() => warehousesToRows(base?.warehouses));
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const updateWarehouseRow = (i, key, value) => setWarehouseRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+
+  const save = async () => {
+    setError(null);
+    if (!version.trim()) {
+      setError('A new version id is required.');
+      return;
+    }
+    const payload = { supplier, version: version.trim(), ...(base ? { supersedes: base.version } : {}) };
+    if (validFrom) payload.validFrom = validFrom;
+    if (supplierCountry.trim()) payload.supplierCountry = supplierCountry.trim();
+    if (String(molv).trim() !== '') payload.molv = numberOrString(molv);
+    if (String(moq).trim() !== '') payload.moq = numberOrString(moq);
+    const warehouses = rowsToWarehouses(warehouseRows);
+    if (warehouses) payload.warehouses = warehouses;
+
+    setSaving(true);
+    try {
+      const saved = await saveSupplierConfig({ user, payload });
+      onSaved(saved);
+    } catch (err) {
+      setError(editErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <SimpleDocEditor
-      title={`New supplier-config version for ${region}/${salesOrg}/${supplier}${base ? ` (based on ${base.version})` : ''}`}
-      fixed={{ region, salesOrg, supplier, ...(base ? { supersedes: base.version } : {}) }}
-      fields={[
-        { key: 'freight', label: 'Freight', initial: base?.freight ?? '' },
-        { key: 'duty', label: 'Duty', initial: base?.duty ?? '' },
-        { key: 'tariff', label: 'Tariff', initial: base?.tariff ?? '' },
-        { key: 'molv', label: 'MOLV', initial: base?.molv ?? '' },
-        { key: 'moq', label: 'MOQ', initial: base?.moq ?? '' },
-        { key: 'supplierCountry', label: 'Supplier country', initial: base?.supplierCountry ?? '', placeholder: 'e.g. US' },
-      ]}
-      save={(payload) => saveSupplierConfig({ user, payload })}
-      onSaved={onSaved}
-      onCancel={onCancel}
-    />
+    <div className="admin-config-detail admin-editor">
+      <h3>New supplier-config version for {supplier}{base ? ` (based on ${base.version})` : ''}</h3>
+      <p className="hint">A supplier is independent of region — supplier country, MOLV and MOQ apply everywhere; freight/duty/tariff are set per destination warehouse below.</p>
+
+      <div className="field-grid">
+        <Field label="Supplier country">
+          <input value={supplierCountry} onChange={(e) => setSupplierCountry(e.target.value)} placeholder="e.g. DE" />
+        </Field>
+        <Field label="MOLV (supplier-wide)">
+          <input className="qty-input" value={molv} onChange={(e) => setMolv(e.target.value)} />
+        </Field>
+        <Field label="MOQ (supplier-wide)">
+          <input className="qty-input" value={moq} onChange={(e) => setMoq(e.target.value)} />
+        </Field>
+      </div>
+
+      <h4>Warehouses</h4>
+      <p className="hint">A line naming this supplier and one of these warehouse codes prices with that row's freight/duty/tariff. A warehouse this supplier doesn't ship to simply has no row — the line then falls back to whatever API6 already put in facts.</p>
+      <table className="item-grid edit-grid-narrow">
+        <thead>
+          <tr><th>Warehouse code</th><th>Freight</th><th>Duty</th><th>Tariff</th><th aria-hidden="true"></th></tr>
+        </thead>
+        <tbody>
+          {warehouseRows.map((row, i) => (
+            <tr key={i}>
+              <td><input value={row.code} onChange={(e) => updateWarehouseRow(i, 'code', e.target.value)} placeholder="e.g. EU01" /></td>
+              <td><input className="qty-input" value={row.freight} onChange={(e) => updateWarehouseRow(i, 'freight', e.target.value)} /></td>
+              <td><input className="qty-input" value={row.duty} onChange={(e) => updateWarehouseRow(i, 'duty', e.target.value)} /></td>
+              <td><input className="qty-input" value={row.tariff} onChange={(e) => updateWarehouseRow(i, 'tariff', e.target.value)} /></td>
+              <td><button type="button" className="row-remove" onClick={() => setWarehouseRows((rows) => rows.filter((_, idx) => idx !== i))} aria-label="Remove row">×</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="link-button" onClick={() => setWarehouseRows((rows) => [...rows, { code: '', freight: '', duty: '', tariff: '' }])}>+ Add warehouse</button>
+
+      {error && <p className="error">{error}</p>}
+      <div className="save-bar">
+        <Field label="Save as version">
+          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 2026.08.1" />
+        </Field>
+        <Field label="Effective from (blank = today)">
+          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+        </Field>
+        <div className="editor-actions">
+          <button type="button" onClick={save} disabled={saving || !version.trim()}>{saving ? 'Saving…' : 'Save supplier config'}</button>
+          {onCancel && <button type="button" className="link-button" onClick={onCancel}>Cancel</button>}
+        </div>
+      </div>
+    </div>
   );
 }
 

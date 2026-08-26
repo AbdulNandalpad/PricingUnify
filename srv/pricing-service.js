@@ -9,23 +9,25 @@ const { api6 } = require('./lib/api6');
 // requested for any other region is a typed MISSING, not a silent (wrong) price.
 const KIT_SUPPORTED_REGIONS = ['AMERICAS', 'CHINA'];
 
-const SUPPLIER_ADDER_FIELDS = ['freight', 'duty', 'tariff', 'molv', 'moq'];
+const SUPPLIER_WAREHOUSE_ADDER_FIELDS = ['freight', 'duty', 'tariff'];
+const SUPPLIER_WIDE_ADDER_FIELDS = ['molv', 'moq'];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
 /**
- * Landed-cost adders/constraints that vary by supplier (freight, duty, tariff, MOLV, MOQ) —
- * independent of the cost access sequence, which only picks WHICH cost candidate to use.
- * Resolved per line (an item's own `supplier`, falling back to config-model's "*" region-wide
- * default) and merged over whatever API6 already put in facts.elements — a supplier-specific
- * value wins where set; anything it doesn't override keeps the API6/generic value.
+ * Landed-cost adders/constraints that vary by supplier — independent of the cost access
+ * sequence, which only picks WHICH cost candidate to use. A supplier is independent of
+ * region (it manufactures in one country and ships to warehouses across regions), so
+ * lookup is by supplier id alone. Resolved per line (an item's own `supplier`) and merged
+ * over whatever API6 already put in facts.elements — a supplier-specific value wins where
+ * set; anything it doesn't override keeps the API6/generic value.
  */
-function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
+function applySupplierOverrides(facts, items, priceDate) {
   for (const item of items) {
     if (!item.supplier) continue;
-    const supplierConfig = store.getEffectiveSupplierConfig(region, salesOrg, item.supplier, priceDate);
+    const supplierConfig = store.getEffectiveSupplierConfig(item.supplier, priceDate);
     if (!supplierConfig) continue;
 
     // Owner decision (2026-08-26, mockup review): Americas' LCA domestic/overseas split and
@@ -39,9 +41,22 @@ function applySupplierOverrides(facts, items, region, salesOrg, priceDate) {
     }
 
     const overrides = {};
-    for (const field of SUPPLIER_ADDER_FIELDS) {
+    for (const field of SUPPLIER_WIDE_ADDER_FIELDS) {
       if (supplierConfig[field] !== undefined && supplierConfig[field] !== null) overrides[field] = supplierConfig[field];
     }
+
+    // Freight/duty/tariff are per-destination-warehouse, not supplier-wide (owner: "supplier
+    // is independent of the region... freight duty and tariff for specific warehouse") — a
+    // line only gets them when it names BOTH a supplier and a warehouse that supplier ships
+    // to; no warehouse (or a warehouse this supplier has no entry for) falls back to
+    // whatever API6/generic facts already have, same as a supplier with no override at all.
+    const warehouseTerms = item.warehouse && supplierConfig.warehouses?.[item.warehouse];
+    if (warehouseTerms) {
+      for (const field of SUPPLIER_WAREHOUSE_ADDER_FIELDS) {
+        if (warehouseTerms[field] !== undefined && warehouseTerms[field] !== null) overrides[field] = warehouseTerms[field];
+      }
+    }
+
     if (Object.keys(overrides).length === 0) continue;
 
     facts.elements[item.partNumber] = { ...(facts.elements[item.partNumber] || {}), ...overrides };
@@ -200,7 +215,7 @@ function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) 
   }
 
   const flatItems = [...nonKitItems, ...componentItems];
-  applySupplierOverrides(facts, flatItems, region, salesOrg, priceDate);
+  applySupplierOverrides(facts, flatItems, priceDate);
   applyStockClassNormalization(facts, flatItems, config);
   applyAdditionalCostFlags(flatItems, config);
   applyQuantityBreakCost(facts, flatItems);

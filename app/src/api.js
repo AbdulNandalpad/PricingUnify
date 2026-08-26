@@ -50,12 +50,12 @@ export function listVersions({ user, region, salesOrg }) {
   return callAction('/rest/config/listVersions', { user, method: 'GET', payload: { region, salesOrg } });
 }
 
-export function getEffectiveSupplierConfig({ user, region, salesOrg, supplier, asOf }) {
-  return callAction('/rest/config/getEffectiveSupplierConfig', { user, method: 'GET', payload: { region, salesOrg, supplier, asOf } });
+export function getEffectiveSupplierConfig({ user, supplier, asOf }) {
+  return callAction('/rest/config/getEffectiveSupplierConfig', { user, method: 'GET', payload: { supplier, asOf } });
 }
 
-export function listSuppliers({ user, region, salesOrg, asOf }) {
-  return callAction('/rest/config/listSuppliers', { user, method: 'GET', payload: { region, salesOrg, asOf } });
+export function listSuppliers({ user, asOf }) {
+  return callAction('/rest/config/listSuppliers', { user, method: 'GET', payload: { asOf } });
 }
 
 export function getEffectiveRegionRoute({ user, ood, salesOrg, asOf }) {
