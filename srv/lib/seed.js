@@ -238,22 +238,27 @@ function seedAmericasRegionConfig() {
  */
 function seedSupplierConfigs() {
   if (store.listSupplierConfigVersions('EUROPE', '*', 'ACME').length > 0) return;
-  store.saveSupplierConfig({
-    region: 'EUROPE',
-    salesOrg: '*',
-    supplier: 'ACME',
-    version: '2026.08.0',
-    status: 'ACTIVE',
-    validFrom: '2026-08-01',
-    validTo: null,
-    freight: '18.00',
-    duty: '9.50',
-    tariff: '12.00',
-    molv: '300.00',
-    moq: '25',
-    supplierCountry: 'DE',
-    provenance: HUMAN_PROVENANCE,
-  });
+  // Three EUROPE demo suppliers with deliberately different freight/duty/tariff, per owner
+  // ("freight duty and tariff is based on supplier and not linked with region"): the region
+  // config only declares THAT these charges apply (and when); the VALUES come from whichever
+  // supplier the line names — same part, three suppliers, three different landed costs.
+  const europeSuppliers = [
+    { supplier: 'ACME', freight: '18.00', duty: '9.50', tariff: '12.00', molv: '300.00', moq: '25', supplierCountry: 'DE' },
+    { supplier: 'GLOBEX', freight: '8.00', duty: '4.00', tariff: '5.00', molv: '50.00', moq: '1', supplierCountry: 'NL' },
+    { supplier: 'INITECH', freight: '12.00', duty: '6.00', tariff: '20.00', molv: '50.00', moq: '1', supplierCountry: 'CN' },
+  ];
+  for (const s of europeSuppliers) {
+    store.saveSupplierConfig({
+      region: 'EUROPE',
+      salesOrg: '*',
+      version: '2026.08.0',
+      status: 'ACTIVE',
+      validFrom: '2026-08-01',
+      validTo: null,
+      provenance: HUMAN_PROVENANCE,
+      ...s,
+    });
+  }
   // Americas demo supplier: exists purely so pricing can resolve item.supplierCountry from
   // supplier master data (owner decision 2026-08-26: the LCA domestic/overseas split keys off
   // the supplier's country, not ood) — no adder overrides, just the country.

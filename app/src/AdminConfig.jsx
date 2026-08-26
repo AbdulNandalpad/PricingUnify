@@ -5,6 +5,7 @@ import {
   getEffectiveConfig,
   listVersions,
   getEffectiveSupplierConfig,
+  listSuppliers,
   getEffectiveRegionRoute,
   listRegionRouteVersions,
   getEffectivePartyConfig,
@@ -261,21 +262,31 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
 function SupplierConfigSection({ user, region, salesOrg, asOf }) {
   const isAdmin = user === 'bob';
   const [supplier, setSupplier] = useState('ACME');
+  const [supplierList, setSupplierList] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savedNote, setSavedNote] = useState(null);
+  const [listTick, setListTick] = useState(0);
 
-  const load = async () => {
+  useEffect(() => {
+    let cancelled = false;
+    listSuppliers({ user, region, salesOrg, asOf })
+      .then((res) => { if (!cancelled) setSupplierList(res.suppliers || []); })
+      .catch(() => { if (!cancelled) setSupplierList([]); });
+    return () => { cancelled = true; };
+  }, [user, region, salesOrg, asOf, listTick]);
+
+  const load = async (supplierId = supplier) => {
     setLoading(true);
     setError(null);
     setResult(null);
     setNotFound(false);
     setEditing(false);
     try {
-      const config = await getEffectiveSupplierConfig({ user, region, salesOrg, supplier, asOf });
+      const config = await getEffectiveSupplierConfig({ user, region, salesOrg, supplier: supplierId, asOf });
       setResult(config);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setNotFound(true);
@@ -287,12 +298,44 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
 
   return (
     <div>
+      <p className="hint">
+        Freight, duty and tariff are supplier terms, not region ones — the region sheet only says
+        <em> which</em> charges apply and when; the values below are what each supplier actually
+        charges. A line that names a supplier prices with that supplier's numbers.
+      </p>
+
+      {supplierList.length > 0 && (
+        <table className="results-table">
+          <thead>
+            <tr><th>Supplier</th><th>Country</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th><th className="num">MOLV</th><th className="num">MOQ</th></tr>
+          </thead>
+          <tbody>
+            {supplierList.map((s) => (
+              <tr
+                key={s.supplier}
+                className="results-row"
+                onClick={() => { setSupplier(s.supplier); load(s.supplier); }}
+                title="Click to open this supplier"
+              >
+                <td className="mono">{s.supplier}</td>
+                <td className="mono">{s.supplierCountry ?? '—'}</td>
+                <td className="num mono">{s.freight ?? '—'}</td>
+                <td className="num mono">{s.duty ?? '—'}</td>
+                <td className="num mono">{s.tariff ?? '—'}</td>
+                <td className="num mono">{s.molv ?? '—'}</td>
+                <td className="num mono">{s.moq ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
       <div className="field-grid">
-        <Field label="Supplier">
+        <Field label="Supplier (click a row above, or type a new id to create one)">
           <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="e.g. ACME" />
         </Field>
       </div>
-      <button type="button" onClick={load} disabled={loading || !supplier.trim()}>
+      <button type="button" onClick={() => load()} disabled={loading || !supplier.trim()}>
         {loading ? 'Loading…' : `Look up ${region}/${salesOrg}/${supplier || '…'}`}
       </button>
       {error && <p className="error">{error}</p>}
@@ -325,7 +368,7 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
           salesOrg={salesOrg}
           supplier={supplier}
           base={result}
-          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
+          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); setListTick((t) => t + 1); load(); }}
           onCancel={() => setEditing(false)}
         />
       )}

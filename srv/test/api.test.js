@@ -654,6 +654,36 @@ test('US-T100: US supplier = 100 + 6.7% LCA + 10 + 5 + 8 + 34/10 pick = 133.1 US
   assert.equal(overseas.result.unitPrice, '136.9'); // 10.5% LCA instead of 6.7%
 });
 
+test('listSuppliers returns the seeded EUROPE suppliers with their effective terms', async () => {
+  const res = await fetch(`${BASE}/rest/config/listSuppliers?region=EUROPE&salesOrg=*`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  });
+  assert.equal(res.status, 200);
+  const { suppliers } = await res.json();
+  const ids = suppliers.map((s) => s.supplier);
+  // Other tests in this run may add suppliers (e.g. DIRECTEDIT) — assert the seeded three
+  // are present, not that they're alone.
+  for (const expected of ['ACME', 'GLOBEX', 'INITECH']) assert.ok(ids.includes(expected), `missing ${expected}`);
+  const initech = suppliers.find((s) => s.supplier === 'INITECH');
+  assert.equal(initech.tariff, '20.00');
+  assert.equal(initech.supplierCountry, 'CN');
+});
+
+test('same part, three suppliers, three different landed costs — freight/duty/tariff come from the supplier, not the region', async () => {
+  // EU-T100 qty 10, NonMTS: 100 + 4.7 markup + supplier freight + duty + tariff + 2 pick.
+  const acme = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME' });
+  assert.equal(acme.result.unitPrice, '146.2'); // 18 + 9.5 + 12
+
+  const globex = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'GLOBEX' });
+  assert.equal(globex.result.unitPrice, '123.7'); // 8 + 4 + 5
+
+  const initech = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'INITECH' });
+  assert.equal(initech.result.unitPrice, '144.7'); // 12 + 6 + 20
+
+  const none = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
+  assert.equal(none.result.unitPrice, '129.7'); // no supplier -> the part's own generic facts (10 + 5 + 8)
+});
+
 test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {
   const route = await fetch(`${BASE}/rest/config/getEffectiveRegionRoute?ood=SAP&salesOrg=*`, {
     headers: { Authorization: basicAuthHeader('alice') },

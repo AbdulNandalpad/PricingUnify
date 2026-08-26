@@ -54,6 +54,10 @@ export function getEffectiveSupplierConfig({ user, region, salesOrg, supplier, a
   return callAction('/rest/config/getEffectiveSupplierConfig', { user, method: 'GET', payload: { region, salesOrg, supplier, asOf } });
 }
 
+export function listSuppliers({ user, region, salesOrg, asOf }) {
+  return callAction('/rest/config/listSuppliers', { user, method: 'GET', payload: { region, salesOrg, asOf } });
+}
+
 export function getEffectiveRegionRoute({ user, ood, salesOrg, asOf }) {
   return callAction('/rest/config/getEffectiveRegionRoute', { user, method: 'GET', payload: { ood, salesOrg, asOf } });
 }

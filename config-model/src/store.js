@@ -160,6 +160,22 @@ class ConfigStore {
     );
   }
 
+  /** Every named supplier with an effective config for (region, salesOrg) as of `date` —
+   *  scans both the sales-org-specific and "*" buckets, resolves each supplier through the
+   *  normal effective lookup, and excludes the "*" wildcard default itself (it's a fallback,
+   *  not a supplier anyone can pick from a dropdown). */
+  listSuppliers(region, salesOrg, date) {
+    const seen = new Map();
+    for (const key of this._supplierConfigs.versionsByKey.keys()) {
+      const [r, so, supplier] = key.split('::');
+      if (r !== region || (so !== salesOrg && so !== WILDCARD)) continue;
+      if (supplier === WILDCARD || seen.has(supplier)) continue;
+      const effective = this.getEffectiveSupplierConfig(region, salesOrg, supplier, date);
+      if (effective) seen.set(supplier, effective);
+    }
+    return [...seen.values()];
+  }
+
   saveRegionRoute(route) {
     return this._regionRoutes.saveVersion(route);
   }

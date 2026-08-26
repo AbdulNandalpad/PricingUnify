@@ -76,6 +76,12 @@ module.exports = (srv) => {
     return config;
   });
 
+  srv.on('listSuppliers', (req) => {
+    const { region, salesOrg = '*', asOf } = req.data;
+    if (!region) return req.reject(400, 'region is required.');
+    return { suppliers: store.listSuppliers(region, salesOrg, asOf || todayIso()) };
+  });
+
   srv.on('getEffectiveRegionRoute', (req) => {
     const { ood, salesOrg = '*', asOf } = req.data;
     if (!ood) return req.reject(400, 'ood is required.');

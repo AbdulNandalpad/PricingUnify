@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { price, PURPOSE, CONFIDENCE } from '@tss-pricing/engine-core';
 import { DEFAULT_FORM, buildPricingInput } from './sampleData';
-import { priceViaBackend, getEffectiveConfig, DEMO_USERS, ApiError } from './api';
+import { priceViaBackend, getEffectiveConfig, listSuppliers, DEMO_USERS, ApiError } from './api';
 import { DEFAULT_ROWS, newRow, newComponent, parseBulkText, toPricingItems } from './batch';
 import AdminConfig from './AdminConfig.jsx';
 import './App.css';
@@ -251,6 +251,15 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [knownSuppliers, setKnownSuppliers] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listSuppliers({ user: 'alice', region, salesOrg: '*' })
+      .then((res) => { if (!cancelled) setKnownSuppliers(res.suppliers || []); })
+      .catch(() => { if (!cancelled) setKnownSuppliers([]); });
+    return () => { cancelled = true; };
+  }, [region]);
 
   function updateGlobal(key, value) {
     setGlobals((g) => ({ ...g, [key]: value }));
@@ -398,13 +407,15 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           <Field label="Sales org">
             <input value={globals.salesOrg} onChange={(e) => updateGlobal('salesOrg', e.target.value)} />
           </Field>
-          <Field label="Purpose">
-            <select value={globals.purpose} onChange={(e) => updateGlobal('purpose', e.target.value)}>
-              {Object.values(PURPOSE).map((p) => (
-                <option key={p} value={p}>{PURPOSE_LABEL[p] || p}</option>
-              ))}
-            </select>
-          </Field>
+          {showAdvanced && (
+            <Field label="Purpose (strictness — the host system sets this in a real integration)">
+              <select value={globals.purpose} onChange={(e) => updateGlobal('purpose', e.target.value)}>
+                {Object.values(PURPOSE).map((p) => (
+                  <option key={p} value={p}>{PURPOSE_LABEL[p] || p}</option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Pricing type">
             <select value={globals.pricingType} onChange={(e) => updateGlobal('pricingType', e.target.value)}>
               {PRICING_TYPES.map((t) => (
@@ -444,7 +455,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                       <td><input value={row.partNumber} onChange={(e) => updateRow(i, 'partNumber', e.target.value)} placeholder="P-10023" /></td>
                       <td><input className="qty-input" type="number" min="1" value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} /></td>
                       <td><input value={row.coo} onChange={(e) => updateRow(i, 'coo', e.target.value)} placeholder="e.g. CN" /></td>
-                      <td><input value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
+                      <td><input list="supplier-options" value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="e.g. ACME" /></td>
                       {showAdvanced && (
                         <>
                           <td><input className="ood-input" value={row.supplierCountry} onChange={(e) => updateRow(i, 'supplierCountry', e.target.value)} placeholder="e.g. US" /></td>
@@ -491,6 +502,14 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </tbody>
           </table>
         </div>
+
+        <datalist id="supplier-options">
+          {knownSuppliers.map((s) => (
+            <option key={s.supplier} value={s.supplier}>
+              {s.tariff != null ? `freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff}` : s.supplierCountry ? `country ${s.supplierCountry}` : ''}
+            </option>
+          ))}
+        </datalist>
 
         <div className="grid-actions">
           <button type="button" className="link-button" onClick={addRow}>+ Add row</button>
@@ -628,10 +647,12 @@ function DirectWorkspace({ region, setRegion }) {
   const [showRaw, setShowRaw] = useState(false);
   const [liveConfig, setLiveConfig] = useState(null);
   const [configNote, setConfigNote] = useState('');
+  const [suppliers, setSuppliers] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     setLiveConfig(null);
+    setSuppliers([]);
     setConfigNote(`Loading ${region} configuration…`);
     getEffectiveConfig({ user: 'alice', region, salesOrg: '*' })
       .then((config) => {
@@ -643,11 +664,29 @@ function DirectWorkspace({ region, setRegion }) {
         if (cancelled) return;
         setConfigNote(`Backend not reachable — falling back to the built-in synthetic EUROPE-shaped sample config.`);
       });
+    listSuppliers({ user: 'alice', region, salesOrg: '*' })
+      .then((res) => { if (!cancelled) setSuppliers(res.suppliers || []); })
+      .catch(() => { if (!cancelled) setSuppliers([]); });
     return () => { cancelled = true; };
   }, [region]);
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  /** Picking a supplier pulls its configured charges into the form (still editable after) —
+   *  the in-browser mirror of what srv's applySupplierOverrides does for the calculator. */
+  function pickSupplier(supplierId) {
+    const s = suppliers.find((x) => x.supplier === supplierId);
+    setForm((f) => ({
+      ...f,
+      supplier: supplierId,
+      ...(s?.freight != null ? { freight: String(s.freight) } : {}),
+      ...(s?.duty != null ? { duty: String(s.duty) } : {}),
+      ...(s?.tariff != null ? { tariff: String(s.tariff) } : {}),
+      ...(s?.molv != null ? { molv: String(s.molv) } : {}),
+      ...(s?.supplierCountry != null ? { supplierCountry: s.supplierCountry } : {}),
+    }));
   }
 
   function runPricing(e) {
@@ -746,7 +785,18 @@ function DirectWorkspace({ region, setRegion }) {
             <input value={form.coo} onChange={(e) => update('coo', e.target.value)} placeholder="e.g. US" />
           </Field>
           <Field label="Supplier">
-            <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
+            {suppliers.length > 0 ? (
+              <select value={form.supplier} onChange={(e) => pickSupplier(e.target.value)}>
+                <option value="">— none —</option>
+                {suppliers.map((s) => (
+                  <option key={s.supplier} value={s.supplier}>
+                    {s.supplier}{s.tariff != null ? ` (freight ${s.freight ?? '—'} / duty ${s.duty ?? '—'} / tariff ${s.tariff})` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
+            )}
           </Field>
           <Field label="Supplier country">
             <input value={form.supplierCountry} onChange={(e) => update('supplierCountry', e.target.value)} placeholder="e.g. US, IN" />
