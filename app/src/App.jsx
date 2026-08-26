@@ -40,39 +40,52 @@ function Field({ label, children }) {
   );
 }
 
-function TraceTable({ steps }) {
+function stepLabel(id) {
+  return id.replaceAll('_', ' ');
+}
+
+/** Mockup-style numbered calculation trace: one line per step, running total on the right,
+ *  the final result highlighted. Skipped (when-condition) steps stay visible but muted —
+ *  a binding audit needs to see why a branch didn't apply, not just what did. */
+function FormulaTrace({ steps, currency, constraintPasses, unitPrice }) {
   if (!steps?.length) return null;
+  const cur = currency ? ` ${currency}` : '';
   return (
-    <table className="trace-table">
-      <thead>
-        <tr>
-          <th>Step</th>
-          <th>Type</th>
-          <th>Basis / source</th>
-          <th className="num">Delta</th>
-          <th className="num">Running total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {steps.map((s) => (
-          <tr key={s.id} className={s.missing ? 'row-missing' : ''}>
-            <td>{s.id}</td>
-            <td>
-              <span className={`badge badge-${s.type.toLowerCase()}`}>{s.type}</span>
-            </td>
-            <td className="mono">
-              {s.missing
-                ? `MISSING: ${s.missing.reason}`
-                : s.note?.basis
-                  ? `${s.note.basis.join(' + ')} × ${s.note.rate}`
-                  : s.note?.source || (s.note?.perQuantity ? `÷ ${s.note.perQuantity}` : '—')}
-            </td>
-            <td className="num mono">{s.delta ?? '—'}</td>
-            <td className="num mono">{s.runningTotal ?? '—'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="formula-trace">
+      <div className="formula-trace-header">Calculation</div>
+      <div className="formula-steps">
+        {steps.map((s, i) => {
+          const skipped = s.note?.skipped;
+          const missing = s.missing;
+          let how = '';
+          if (missing) how = ` — missing: ${missing.reason}`;
+          else if (skipped) how = ' — not applied (condition not met)';
+          else if (s.note?.basis) how = ` (${s.note.basis.map(stepLabel).join(' + ')} × ${s.note.rate})`;
+          else if (s.note?.perQuantity) how = ` (per order ÷ ${s.note.perQuantity})`;
+          else if (s.note?.source) how = ` (from ${s.note.source})`;
+          return (
+            <div key={s.id} className={`formula-step${skipped || missing ? ' formula-step-skipped' : ''}`}>
+              <div className="formula-step-num">{i + 1}</div>
+              <div className="formula-step-text">
+                {s.type === 'BASE' ? '' : '+ '}{stepLabel(s.id)}{how}
+              </div>
+              <div className="formula-step-value">
+                {skipped || missing ? '—' : `${s.runningTotal}${cur}`}
+              </div>
+            </div>
+          );
+        })}
+        {unitPrice !== undefined && (
+          <div className="formula-step formula-step-final">
+            <div className="formula-step-num">=</div>
+            <div className="formula-step-text">
+              Unit price{constraintPasses?.length > 0 ? ' (after order rules)' : ''}
+            </div>
+            <div className="formula-step-value">{unitPrice}{cur}</div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -154,6 +167,31 @@ function KitComponents({ components }) {
   );
 }
 
+/** Mockup-style detail header: part number + region/stock class/qty tags on the left, the
+ *  big unit price on the right. */
+function DetailHeader({ line, regionLabel }) {
+  return (
+    <div className="detail-header">
+      <div>
+        <div className="detail-part">{line.partNumber}</div>
+        <div className="detail-tags">
+          {regionLabel && <span className="detail-tag detail-tag-region">{regionLabel}</span>}
+          {line.trace?.stockClass && <span className="detail-tag detail-tag-stock">{line.trace.stockClass}</span>}
+          {line.trace?.kit && <span className="detail-tag detail-tag-stock">KIT</span>}
+          {line.result?.quantity !== undefined && <span className="detail-tag">Qty {line.result.quantity}</span>}
+        </div>
+      </div>
+      {line.status === 'PRICED' && (
+        <div className="detail-price">
+          <div className="detail-price-label">Unit price</div>
+          <div className="detail-price-value">{line.result.unitPrice}</div>
+          <div className="detail-price-unit">{line.result.currency} / unit</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineDetail({ line }) {
   return (
     <>
@@ -173,7 +211,12 @@ function LineDetail({ line }) {
         </p>
       )}
       <BreakdownCards steps={line.trace.steps} currency={line.result?.currency} />
-      <TraceTable steps={line.trace.steps} />
+      <FormulaTrace
+        steps={line.trace.steps}
+        currency={line.result?.currency}
+        constraintPasses={line.trace.constraintPasses}
+        unitPrice={line.result?.unitPrice}
+      />
       {line.trace.kit && <KitComponents components={line.trace.components} />}
       {line.status === 'PRICED' && line.result && (
         <MarginWhatIf unitPrice={line.result.unitPrice} currency={line.result.currency} />
@@ -198,8 +241,8 @@ function LineDetail({ line }) {
 /** The "real app" experience: a parts grid (add rows, paste/upload many), one batch call
  *  to the backend, and a results table you drill into per line. Facts are resolved by the
  *  backend's API6 client (recorded payload today) — not entered by hand. */
-function BatchWorkspace() {
-  const [globals, setGlobals] = useState({ user: 'alice', region: 'EUROPE', salesOrg: '*', purpose: PURPOSE.INDICATIVE, pricingType: 'COST_PLUS' });
+function BatchWorkspace({ region, setRegion, goToConfig }) {
+  const [globals, setGlobals] = useState({ user: 'alice', salesOrg: '*', purpose: PURPOSE.INDICATIVE, pricingType: 'COST_PLUS' });
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [bulkText, setBulkText] = useState('');
   const [showBulk, setShowBulk] = useState(false);
@@ -272,7 +315,7 @@ function BatchWorkspace() {
     setLoading(true);
     setExpandedIndex(null);
     try {
-      const body = await priceViaBackend({ ...globals, items });
+      const body = await priceViaBackend({ ...globals, region, items });
       setResult({ ...body, submittedItems: items });
     } catch (err) {
       setResult(null);
@@ -336,8 +379,8 @@ function BatchWorkspace() {
                 <button
                   key={r}
                   type="button"
-                  className={globals.region === r ? 'region-pill region-pill-active' : 'region-pill'}
-                  onClick={() => updateGlobal('region', r)}
+                  className={region === r ? 'region-pill region-pill-active' : 'region-pill'}
+                  onClick={() => setRegion(r)}
                 >
                   {r}
                 </button>
@@ -488,6 +531,14 @@ function BatchWorkspace() {
                 </p>
                 <p className="candidate-line">
                   {result.config.region} pricing rules v{result.config.version} · price date {result.priceDate}
+                  {goToConfig && (
+                    <>
+                      {' · '}
+                      <button type="button" className="link-button link-inline" onClick={goToConfig}>
+                        view / edit configuration →
+                      </button>
+                    </>
+                  )}
                 </p>
               </div>
               {orderTotals.length > 0 && (
@@ -541,7 +592,10 @@ function BatchWorkspace() {
                     </tr>
                     {expandedIndex === i && (
                       <tr className="results-detail-row">
-                        <td colSpan={6}><LineDetail line={line} /></td>
+                        <td colSpan={6}>
+                          <DetailHeader line={line} regionLabel={result.region?.entityLabel || result.config.region} />
+                          <LineDetail line={line} />
+                        </td>
                       </tr>
                     )}
                   </Fragment>
@@ -673,13 +727,16 @@ function DirectWorkspace() {
 }
 
 const MODE_SUBTITLE = {
-  backend: 'Batch pricing — React → CAP (srv/) → config-model + api6-client → engine-core',
+  backend: 'Region-aware landed cost pricing — Europe · China · India · Americas',
   direct: 'Single-line demo — price one part by hand, no backend, see the full calculation step by step',
-  admin: 'Admin config — browse region configs, supplier overrides, and the AI-suggestion review queue',
+  admin: 'Region pricing sheets, supplier overrides, routing, customers, and AI suggestions',
 };
 
 export default function App() {
   const [mode, setMode] = useState('backend');
+  // One region selection shared by the calculator and the configuration sheets — "view
+  // configuration" from a priced result lands on exactly the region that priced it.
+  const [region, setRegion] = useState('EUROPE');
 
   return (
     <div className="page">
@@ -690,20 +747,20 @@ export default function App() {
         </div>
         <nav className="mode-toggle mode-toggle-header">
           <button type="button" className={mode === 'backend' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('backend')}>
-            Pricing workspace
+            Price calculator
+          </button>
+          <button type="button" className={mode === 'admin' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('admin')}>
+            Configuration
           </button>
           <button type="button" className={mode === 'direct' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('direct')}>
             Demo
           </button>
-          <button type="button" className={mode === 'admin' ? 'mode-tab mode-tab-active' : 'mode-tab'} onClick={() => setMode('admin')}>
-            Admin config
-          </button>
         </nav>
       </header>
 
-      {mode === 'backend' && <BatchWorkspace />}
+      {mode === 'backend' && <BatchWorkspace region={region} setRegion={setRegion} goToConfig={() => setMode('admin')} />}
       {mode === 'direct' && <DirectWorkspace />}
-      {mode === 'admin' && <AdminConfig />}
+      {mode === 'admin' && <AdminConfig region={region} setRegion={setRegion} />}
     </div>
   );
 }

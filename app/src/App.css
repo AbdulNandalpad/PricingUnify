@@ -1112,3 +1112,309 @@ details.hint p {
   flex: 1 1 160px;
   min-width: 120px;
 }
+
+/* --- Mockup-style line detail --- */
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-part {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.detail-tags {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef0f7;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.detail-tag-region {
+  background: #e7ebfa;
+  color: var(--navy);
+  border-color: #c9d2f0;
+}
+
+.detail-tag-stock {
+  background: #dff3e6;
+  color: #1a7a45;
+  border-color: #bfe5cc;
+}
+
+.detail-price {
+  text-align: right;
+}
+
+.detail-price-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.detail-price-value {
+  font-family: var(--mono);
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.1;
+}
+
+.detail-price-unit {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- Numbered calculation trace (mockup formula steps) --- */
+
+.formula-trace {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.formula-trace-header {
+  padding: 9px 16px;
+  background: #f5f6f9;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+
+.formula-steps {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.formula-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.formula-step-num {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy);
+  flex-shrink: 0;
+}
+
+.formula-step-text {
+  flex: 1;
+}
+
+.formula-step-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.formula-step-skipped {
+  color: var(--text-muted);
+}
+
+.formula-step-skipped .formula-step-num {
+  color: var(--text-muted);
+}
+
+.formula-step-final {
+  background: #eef0f7;
+  margin: 4px -8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  border-left: 3px solid var(--navy);
+}
+
+.formula-step-final .formula-step-value {
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.link-inline {
+  margin-top: 0;
+  font-size: inherit;
+}
+
+/* --- Configuration page shell --- */
+
+.config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.config-header .field {
+  min-width: 240px;
+}
+
+.config-region-pills {
+  margin: 4px 0 12px;
+}
+
+.config-region-pills .region-pill {
+  font-size: 13px;
+  padding: 8px 16px;
+}
+
+.advanced-scope {
+  margin-bottom: 8px;
+}
+
+.advanced-scope .field-grid {
+  max-width: 560px;
+}
+
+.saved-note {
+  background: #dff3e6;
+  color: #1a7a45;
+  border: 1px solid #bfe5cc;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.version-history {
+  margin-top: 16px;
+}
+
+.hint-inline {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.rate-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rate-hint {
+  font-size: 11px;
+  color: var(--navy);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.save-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.save-bar .field {
+  min-width: 180px;
+}
+
+.save-bar .editor-actions {
+  margin-top: 0;
+}
+
+/* .admin-layout's blanket navy button rule must not swallow the pills inside the
+   configuration page — same specificity, declared later, so these win. */
+.admin-layout button.region-pill {
+  background: #fff;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  margin-top: 0;
+}
+
+.admin-layout button.region-pill-active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.admin-layout button.row-remove {
+  background: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  padding: 4px 6px;
+  margin-top: 0;
+}
+
+.admin-layout button.row-remove:hover {
+  color: #b3261e;
+}
+
+.admin-layout button.basis-chip {
+  background: #fff;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 3px 8px;
+  margin-top: 0;
+}
+
+.admin-layout button.basis-chip-on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.admin-layout button.kit-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--navy);
+  font-size: 11px;
+  padding: 3px 9px;
+  margin-top: 0;
+}
+
+.admin-layout button.link-button {
+  background: none;
+  color: var(--navy);
+  padding: 0;
+}
+
+.edit-grid td:first-child input {
+  min-width: 140px;
+}

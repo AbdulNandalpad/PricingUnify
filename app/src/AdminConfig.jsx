@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   DEMO_USERS,
   ApiError,
@@ -17,7 +17,7 @@ import {
 import { RegionConfigEditor, SupplierConfigEditor, RegionRouteEditor, PartyConfigEditor } from './AdminConfigEdit.jsx';
 
 const REGIONS = ['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'];
-const ADMIN_SECTIONS = ['Region config', 'Supplier config', 'Region routing', 'Party config', 'AI suggestions'];
+const ADMIN_SECTIONS = ['Region pricing', 'Suppliers', 'Routing', 'Customers', 'AI suggestions'];
 
 function Field({ label, children }) {
   return (
@@ -153,71 +153,79 @@ function RegionConfigDetail({ config }) {
   );
 }
 
+/** One region's config as an always-editable sheet (mockup-style): pick a region tab, the
+ *  effective config loads by itself, values are edited in place, and one Save creates the
+ *  new version pricing immediately uses. PricingViewer (alice) gets the same sheet read-only. */
 function RegionConfigSection({ user, region, salesOrg, asOf }) {
   const isAdmin = user === 'bob';
   const [current, setCurrent] = useState(null);
-  const [versions, setVersions] = useState(null);
+  const [versions, setVersions] = useState([]);
   const [expandedVersion, setExpandedVersion] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [savedNote, setSavedNote] = useState(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
-  const load = async () => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    setCurrent(null);
-    setVersions(null);
     setExpandedVersion(null);
-    setEditing(false);
-    try {
-      const [config, versionList] = await Promise.all([
-        getEffectiveConfig({ user, region, salesOrg, asOf }),
-        listVersions({ user, region, salesOrg }),
-      ]);
-      setCurrent(config);
-      setVersions(versionList.versions);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    Promise.all([
+      getEffectiveConfig({ user, region, salesOrg, asOf }),
+      listVersions({ user, region, salesOrg }),
+    ])
+      .then(([config, versionList]) => {
+        if (cancelled) return;
+        setCurrent(config);
+        setVersions(versionList.versions);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setCurrent(null);
+        setVersions([]);
+        setError(errorMessage(err));
+      })
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [user, region, salesOrg, asOf, reloadTick]);
+
+  // A ready-to-use next version id so saving is one click — still editable in the save bar.
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultVersion = `${today}-r${versions.length + 1}`;
 
   return (
     <div>
-      <button type="button" onClick={load} disabled={loading}>
-        {loading ? 'Loading…' : `Load ${region}/${salesOrg} config`}
-      </button>
+      {loading && <p className="hint">Loading {region} configuration…</p>}
       {error && <p className="error">{error}</p>}
-      {savedNote && <p className="hint">{savedNote}</p>}
+      {savedNote && <p className="saved-note">{savedNote}</p>}
 
-      {current && !editing && (
-        <>
-          <h3>Effective as of {asOf || 'today'}</h3>
-          {isAdmin && (
-            <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
-              Edit as new version
-            </button>
-          )}
-          <RegionConfigDetail config={current} />
-        </>
+      {current && !loading && (
+        isAdmin ? (
+          <RegionConfigEditor
+            key={`${region}-${salesOrg}-${current.version}`}
+            user={user}
+            region={region}
+            salesOrg={salesOrg}
+            baseConfig={current}
+            defaultVersion={defaultVersion}
+            onSaved={(saved) => {
+              setSavedNote(`Saved ${region} configuration as version ${saved.version} — pricing uses it immediately.`);
+              setReloadTick((t) => t + 1);
+            }}
+            onCancel={() => setReloadTick((t) => t + 1)}
+          />
+        ) : (
+          <>
+            <h3>{region} configuration <span className="hint-inline">(v{current.version} — sign in as bob/PricingAdmin to edit)</span></h3>
+            <RegionConfigDetail config={current} />
+          </>
+        )
       )}
 
-      {current && editing && (
-        <RegionConfigEditor
-          user={user}
-          region={region}
-          salesOrg={salesOrg}
-          baseConfig={current}
-          onSaved={(saved) => { setEditing(false); setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
-
-      {versions && (
-        <>
-          <h3>Version history ({versions.length})</h3>
+      {versions.length > 0 && (
+        <details className="hint version-history">
+          <summary>Version history ({versions.length})</summary>
           <table className="results-table">
             <thead>
               <tr><th>Version</th><th>Status</th><th>Valid from</th><th>Valid to</th><th aria-hidden="true"></th></tr>
@@ -244,7 +252,7 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
               ))}
             </tbody>
           </table>
-        </>
+        </details>
       )}
     </div>
   );
@@ -652,42 +660,34 @@ function AiSuggestionsSection({ user, region, salesOrg }) {
   );
 }
 
-export default function AdminConfig() {
+export default function AdminConfig({ region: regionProp, setRegion: setRegionProp }) {
   const [user, setUser] = useState('bob');
-  const [region, setRegion] = useState('EUROPE');
+  const [regionLocal, setRegionLocal] = useState('EUROPE');
+  const region = regionProp ?? regionLocal;
+  const setRegion = setRegionProp ?? setRegionLocal;
   const [salesOrg, setSalesOrg] = useState('*');
   const [asOf, setAsOf] = useState('');
   const [section, setSection] = useState(ADMIN_SECTIONS[0]);
 
+  const regionMatters = section === 'Region pricing' || section === 'Suppliers' || section === 'AI suggestions';
+
   return (
     <main className="admin-layout">
       <section className="panel">
-        <h2>Admin config</h2>
-        <p className="hint">
-          Browse a region's live config (build-up, constraints, stock class / additional-cost maps), look up
-          supplier-specific overrides, resolve which region a customer's Origin of Data routes to, look up
-          customer master data, and review AI-proposed config changes. Read endpoints are open to any
-          authenticated user; requesting or approving an AI suggestion needs PricingAdmin (bob).
-        </p>
-
-        <div className="field-grid">
+        <div className="config-header">
+          <div>
+            <h2>Configuration</h2>
+            <p className="hint">
+              Every number behind a price lives here — pick a region and edit its pricing sheet directly.
+              Viewing is open to everyone; saving needs PricingAdmin (bob).
+            </p>
+          </div>
           <Field label="Signed in as">
             <select value={user} onChange={(e) => setUser(e.target.value)}>
               {Object.entries(DEMO_USERS).map(([id, u]) => (
                 <option key={id} value={id}>{u.label}</option>
               ))}
             </select>
-          </Field>
-          <Field label="Region">
-            <select value={region} onChange={(e) => setRegion(e.target.value)}>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </Field>
-          <Field label="Sales org">
-            <input value={salesOrg} onChange={(e) => setSalesOrg(e.target.value)} />
-          </Field>
-          <Field label="As of (blank = today)">
-            <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           </Field>
         </div>
 
@@ -699,10 +699,37 @@ export default function AdminConfig() {
           ))}
         </nav>
 
-        {section === 'Region config' && <RegionConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
-        {section === 'Supplier config' && <SupplierConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
-        {section === 'Region routing' && <RegionRouteSection user={user} salesOrg={salesOrg} asOf={asOf} />}
-        {section === 'Party config' && <PartyConfigSection user={user} asOf={asOf} />}
+        {regionMatters && (
+          <div className="region-pills config-region-pills">
+            {REGIONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={region === r ? 'region-pill region-pill-active' : 'region-pill'}
+                onClick={() => setRegion(r)}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <details className="hint advanced-scope">
+          <summary>Advanced scope (sales org, as-of date)</summary>
+          <div className="field-grid">
+            <Field label="Sales org (* = region-wide default)">
+              <input value={salesOrg} onChange={(e) => setSalesOrg(e.target.value)} />
+            </Field>
+            <Field label="As of (blank = today)">
+              <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+            </Field>
+          </div>
+        </details>
+
+        {section === 'Region pricing' && <RegionConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Suppliers' && <SupplierConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Routing' && <RegionRouteSection user={user} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Customers' && <PartyConfigSection user={user} asOf={asOf} />}
         {section === 'AI suggestions' && <AiSuggestionsSection user={user} region={region} salesOrg={salesOrg} />}
       </section>
     </main>

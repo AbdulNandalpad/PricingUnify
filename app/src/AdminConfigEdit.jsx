@@ -125,7 +125,26 @@ function numberOrString(value) {
 }
 
 const ELEMENT_TYPES = ['BASE', 'FACTOR', 'ADDER', 'PER_LINE'];
+/** Plain-language labels for the element types — the enum values read as engine jargon. */
+const ELEMENT_TYPE_LABEL = {
+  BASE: 'Base cost',
+  FACTOR: 'Markup ×',
+  ADDER: 'Charge +',
+  PER_LINE: 'Per-order charge',
+};
 const CONSTRAINT_KINDS = ['FLOOR', 'STEP', 'MIN_QTY'];
+const CONSTRAINT_KIND_LABEL = {
+  FLOOR: 'Minimum value (MOLV)',
+  STEP: 'Round to step',
+  MIN_QTY: 'Minimum qty (MOQ, info only)',
+};
+
+/** A FACTOR rate like 0.047 reads as 4.7% for the business user. */
+function ratePercentHint(rate) {
+  const n = Number(String(rate).trim());
+  if (String(rate).trim() === '' || Number.isNaN(n)) return null;
+  return `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`;
+}
 
 function newBuildUpRow() {
   return { id: '', type: 'ADDER', basis: '', rate: '', rateRef: '', amount: '', amountRef: '', when: '' };
@@ -216,8 +235,8 @@ function parseJsonField(label, text, errors) {
  * never mutated in place) — the backend stamps HUMAN provenance and re-validates everything,
  * including the FACTOR-basis rule, before anything goes live.
  */
-export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved, onCancel }) {
-  const [version, setVersion] = useState('');
+export function RegionConfigEditor({ user, region, salesOrg, baseConfig, defaultVersion, onSaved, onCancel }) {
+  const [version, setVersion] = useState(defaultVersion || '');
   const [validFrom, setValidFrom] = useState('');
   const [buildUpRows, setBuildUpRows] = useState(() => buildUpToRows(baseConfig.buildUp));
   const [constraintRows, setConstraintRows] = useState(() => constraintsToRows(baseConfig.constraints));
@@ -289,26 +308,14 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
 
   return (
     <div className="admin-config-detail admin-editor">
-      <h3>New version (based on {baseConfig.version})</h3>
-      <p className="hint">
-        Saving creates a brand-new effective-dated version — the current one is never modified. The backend
-        re-validates everything (including that every FACTOR declares a valid basis) before it goes live.
-      </p>
+      <h3>{region} configuration <span className="hint-inline">(currently v{baseConfig.version} — saving creates a new version, pricing uses it immediately)</span></h3>
 
-      <div className="field-grid">
-        <Field label="New version id (required)">
-          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder={`e.g. ${new Date().getFullYear()}.${String(new Date().getMonth() + 1).padStart(2, '0')}.1`} />
-        </Field>
-        <Field label="Effective from (blank = today)">
-          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-        </Field>
-      </div>
-
-      <h4>Build-up</h4>
+      <h4>Pricing steps</h4>
+      <p className="hint">The price of every line is built top to bottom: the base cost, then each markup and charge that applies. Change a value and save — the old version stays in history.</p>
       <div className="item-grid-scroll">
         <table className="item-grid edit-grid">
           <thead>
-            <tr><th>ID</th><th>Type</th><th title="FACTOR only — which earlier steps the multiplier applies to; click to toggle">Applies to (basis)</th><th>Rate</th><th>Rate ref</th><th>Amount</th><th>Amount ref</th><th title="Conditions that must all be true for this element to apply">Applies when</th><th aria-hidden="true"></th></tr>
+            <tr><th>Step</th><th>Type</th><th title="Markups only — which earlier steps the percentage applies to; click to toggle">Applies to</th><th title="Multiplier for a markup, e.g. 0.047 = 4.7%">Rate</th><th title="Read the rate from the part's data instead of a fixed number">Rate from data</th><th title="Fixed amount for a charge">Amount</th><th title="Read the amount from the part's data (e.g. freight, duty, pickCharge)">Amount from data</th><th title="Conditions that must all be true for this step to apply">Applies when</th><th aria-hidden="true"></th></tr>
           </thead>
           <tbody>
             {buildUpRows.map((row, i) => {
@@ -328,7 +335,7 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
                     <td><input value={row.id} onChange={(e) => updateBuildUpRow(i, 'id', e.target.value)} /></td>
                     <td>
                       <select value={row.type} onChange={(e) => updateBuildUpRow(i, 'type', e.target.value)}>
-                        {ELEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        {ELEMENT_TYPES.map((t) => <option key={t} value={t}>{ELEMENT_TYPE_LABEL[t]}</option>)}
                       </select>
                     </td>
                     <td>
@@ -350,7 +357,12 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
                         <span className="hint">—</span>
                       )}
                     </td>
-                    <td><input className="qty-input" value={row.rate} onChange={(e) => updateBuildUpRow(i, 'rate', e.target.value)} /></td>
+                    <td>
+                      <div className="rate-cell">
+                        <input className="qty-input" value={row.rate} onChange={(e) => updateBuildUpRow(i, 'rate', e.target.value)} />
+                        {row.type === 'FACTOR' && ratePercentHint(row.rate) && <span className="rate-hint">= {ratePercentHint(row.rate)}</span>}
+                      </div>
+                    </td>
                     <td><input value={row.rateRef} onChange={(e) => updateBuildUpRow(i, 'rateRef', e.target.value)} /></td>
                     <td><input className="qty-input" value={row.amount} onChange={(e) => updateBuildUpRow(i, 'amount', e.target.value)} /></td>
                     <td><input value={row.amountRef} onChange={(e) => updateBuildUpRow(i, 'amountRef', e.target.value)} /></td>
@@ -383,11 +395,11 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
       </div>
       <button type="button" className="link-button" onClick={() => setBuildUpRows((rows) => [...rows, newBuildUpRow()])}>+ Add build-up element</button>
 
-      <h4>Constraints</h4>
+      <h4>Order rules (minimums, floors)</h4>
       <div className="item-grid-scroll">
         <table className="item-grid edit-grid">
           <thead>
-            <tr><th>ID</th><th>Kind</th><th>Mode</th><th>Min</th><th>Min ref</th><th>Step</th><th>Step ref</th><th aria-hidden="true"></th></tr>
+            <tr><th>Rule</th><th>Kind</th><th title="For a minimum value: adjust the PRICE up (default), or bump the QUANTITY instead">Adjusts</th><th>Minimum</th><th title="Read the minimum from the part's data (e.g. molv, moq)">Minimum from data</th><th>Step</th><th>Step from data</th><th aria-hidden="true"></th></tr>
           </thead>
           <tbody>
             {constraintRows.map((row, i) => (
@@ -395,7 +407,7 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
                 <td><input value={row.id} onChange={(e) => updateConstraintRow(i, 'id', e.target.value)} /></td>
                 <td>
                   <select value={row.kind} onChange={(e) => updateConstraintRow(i, 'kind', e.target.value)}>
-                    {CONSTRAINT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                    {CONSTRAINT_KINDS.map((k) => <option key={k} value={k}>{CONSTRAINT_KIND_LABEL[k]}</option>)}
                   </select>
                 </td>
                 <td>
@@ -477,9 +489,17 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, onSaved
       </div>
 
       {error && <p className="error">{error}</p>}
-      <div className="editor-actions">
-        <button type="button" onClick={save} disabled={saving || !version.trim()}>{saving ? 'Saving…' : `Save as new ACTIVE version`}</button>
-        <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
+      <div className="save-bar">
+        <Field label="Save as version">
+          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 2026.08.1" />
+        </Field>
+        <Field label="Effective from (blank = today)">
+          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+        </Field>
+        <div className="editor-actions">
+          <button type="button" onClick={save} disabled={saving || !version.trim()}>{saving ? 'Saving…' : 'Save configuration'}</button>
+          {onCancel && <button type="button" className="link-button" onClick={onCancel}>Reset</button>}
+        </div>
       </div>
     </div>
   );
