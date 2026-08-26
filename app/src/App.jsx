@@ -93,11 +93,15 @@ function FormulaTrace({ steps, currency, constraintPasses, unitPrice }) {
   );
 }
 
-/** selectedBy is 'USER' | 'DEFAULT' | 'ACCESS_SEQUENCE:<system>' — see engine-core/src/kernel.js. */
-function describeSelection(selectedBy) {
+/** selectedBy is 'USER' | 'DEFAULT' | 'ACCESS_SEQUENCE:<system>' — see engine-core/src/kernel.js.
+ *  Naming the stock class the sequence actually ran under makes a fallback self-explanatory —
+ *  e.g. "for NonMTS -> ERP" makes clear the NonMTS order was tried, CCD just wasn't on file for
+ *  this part, rather than looking like the stock class was ignored. */
+function describeSelection(selectedBy, stockClass) {
   if (selectedBy === 'USER') return 'manually selected';
   if (selectedBy?.startsWith('ACCESS_SEQUENCE:')) {
-    return `picked by cost source order → ${selectedBy.split(':')[1]}`;
+    const scope = stockClass ? ` for ${stockClass}` : '';
+    return `picked by cost source order${scope} → ${selectedBy.split(':')[1]}`;
   }
   return 'default source';
 }
@@ -211,7 +215,7 @@ function LineDetail({ line }) {
           Cost used: <strong>{fmt2(line.trace.costCandidate.value)} {line.trace.costCandidate.currency}</strong>{' '}
           ({line.trace.costCandidate.confidence}, {line.trace.costCandidate.basis}
           {line.trace.costCandidate.source?.system ? `, from ${line.trace.costCandidate.source.system}` : ''}) —{' '}
-          {describeSelection(line.trace.costCandidate.selectedBy)}
+          {describeSelection(line.trace.costCandidate.selectedBy, line.trace.stockClass)}
         </p>
       )}
       <BreakdownCards steps={line.trace.steps} currency={line.result?.currency} />
@@ -513,6 +517,8 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                             <option value="MTS">MTS</option>
                             <option value="NonMTS">NonMTS</option>
                           </select>
+                          {line?.trace?.stockClass && <div className="hint-inline">→ {line.trace.stockClass}</div>}
+                          {line?.missing?.reason === 'STOCK_CLASS_UNRESOLVED' && <div className="hint-inline">→ unresolved</div>}
                         </td>
                         <td><input className="ood-input" value={row.warehouse} onChange={(e) => updateRow(i, 'warehouse', e.target.value)} placeholder="e.g. EU01" /></td>
                         {showAdvanced && (
