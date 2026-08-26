@@ -23,13 +23,9 @@ const PRICING_TYPES = [
   { id: 'AI_PROPOSED', label: 'AI-proposed costs', available: false },
 ];
 
-/** Plain-language labels for the request purpose — the raw enum values read as engine jargon. */
-const PURPOSE_LABEL = {
-  INDICATIVE: 'Indicative — early estimate',
-  BINDING: 'Binding — firm quote',
-  REPRICE: 'Reprice — as of a past date',
-  SIMULATION: 'Simulation — what-if',
-};
+// Purpose (INDICATIVE|BINDING|REPRICE|SIMULATION) stays an engine/API concept — the host
+// system sets it per call in a real integration (order → BINDING refuses estimated costs).
+// Removed from the UI at the owner's request; every UI call prices as INDICATIVE.
 
 function Field({ label, children }) {
   return (
@@ -391,31 +387,15 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
             </select>
           </Field>
           <Field label="Region">
-            <div className="region-pills">
+            <select value={region} onChange={(e) => setRegion(e.target.value)}>
               {['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  className={region === r ? 'region-pill region-pill-active' : 'region-pill'}
-                  onClick={() => setRegion(r)}
-                >
-                  {r}
-                </button>
+                <option key={r} value={r}>{r}</option>
               ))}
-            </div>
+            </select>
           </Field>
           <Field label="Sales org">
             <input value={globals.salesOrg} onChange={(e) => updateGlobal('salesOrg', e.target.value)} />
           </Field>
-          {showAdvanced && (
-            <Field label="Purpose (strictness — the host system sets this in a real integration)">
-              <select value={globals.purpose} onChange={(e) => updateGlobal('purpose', e.target.value)}>
-                {Object.values(PURPOSE).map((p) => (
-                  <option key={p} value={p}>{PURPOSE_LABEL[p] || p}</option>
-                ))}
-              </select>
-            </Field>
-          )}
           <Field label="Pricing type">
             <select value={globals.pricingType} onChange={(e) => updateGlobal('pricingType', e.target.value)}>
               {PRICING_TYPES.map((t) => (
@@ -714,18 +694,11 @@ function DirectWorkspace({ region, setRegion }) {
         </p>
 
         <Field label="Region">
-          <div className="region-pills">
+          <select value={region} onChange={(e) => setRegion(e.target.value)}>
             {['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'].map((r) => (
-              <button
-                key={r}
-                type="button"
-                className={region === r ? 'region-pill region-pill-active' : 'region-pill'}
-                onClick={() => setRegion(r)}
-              >
-                {r}
-              </button>
+              <option key={r} value={r}>{r}</option>
             ))}
-          </div>
+          </select>
         </Field>
         <p className="hint">{configNote}</p>
 
@@ -735,13 +708,6 @@ function DirectWorkspace({ region, setRegion }) {
           </Field>
           <Field label="Quantity">
             <input type="number" min="1" value={form.quantity} onChange={(e) => update('quantity', e.target.value)} />
-          </Field>
-          <Field label="Purpose">
-            <select value={form.purpose} onChange={(e) => update('purpose', e.target.value)}>
-              {Object.values(PURPOSE).map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
           </Field>
           <Field label="Base cost">
             <input value={form.baseCostValue} onChange={(e) => update('baseCostValue', e.target.value)} />
@@ -810,10 +776,6 @@ function DirectWorkspace({ region, setRegion }) {
         <label className="checkbox-field">
           <input type="checkbox" checked={form.simulateMissingCost} onChange={(e) => update('simulateMissingCost', e.target.checked)} />
           <span>Simulate no cost record from ERP (MISSING)</span>
-        </label>
-        <label className="checkbox-field">
-          <input type="checkbox" checked={form.overrideStaleCost} onChange={(e) => update('overrideStaleCost', e.target.checked)} />
-          <span>Override stale/fallback cost (needed for BINDING purpose)</span>
         </label>
 
         <button type="submit">Price line</button>
