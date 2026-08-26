@@ -287,6 +287,12 @@
   background: var(--navy-dark);
 }
 
+.panel > button[type='submit'].price-submit-top {
+  width: auto;
+  margin-bottom: 18px;
+  padding: 11px 28px;
+}
+
 .panel > button[type='submit']:disabled {
   background: #9aa0b8;
   cursor: not-allowed;
@@ -654,18 +660,25 @@
 }
 
 .expand-chevron {
-  color: var(--text-muted);
-  text-align: right;
+  text-align: center;
+  width: 64px;
 }
 
 .expand-toggle {
-  background: none;
-  border: none;
+  background: #eef1fb;
+  border: 1px solid var(--navy);
   color: var(--navy);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+}
+
+.expand-toggle:hover {
+  background: var(--navy);
+  color: #fff;
 }
 
 .results-detail-row td {

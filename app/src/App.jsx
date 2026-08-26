@@ -437,7 +437,11 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           </Field>
         </div>
 
-        <form onSubmit={runBatch}>
+        <button type="submit" form="batch-price-form" disabled={loading} className="price-submit-top">
+          {loading ? 'Pricing…' : `Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}
+        </button>
+
+        <form id="batch-price-form" onSubmit={runBatch}>
           <div className="item-grid-scroll">
             <table className={showAdvanced ? 'item-grid item-grid-advanced' : 'item-grid'}>
               <thead>
@@ -599,8 +603,6 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
               </div>
             </div>
           )}
-
-          <button type="submit" disabled={loading}>{loading ? 'Pricing…' : `Price all lines (${rows.filter((r) => r.partNumber.trim()).length})`}</button>
         </form>
 
         {error && <p className="error">{error}</p>}
