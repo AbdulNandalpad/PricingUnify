@@ -19,6 +19,7 @@
     "tariff": { "type": ["string", "number", "null"] },
     "molv": { "type": ["string", "number", "null"], "description": "Minimum order line value for this supplier." },
     "moq": { "type": ["string", "number", "null"], "description": "Minimum order quantity for this supplier — informational (see constraint.schema.json kind MIN_QTY), never silently changes price." },
+    "supplierCountry": { "type": ["string", "null"], "description": "The supplier's own country of registration — distinct from an item's COO (country of origin of the goods) or a customer's country. Informational/audit today; not yet read by any build-up or resolution logic." },
     "provenance": { "$ref": "provenance.schema.json" }
   },
   "additionalProperties": false

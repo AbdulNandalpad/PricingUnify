@@ -5,6 +5,10 @@ import {
   getEffectiveConfig,
   listVersions,
   getEffectiveSupplierConfig,
+  getEffectiveRegionRoute,
+  listRegionRouteVersions,
+  getEffectivePartyConfig,
+  listPartyConfigVersions,
   listSuggestions,
   suggestChange,
   approveSuggestion,
@@ -12,7 +16,7 @@ import {
 } from './api';
 
 const REGIONS = ['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'];
-const ADMIN_SECTIONS = ['Region config', 'Supplier config', 'AI suggestions'];
+const ADMIN_SECTIONS = ['Region config', 'Supplier config', 'Region routing', 'Party config', 'AI suggestions'];
 
 function Field({ label, children }) {
   return (
@@ -274,6 +278,166 @@ function SupplierConfigSection({ user, region, salesOrg, asOf }) {
   );
 }
 
+/** From the C4C payload review: a real host system sends a customer's Origin of Data +
+ *  salesOrg, not our internal region code — this table resolves that combination to a
+ *  region, so a pricing request can omit `region` entirely (see srv/pricing-service.js
+ *  resolveRegion). Read-only browse, same shape as SupplierConfigSection. */
+function RegionRouteSection({ user, salesOrg, asOf }) {
+  const [ood, setOod] = useState('SAP');
+  const [current, setCurrent] = useState(null);
+  const [versions, setVersions] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    setCurrent(null);
+    setVersions(null);
+    setNotFound(false);
+    try {
+      const [route, versionList] = await Promise.all([
+        getEffectiveRegionRoute({ user, ood, salesOrg, asOf }),
+        listRegionRouteVersions({ user, ood, salesOrg }),
+      ]);
+      setCurrent(route);
+      setVersions(versionList.versions);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) setNotFound(true);
+      else setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="hint">Resolves which region a customer's Origin of Data + sales org routes to — the piece a real C4C payload needs since it never sends our internal region code directly.</p>
+      <div className="field-grid">
+        <Field label="Origin of Data (OOD)">
+          <input value={ood} onChange={(e) => setOod(e.target.value)} placeholder="e.g. SAP, SMA, CN, IN" />
+        </Field>
+      </div>
+      <button type="button" onClick={load} disabled={loading || !ood.trim()}>
+        {loading ? 'Loading…' : `Look up ${ood || '…'}/${salesOrg}`}
+      </button>
+      {error && <p className="error">{error}</p>}
+      {notFound && <p className="missing-reason">No effective region-route for "{ood}" / {salesOrg}.</p>}
+
+      {current && (
+        <dl className="config-meta">
+          <div><dt>Region</dt><dd className="mono">{current.region}</dd></div>
+          <div><dt>Entity label</dt><dd>{current.entityLabel || '—'}</dd></div>
+          <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
+          <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
+        </dl>
+      )}
+
+      {versions && versions.length > 0 && (
+        <>
+          <h4>Version history ({versions.length})</h4>
+          <table className="results-table">
+            <thead><tr><th>Version</th><th>Status</th><th>Region</th><th>Valid from</th><th>Valid to</th></tr></thead>
+            <tbody>
+              {versions.map((v) => (
+                <tr key={v.version}>
+                  <td className="mono">{v.version}</td>
+                  <td><span className={`badge-status badge-status-${v.status === 'ACTIVE' ? 'priced' : 'missing'}`}>{v.status}</span></td>
+                  <td className="mono">{v.region}</td>
+                  <td className="mono">{v.validFrom}</td>
+                  <td className="mono">{v.validTo || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Customer/party master data — territory, country, currency, and the customer's own OOD
+ *  (which can diverge from an item's own ood/coo on the same order). First real consumer of
+ *  the `party.customerId` field the object-agnostic request has carried since Phase 1 but
+ *  nothing previously read. Read-only browse, same shape as SupplierConfigSection. */
+function PartyConfigSection({ user, asOf }) {
+  const [customerId, setCustomerId] = useState('CUST-DE-001');
+  const [current, setCurrent] = useState(null);
+  const [versions, setVersions] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    setCurrent(null);
+    setVersions(null);
+    setNotFound(false);
+    try {
+      const [config, versionList] = await Promise.all([
+        getEffectivePartyConfig({ user, customerId, asOf }),
+        listPartyConfigVersions({ user, customerId }),
+      ]);
+      setCurrent(config);
+      setVersions(versionList.versions);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) setNotFound(true);
+      else setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="hint">Customer master data from the host system's Customer Payload (e.g. C4C) — territory, country, currency, and the customer's own OOD.</p>
+      <div className="field-grid">
+        <Field label="Customer ID">
+          <input value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="e.g. CUST-DE-001" />
+        </Field>
+      </div>
+      <button type="button" onClick={load} disabled={loading || !customerId.trim()}>
+        {loading ? 'Loading…' : `Look up ${customerId || '…'}`}
+      </button>
+      {error && <p className="error">{error}</p>}
+      {notFound && <p className="missing-reason">No effective party-config for "{customerId}".</p>}
+
+      {current && (
+        <dl className="config-meta">
+          <div><dt>Territory</dt><dd>{current.territory || '—'}</dd></div>
+          <div><dt>Customer country</dt><dd className="mono">{current.customerCountry || '—'}</dd></div>
+          <div><dt>Customer currency</dt><dd className="mono">{current.customerCurrency || '—'}</dd></div>
+          <div><dt>Customer OOD</dt><dd className="mono">{current.customerOod || '—'}</dd></div>
+          <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
+          <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
+        </dl>
+      )}
+
+      {versions && versions.length > 0 && (
+        <>
+          <h4>Version history ({versions.length})</h4>
+          <table className="results-table">
+            <thead><tr><th>Version</th><th>Status</th><th>Customer OOD</th><th>Valid from</th><th>Valid to</th></tr></thead>
+            <tbody>
+              {versions.map((v) => (
+                <tr key={v.version}>
+                  <td className="mono">{v.version}</td>
+                  <td><span className={`badge-status badge-status-${v.status === 'ACTIVE' ? 'priced' : 'missing'}`}>{v.status}</span></td>
+                  <td className="mono">{v.customerOod || '—'}</td>
+                  <td className="mono">{v.validFrom}</td>
+                  <td className="mono">{v.validTo || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AiSuggestionsSection({ user, region, salesOrg }) {
   const isAdmin = user === 'bob';
   const [status, setStatus] = useState('');
@@ -411,7 +575,8 @@ export default function AdminConfig() {
         <h2>Admin config</h2>
         <p className="hint">
           Browse a region's live config (build-up, constraints, stock class / additional-cost maps), look up
-          supplier-specific overrides, and review AI-proposed config changes. Read endpoints are open to any
+          supplier-specific overrides, resolve which region a customer's Origin of Data routes to, look up
+          customer master data, and review AI-proposed config changes. Read endpoints are open to any
           authenticated user; requesting or approving an AI suggestion needs PricingAdmin (bob).
         </p>
 
@@ -446,6 +611,8 @@ export default function AdminConfig() {
 
         {section === 'Region config' && <RegionConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
         {section === 'Supplier config' && <SupplierConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Region routing' && <RegionRouteSection user={user} salesOrg={salesOrg} asOf={asOf} />}
+        {section === 'Party config' && <PartyConfigSection user={user} asOf={asOf} />}
         {section === 'AI suggestions' && <AiSuggestionsSection user={user} region={region} salesOrg={salesOrg} />}
       </section>
     </main>

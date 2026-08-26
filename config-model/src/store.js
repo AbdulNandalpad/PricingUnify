@@ -1,4 +1,11 @@
-const { validateRegionConfig, validateAiSuggestion, validateSupplierConfig, ConfigValidationError } = require('./validate');
+const {
+  validateRegionConfig,
+  validateAiSuggestion,
+  validateSupplierConfig,
+  validateRegionRoute,
+  validatePartyConfig,
+  ConfigValidationError,
+} = require('./validate');
 
 const WILDCARD = '*';
 
@@ -71,6 +78,10 @@ function supplierKey(region, salesOrg, supplier) {
   return `${region}::${salesOrg}::${supplier}`;
 }
 
+function regionRouteKey(ood, salesOrg) {
+  return `${ood}::${salesOrg}`;
+}
+
 /**
  * In-memory, versioned config + AI-suggestion store. Stands in for the real HANA/Postgres
  * store CAP will own in Phase 2 (`srv/`) — same shape, so swapping the backing store later
@@ -92,6 +103,16 @@ class ConfigStore {
       validate: validateSupplierConfig,
       entityLabel: 'region/salesOrg/supplier',
       keyOf: (doc) => supplierKey(doc.region, doc.salesOrg, doc.supplier),
+    });
+    this._regionRoutes = new VersionedBucketStore({
+      validate: validateRegionRoute,
+      entityLabel: 'ood/salesOrg',
+      keyOf: (doc) => regionRouteKey(doc.ood, doc.salesOrg),
+    });
+    this._partyConfigs = new VersionedBucketStore({
+      validate: validatePartyConfig,
+      entityLabel: 'customerId',
+      keyOf: (doc) => doc.customerId,
     });
     this.suggestions = new Map();
   }
@@ -137,6 +158,38 @@ class ConfigStore {
       supplierKey(region, salesOrg, WILDCARD),
       date,
     );
+  }
+
+  saveRegionRoute(route) {
+    return this._regionRoutes.saveVersion(route);
+  }
+
+  listRegionRouteVersions(ood, salesOrg) {
+    return this._regionRoutes.listVersions(regionRouteKey(ood, salesOrg));
+  }
+
+  /** Falls back salesOrg -> "*" (an ood-wide default routing), same convention as
+   *  region-config and supplier-config. */
+  getEffectiveRegionRoute(ood, salesOrg, date) {
+    return this._regionRoutes.getEffectiveAsOf(
+      regionRouteKey(ood, salesOrg),
+      regionRouteKey(ood, WILDCARD),
+      date,
+    );
+  }
+
+  savePartyConfig(config) {
+    return this._partyConfigs.saveVersion(config);
+  }
+
+  listPartyConfigVersions(customerId) {
+    return this._partyConfigs.listVersions(customerId);
+  }
+
+  /** No wildcard fallback — a customer either has master data on file or doesn't; there's
+   *  no natural "default customer" the way "*" salesOrg/supplier stand in for one. */
+  getEffectivePartyConfig(customerId, date) {
+    return this._partyConfigs.getEffectiveAsOf(customerId, customerId, date);
   }
 
   saveSuggestion(suggestion) {

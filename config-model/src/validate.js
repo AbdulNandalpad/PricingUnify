@@ -10,6 +10,8 @@ const SCHEMA_FILES = [
   'region-config.schema.json',
   'ai-suggestion.schema.json',
   'supplier-config.schema.json',
+  'region-route.schema.json',
+  'party-config.schema.json',
 ];
 
 function buildAjv() {
@@ -106,4 +108,31 @@ function validateSupplierConfig(config) {
   return true;
 }
 
-module.exports = { validateRegionConfig, validateAiSuggestion, validateSupplierConfig, ConfigValidationError };
+function checkValidToAfterValidFrom(label, config) {
+  if (config.validTo && config.validFrom && config.validTo <= config.validFrom) {
+    throw new ConfigValidationError(`${label} failed business-rule validation`, [
+      `validTo (${config.validTo}) must be after validFrom (${config.validFrom}).`,
+    ]);
+  }
+}
+
+function validateRegionRoute(route) {
+  validateAgainst('region-route.schema.json', route);
+  checkValidToAfterValidFrom('RegionRoute', route);
+  return true;
+}
+
+function validatePartyConfig(config) {
+  validateAgainst('party-config.schema.json', config);
+  checkValidToAfterValidFrom('PartyConfig', config);
+  return true;
+}
+
+module.exports = {
+  validateRegionConfig,
+  validateAiSuggestion,
+  validateSupplierConfig,
+  validateRegionRoute,
+  validatePartyConfig,
+  ConfigValidationError,
+};

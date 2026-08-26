@@ -252,14 +252,44 @@ function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) 
   return { items: merged };
 }
 
+/**
+ * Real host systems (e.g. C4C) don't send our internal region code at all — they send a
+ * customer's Origin of Data + salesOrg (see CLAUDE.md Decision Log, the C4C payload review),
+ * and region-route config resolves that to a region. `payload.region` still wins whenever
+ * the caller supplies it explicitly — same "explicit selection always wins" precedence used
+ * everywhere else in this file (cost candidates, MROQ override) — so every existing caller
+ * that already knows its region keeps working unchanged; this only fires when region is
+ * omitted. Never a silent guess: an unresolvable (ood, salesOrg) is a typed 422, and a
+ * resolved region always says how it got there (`region.derivedBy`), mirroring
+ * `costCandidate.selectedBy`.
+ */
+function resolveRegion({ region, salesOrg, customerOod, priceDate }) {
+  if (region) return { region, derivedBy: 'EXPLICIT' };
+  if (!customerOod) return { region: null, derivedBy: null, reason: 'NO_REGION_OR_CUSTOMER_OOD' };
+  const route = store.getEffectiveRegionRoute(customerOod, salesOrg, priceDate);
+  if (!route) return { region: null, derivedBy: null, reason: 'NO_MATCHING_REGION_ROUTE' };
+  return { region: route.region, derivedBy: `ROUTE:${customerOod}`, entityLabel: route.entityLabel };
+}
+
 module.exports = (srv) => {
   srv.on('price', async (req) => {
     const payload = req.data.payload || {};
-    const { region, salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId } = payload;
+    const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod } = payload;
     const priceDate = payload.priceDate || todayIso();
 
-    if (!region) return req.reject(400, 'payload.region is required.');
     if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+
+    // party-config is customerId's master data (territory/country/currency/ood); an explicit
+    // payload.customerOod overrides its stored customerOod, same precedence pattern as every
+    // other override in this file.
+    const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
+    const resolvedCustomerOod = customerOod || (partyConfig && partyConfig.customerOod) || null;
+
+    const { region, derivedBy: regionDerivedBy, entityLabel, reason: regionUnresolvedReason } =
+      resolveRegion({ region: payload.region, salesOrg, customerOod: resolvedCustomerOod, priceDate });
+    if (!region) {
+      return req.reject(400, `payload.region is required (or provide customerId/customerOod that resolves via region-route) — ${regionUnresolvedReason}.`);
+    }
 
     const config = store.getEffectiveAsOf(region, salesOrg, priceDate);
     if (!config) {
@@ -274,7 +304,14 @@ module.exports = (srv) => {
 
     const request = {
       context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
-      party: { customerId, salesOrg },
+      party: {
+        customerId,
+        salesOrg,
+        ood: resolvedCustomerOod,
+        territory: partyConfig ? partyConfig.territory : null,
+        country: partyConfig ? partyConfig.customerCountry : null,
+        currency: partyConfig ? partyConfig.customerCurrency : null,
+      },
       items,
       priceDate,
       instructions,
@@ -284,6 +321,7 @@ module.exports = (srv) => {
 
     return {
       config: { region: config.region, salesOrg: config.salesOrg, version: config.version, status: config.status },
+      region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
       priceDate,
       requestedBy: req.user.id,
       ...result,

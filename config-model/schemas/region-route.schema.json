@@ -1,0 +1,21 @@
+{
+  "$id": "region-route.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RegionRoute",
+  "description": "Resolves which region-config applies from the fields a real host system (e.g. C4C) actually sends — a customer's Origin of Data + salesOrg — without the caller ever needing to know our internal region codes. One (ood, salesOrg) pair = one versioned, effective-dated document, scoped exactly like region-config and supplier-config. salesOrg \"*\" is an ood-wide default. `region` on a pricing request always wins when the caller supplies it explicitly (same 'explicit selection always wins' precedence as cost-candidate selection and MROQ override) — this table only fires when region is omitted.",
+  "type": "object",
+  "required": ["ood", "salesOrg", "region", "version", "validFrom", "status", "provenance"],
+  "properties": {
+    "ood": { "type": "string", "minLength": 1, "description": "The customer's Origin of Data (e.g. \"SMA\", \"SAP\", \"CN\", \"IN\") — distinct from an item's own ood, which can diverge on a single order (see party-config.schema.json)." },
+    "salesOrg": { "type": "string", "minLength": 1 },
+    "region": { "type": "string", "description": "The region code this (ood, salesOrg) combination resolves to, e.g. \"EUROPE\"." },
+    "entityLabel": { "type": "string", "description": "Human-readable TSS legal entity name, e.g. \"TSS Germany\" — for display/audit only, never read by engine-core." },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
+}

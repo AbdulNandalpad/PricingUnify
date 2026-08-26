@@ -1,4 +1,11 @@
-const { validateRegionConfig, validateAiSuggestion, validateSupplierConfig, ConfigValidationError } = require('./validate');
+const {
+  validateRegionConfig,
+  validateAiSuggestion,
+  validateSupplierConfig,
+  validateRegionRoute,
+  validatePartyConfig,
+  ConfigValidationError,
+} = require('./validate');
 const { ConfigStore } = require('./store');
 const { createAnthropicClient, createFakeClient } = require('./ai/client');
 const { suggestConfigChange } = require('./ai/suggest');
@@ -8,6 +15,8 @@ module.exports = {
   validateRegionConfig,
   validateAiSuggestion,
   validateSupplierConfig,
+  validateRegionRoute,
+  validatePartyConfig,
   ConfigValidationError,
   ConfigStore,
   createAnthropicClient,

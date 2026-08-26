@@ -1,0 +1,22 @@
+{
+  "$id": "party-config.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PartyConfig",
+  "description": "Customer/party-level master data from the host system's Customer Payload (e.g. C4C) — territory, customer country/currency, and the customer's own Origin of Data. Deliberately distinct from an item's own `ood`/`coo`: the two can diverge on a single order (e.g. a US customer, ood SMA, ordering a part whose cost data originates in China) — item-level ood keeps driving cost-route branching (see region-config's China build-up), while customerOod here drives region-route resolution. One customerId = one versioned, effective-dated document, independent of region/salesOrg — a customer's master data doesn't change depending on who priced them. First real consumer of the `party.customerId` field the object-agnostic request has carried since Phase 1 (requirements §7) but nothing previously read.",
+  "type": "object",
+  "required": ["customerId", "version", "validFrom", "status", "provenance"],
+  "properties": {
+    "customerId": { "type": "string", "minLength": 1 },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "territory": { "type": ["string", "null"] },
+    "customerCountry": { "type": ["string", "null"] },
+    "customerCurrency": { "type": ["string", "null"] },
+    "customerOod": { "type": ["string", "null"], "description": "The customer's own Origin of Data — feeds region-route resolution when a pricing request omits `region` explicitly." },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
+}

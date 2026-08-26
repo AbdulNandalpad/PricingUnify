@@ -14,6 +14,8 @@ function seed() {
   seedIndiaRegionConfig();
   seedAmericasRegionConfig();
   seedSupplierConfigs();
+  seedRegionRoutes();
+  seedPartyConfigs();
 }
 
 function seedRegionConfig() {
@@ -242,6 +244,70 @@ function seedSupplierConfigs() {
     tariff: '12.00',
     molv: '300.00',
     moq: '25',
+    provenance: HUMAN_PROVENANCE,
+  });
+}
+
+/**
+ * Real host systems (e.g. C4C) send a customer's Origin of Data + salesOrg, not our internal
+ * region code — see CLAUDE.md's C4C payload review. These four are the real combinations the
+ * owner shared: SMA/SAP/CN/IN, each an ood-wide ("*" salesOrg) default. A sales-org-specific
+ * route only needs its own document where it actually diverges from its ood's default.
+ */
+function seedRegionRoutes() {
+  if (store.listRegionRouteVersions('SAP', '*').length > 0) return;
+  const routes = [
+    { ood: 'SAP', region: 'EUROPE', entityLabel: 'TSS Germany' },
+    { ood: 'SMA', region: 'AMERICAS', entityLabel: 'TSS US Industrial' },
+    { ood: 'CN', region: 'CHINA', entityLabel: 'TSS China' },
+    { ood: 'IN', region: 'INDIA', entityLabel: 'TSS India' },
+  ];
+  for (const r of routes) {
+    store.saveRegionRoute({
+      ood: r.ood,
+      salesOrg: '*',
+      region: r.region,
+      entityLabel: r.entityLabel,
+      version: '2026.08.0',
+      status: 'ACTIVE',
+      validFrom: '2026-08-01',
+      validTo: null,
+      provenance: HUMAN_PROVENANCE,
+    });
+  }
+}
+
+/**
+ * Demo customer master data — first real consumer of `party.customerId`, which the object-
+ * agnostic request has carried since Phase 1 (requirements §7) but nothing previously read.
+ * CUST-DE-001's customerOod (SAP) matches its country; CUST-US-002 is the "can diverge"
+ * demo from the C4C payload review — a US customer (ood SMA) who can still order a part
+ * whose own item-level ood/coo point elsewhere, since item-level routing is independent.
+ */
+function seedPartyConfigs() {
+  if (store.listPartyConfigVersions('CUST-DE-001').length > 0) return;
+  store.savePartyConfig({
+    customerId: 'CUST-DE-001',
+    version: '2026.08.0',
+    status: 'ACTIVE',
+    validFrom: '2026-08-01',
+    validTo: null,
+    territory: 'DACH',
+    customerCountry: 'DE',
+    customerCurrency: 'EUR',
+    customerOod: 'SAP',
+    provenance: HUMAN_PROVENANCE,
+  });
+  store.savePartyConfig({
+    customerId: 'CUST-US-002',
+    version: '2026.08.0',
+    status: 'ACTIVE',
+    validFrom: '2026-08-01',
+    validTo: null,
+    territory: 'US-INDUSTRIAL',
+    customerCountry: 'US',
+    customerCurrency: 'USD',
+    customerOod: 'SMA',
     provenance: HUMAN_PROVENANCE,
   });
 }

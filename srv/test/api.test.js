@@ -469,3 +469,63 @@ test('approveSuggestion as PricingAdmin against an unknown suggestion id is a cl
   });
   assert.equal(res.status, 404);
 });
+
+async function priceRaw(payload) {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+test('C4C payload review: omitting region derives it from customerOod via region-route (explicit region still wins when given)', async () => {
+  const { status, body } = await priceRaw({ salesOrg: '*', customerOod: 'SAP', items: [{ partNumber: 'P-10023', quantity: 10 }] });
+  assert.equal(status, 200);
+  assert.equal(body.region.value, 'EUROPE');
+  assert.equal(body.region.derivedBy, 'ROUTE:SAP');
+  assert.equal(body.region.entityLabel, 'TSS Germany');
+
+  const explicit = await priceRaw({ region: 'EUROPE', salesOrg: '*', customerOod: 'CN', items: [{ partNumber: 'P-10023', quantity: 10 }] });
+  assert.equal(explicit.body.region.value, 'EUROPE');
+  assert.equal(explicit.body.region.derivedBy, 'EXPLICIT', 'an explicit region always wins over a customerOod that would route elsewhere');
+});
+
+test('C4C payload review: region also derives from customerId via party-config, without the caller ever sending an ood', async () => {
+  const { status, body } = await priceRaw({ salesOrg: '*', customerId: 'CUST-US-002', items: [{ partNumber: 'US-P001', quantity: 5 }] });
+  assert.equal(status, 200);
+  assert.equal(body.region.value, 'AMERICAS');
+  assert.equal(body.region.derivedBy, 'ROUTE:SMA');
+});
+
+test('C4C payload review: an explicit payload.customerOod overrides party-config\'s stored ood for that customer, same override precedence as everywhere else', async () => {
+  const { body } = await priceRaw({ salesOrg: '*', customerId: 'CUST-US-002', customerOod: 'SAP', items: [{ partNumber: 'P-10023', quantity: 5 }] });
+  assert.equal(body.region.value, 'EUROPE');
+  assert.equal(body.region.derivedBy, 'ROUTE:SAP');
+});
+
+test('C4C payload review: no region, no customerId/customerOod, and no route match are all typed 400/422, never a silent guess', async () => {
+  const missingBoth = await priceRaw({ salesOrg: '*', items: [{ partNumber: 'P-10023', quantity: 1 }] });
+  assert.equal(missingBoth.status, 400);
+
+  const unmapped = await priceRaw({ salesOrg: '*', customerOod: 'ZZZ', items: [{ partNumber: 'P-10023', quantity: 1 }] });
+  assert.equal(unmapped.status, 400);
+});
+
+test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {
+  const route = await fetch(`${BASE}/rest/config/getEffectiveRegionRoute?ood=SAP&salesOrg=*`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  });
+  assert.equal(route.status, 200);
+  const routeBody = await route.json();
+  assert.equal(routeBody.region, 'EUROPE');
+  assert.equal(routeBody.entityLabel, 'TSS Germany');
+
+  const party = await fetch(`${BASE}/rest/config/getEffectivePartyConfig?customerId=CUST-DE-001`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  });
+  assert.equal(party.status, 200);
+  const partyBody = await party.json();
+  assert.equal(partyBody.customerOod, 'SAP');
+  assert.equal(partyBody.territory, 'DACH');
+});

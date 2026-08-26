@@ -34,6 +34,34 @@ module.exports = (srv) => {
     return config;
   });
 
+  srv.on('getEffectiveRegionRoute', (req) => {
+    const { ood, salesOrg = '*', asOf } = req.data;
+    if (!ood) return req.reject(400, 'ood is required.');
+    const route = store.getEffectiveRegionRoute(ood, salesOrg, asOf || todayIso());
+    if (!route) return req.reject(404, `No effective region-route for ood "${ood}" / salesOrg "${salesOrg}".`);
+    return route;
+  });
+
+  srv.on('listRegionRouteVersions', (req) => {
+    const { ood, salesOrg = '*' } = req.data;
+    if (!ood) return req.reject(400, 'ood is required.');
+    return { versions: store.listRegionRouteVersions(ood, salesOrg) };
+  });
+
+  srv.on('getEffectivePartyConfig', (req) => {
+    const { customerId, asOf } = req.data;
+    if (!customerId) return req.reject(400, 'customerId is required.');
+    const config = store.getEffectivePartyConfig(customerId, asOf || todayIso());
+    if (!config) return req.reject(404, `No effective party-config for customerId "${customerId}".`);
+    return config;
+  });
+
+  srv.on('listPartyConfigVersions', (req) => {
+    const { customerId } = req.data;
+    if (!customerId) return req.reject(400, 'customerId is required.');
+    return { versions: store.listPartyConfigVersions(customerId) };
+  });
+
   srv.on('suggestChange', async (req) => {
     const { region, salesOrg = '*', version, instruction } = req.data.payload || {};
     if (!region || !instruction) return req.reject(400, 'payload.region and payload.instruction are required.');

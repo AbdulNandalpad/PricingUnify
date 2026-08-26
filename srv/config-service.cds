@@ -19,6 +19,18 @@ service ConfigService {
   @requires: 'authenticated-user'
   function getEffectiveSupplierConfig(region: String, salesOrg: String, supplier: String, asOf: String) returns Map;
 
+  @requires: 'authenticated-user'
+  function getEffectiveRegionRoute(ood: String, salesOrg: String, asOf: String) returns Map;
+
+  @requires: 'authenticated-user'
+  function listRegionRouteVersions(ood: String, salesOrg: String) returns Map;
+
+  @requires: 'authenticated-user'
+  function getEffectivePartyConfig(customerId: String, asOf: String) returns Map;
+
+  @requires: 'authenticated-user'
+  function listPartyConfigVersions(customerId: String) returns Map;
+
   @requires: 'PricingAdmin'
   action suggestChange(payload: Map) returns Map;
 

@@ -54,6 +54,22 @@ export function getEffectiveSupplierConfig({ user, region, salesOrg, supplier, a
   return callAction('/rest/config/getEffectiveSupplierConfig', { user, method: 'GET', payload: { region, salesOrg, supplier, asOf } });
 }
 
+export function getEffectiveRegionRoute({ user, ood, salesOrg, asOf }) {
+  return callAction('/rest/config/getEffectiveRegionRoute', { user, method: 'GET', payload: { ood, salesOrg, asOf } });
+}
+
+export function listRegionRouteVersions({ user, ood, salesOrg }) {
+  return callAction('/rest/config/listRegionRouteVersions', { user, method: 'GET', payload: { ood, salesOrg } });
+}
+
+export function getEffectivePartyConfig({ user, customerId, asOf }) {
+  return callAction('/rest/config/getEffectivePartyConfig', { user, method: 'GET', payload: { customerId, asOf } });
+}
+
+export function listPartyConfigVersions({ user, customerId }) {
+  return callAction('/rest/config/listPartyConfigVersions', { user, method: 'GET', payload: { customerId } });
+}
+
 export function listSuggestions({ user, region, status }) {
   return callAction('/rest/config/listSuggestions', { user, method: 'GET', payload: { region, status } });
 }
