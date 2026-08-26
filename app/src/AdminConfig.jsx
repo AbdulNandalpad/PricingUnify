@@ -209,6 +209,7 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
             salesOrg={salesOrg}
             baseConfig={current}
             defaultVersion={defaultVersion}
+            defaultValidFrom={asOf}
             onSaved={(saved) => {
               setSavedNote(`Saved ${region} configuration as version ${saved.version} — pricing uses it immediately.`);
               setReloadTick((t) => t + 1);
@@ -286,7 +287,11 @@ function SupplierConfigSection({ user, asOf }) {
     return () => { cancelled = true; };
   }, [user, asOf, listTick]);
 
-  const load = async (supplierId) => {
+  const load = async (supplierIdRaw) => {
+    // A supplier id is an exact-match store key — an untrimmed stray space would silently
+    // save/look up under a different key than the one visible in the table (e.g. "ACME "
+    // vs "ACME"), making a just-created config look like it never saved.
+    const supplierId = supplierIdRaw.trim();
     setSupplier(supplierId);
     setLoading(true);
     setError(null);
@@ -370,6 +375,7 @@ function SupplierConfigSection({ user, asOf }) {
           supplier={supplier}
           base={result}
           defaultVersion={defaultVersion}
+          defaultValidFrom={asOf}
           onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); setListTick((t) => t + 1); load(supplier); }}
           onCancel={() => setEditing(false)}
         />

@@ -234,9 +234,12 @@ function parseJsonField(label, text, errors) {
  * never mutated in place) — the backend stamps HUMAN provenance and re-validates everything,
  * including the FACTOR-basis rule, before anything goes live.
  */
-export function RegionConfigEditor({ user, region, salesOrg, baseConfig, defaultVersion, onSaved, onCancel }) {
+export function RegionConfigEditor({ user, region, salesOrg, baseConfig, defaultVersion, defaultValidFrom, onSaved, onCancel }) {
   const [version, setVersion] = useState(defaultVersion || '');
-  const [validFrom, setValidFrom] = useState('');
+  // Defaults to whatever "as of" date the sheet is currently viewed at (Advanced scope) —
+  // saving with a blank field instead would default to *today* server-side, which can be
+  // after that as-of date and make the just-saved version invisible under the current view.
+  const [validFrom, setValidFrom] = useState(defaultValidFrom || '');
   const [buildUpRows, setBuildUpRows] = useState(() => buildUpToRows(baseConfig.buildUp));
   const [constraintRows, setConstraintRows] = useState(() => constraintsToRows(baseConfig.constraints));
   const [costAccessSequence, setCostAccessSequence] = useState((baseConfig.costAccessSequence || []).join(', '));
@@ -532,9 +535,12 @@ function rowsToWarehouses(rows) {
  *  property, not a supplier one. Opening this editor always starts as a full copy of the
  *  current version (every field, every warehouse row) with a ready-to-use next version id —
  *  editing is "change what's different, then save", never "start from a blank form". */
-export function SupplierConfigEditor({ user, supplier, base, defaultVersion, onSaved, onCancel }) {
+export function SupplierConfigEditor({ user, supplier, base, defaultVersion, defaultValidFrom, onSaved, onCancel }) {
   const [version, setVersion] = useState(defaultVersion || '');
-  const [validFrom, setValidFrom] = useState('');
+  // Defaults to whatever "as of" date the sheet is currently viewed at (Advanced scope) —
+  // saving with a blank field instead would default to *today* server-side, which can be
+  // after that as-of date and make the just-saved version invisible under the current view.
+  const [validFrom, setValidFrom] = useState(defaultValidFrom || '');
   const [supplierCountry, setSupplierCountry] = useState(base?.supplierCountry ?? '');
   const [molv, setMolv] = useState(base?.molv ?? '');
   const [warehouseRows, setWarehouseRows] = useState(() => warehousesToRows(base?.warehouses));
