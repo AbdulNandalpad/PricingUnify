@@ -39,6 +39,15 @@ function stepLabel(id) {
   return id.replaceAll('_', ' ');
 }
 
+/** Display-only rounding to 2 decimals for the trace/breakdown UI — the engine keeps full
+ *  decimal.js precision through every intermediate step and only rounds the final unitPrice
+ *  per the region's configured rounding; this never touches that math, it just stops raw
+ *  intermediate values like "14.69925" from leaking into what the user reads on screen. */
+function fmt2(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : value;
+}
+
 /** Mockup-style numbered calculation trace: one line per step, running total on the right,
  *  the final result highlighted. Skipped (when-condition) steps stay visible but muted —
  *  a binding audit needs to see why a branch didn't apply, not just what did. */
@@ -65,7 +74,7 @@ function FormulaTrace({ steps, currency, constraintPasses, unitPrice }) {
                 {s.type === 'BASE' ? '' : '+ '}{stepLabel(s.id)}{how}
               </div>
               <div className="formula-step-value">
-                {skipped || missing ? '—' : `${s.runningTotal}${cur}`}
+                {skipped || missing ? '—' : `${fmt2(s.runningTotal)}${cur}`}
               </div>
             </div>
           );
@@ -76,7 +85,7 @@ function FormulaTrace({ steps, currency, constraintPasses, unitPrice }) {
             <div className="formula-step-text">
               Unit price{constraintPasses?.length > 0 ? ' (after order rules)' : ''}
             </div>
-            <div className="formula-step-value">{unitPrice}{cur}</div>
+            <div className="formula-step-value">{fmt2(unitPrice)}{cur}</div>
           </div>
         )}
       </div>
@@ -106,7 +115,7 @@ function BreakdownCards({ steps, currency }) {
           <div className="breakdown-card" key={s.id}>
             <div className="breakdown-card-label"><span className={`dot ${dotClass}`}></span>{s.id.replaceAll('_', ' ')}</div>
             <div className={`breakdown-card-value ${skipped ? 'zero' : ''}`}>
-              {skipped ? 'N/A' : `${s.delta ?? '—'}${currency ? ` ${currency}` : ''}`}
+              {skipped ? 'N/A' : `${s.delta !== undefined && s.delta !== null ? fmt2(s.delta) : '—'}${currency ? ` ${currency}` : ''}`}
             </div>
           </div>
         );
@@ -152,7 +161,7 @@ function KitComponents({ components }) {
             <span className="mono">{comp.partNumber}</span>
             {' — '}
             {comp.status === 'PRICED'
-              ? `${comp.result.quantity} × ${comp.result.unitPrice} ${comp.result.currency}`
+              ? `${comp.result.quantity} × ${fmt2(comp.result.unitPrice)} ${comp.result.currency}`
               : (comp.missing?.reason || comp.status)}
           </summary>
           <LineDetail line={comp} />
@@ -179,7 +188,7 @@ function DetailHeader({ line, regionLabel }) {
       {line.status === 'PRICED' && (
         <div className="detail-price">
           <div className="detail-price-label">Unit price</div>
-          <div className="detail-price-value">{line.result.unitPrice}</div>
+          <div className="detail-price-value">{fmt2(line.result.unitPrice)}</div>
           <div className="detail-price-unit">{line.result.currency} / unit</div>
         </div>
       )}
@@ -199,7 +208,7 @@ function LineDetail({ line }) {
       )}
       {line.trace.costCandidate && (
         <p className="candidate-line">
-          Cost used: <strong>{line.trace.costCandidate.value} {line.trace.costCandidate.currency}</strong>{' '}
+          Cost used: <strong>{fmt2(line.trace.costCandidate.value)} {line.trace.costCandidate.currency}</strong>{' '}
           ({line.trace.costCandidate.confidence}, {line.trace.costCandidate.basis}
           {line.trace.costCandidate.source?.system ? `, from ${line.trace.costCandidate.source.system}` : ''}) —{' '}
           {describeSelection(line.trace.costCandidate.selectedBy)}
@@ -513,7 +522,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
                           </>
                         )}
                         <td>{line ? <span className={`badge-status badge-status-${line.status.toLowerCase()}`}>{STATUS_LABEL[line.status] || line.status}</span> : '—'}</td>
-                        <td className="num mono">{line?.status === 'PRICED' ? `${line.result.unitPrice} ${line.result.currency}` : '—'}</td>
+                        <td className="num mono">{line?.status === 'PRICED' ? `${fmt2(line.result.unitPrice)} ${line.result.currency}` : '—'}</td>
                         <td className="num mono">{line?.status === 'PRICED' ? `${lineTotal(line).toFixed(2)} ${line.result.currency}` : '—'}</td>
                         <td className="expand-chevron">
                           {line && (
