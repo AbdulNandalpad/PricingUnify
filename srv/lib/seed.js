@@ -287,6 +287,39 @@ function seedSupplierConfigs() {
     // (owner decision 2026-08-26: the LCA domestic/overseas split keys off the supplier's
     // country, not ood) — no warehouse terms of its own.
     { supplier: 'US-ACME', supplierCountry: 'US' },
+    // Dummy test suppliers (2026-08-26, per owner request for more countries/factors to
+    // test with): each ships from a different country with deliberately distinct
+    // freight/duty/tariff so a tester can tell suppliers apart by the price alone.
+    {
+      supplier: 'TOKYO',
+      supplierCountry: 'JP',
+      molv: '500.00',
+      moq: '50',
+      warehouses: {
+        EU01: { freight: '20.00', duty: '11.00', tariff: '15.00' },
+        US01: { freight: '16.00', duty: '8.00', tariff: '22.00' },
+        CN01: { freight: '10.00', duty: '5.00', tariff: '6.00' },
+      },
+    },
+    {
+      supplier: 'BHARAT',
+      supplierCountry: 'IN',
+      molv: '20.00',
+      moq: '1',
+      warehouses: {
+        IN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
+        EU01: { freight: '28.00', duty: '14.00', tariff: '18.00' },
+      },
+    },
+    {
+      supplier: 'AZTECA',
+      supplierCountry: 'MX',
+      molv: '40.00',
+      moq: '5',
+      warehouses: {
+        US01: { freight: '6.00', duty: '3.00', tariff: '4.00' },
+      },
+    },
   ];
   for (const s of suppliers) {
     store.saveSupplierConfig({
