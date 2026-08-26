@@ -31,21 +31,36 @@ export const DEFAULT_FORM = {
   simulateMissingCost: false,
   freight: '5.00',
   duty: '2.00',
+  tariff: '0',
   pickCharge: '21.00',
   molv: '50.00',
+  stockClass: '',
+  ood: '',
+  coo: '',
+  supplier: '',
+  supplierCountry: '',
 };
 
-/** Builds the { request, facts, config } shape engine-core's price() expects, straight from the form. */
-export function buildPricingInput(form) {
+/** Builds the { request, facts, config } shape engine-core's price() expects, straight from
+ *  the form. `config` defaults to the synthetic demo config; passing a real region config
+ *  (fetched from the backend) makes the demo price against exactly what's saved for that
+ *  region — the item-level fields (stock class, data origin, origins, supplier) feed its
+ *  `when` conditions directly, no srv normalization in between. */
+export function buildPricingInput(form, config = DEMO_CONFIG) {
+  const item = {
+    partNumber: form.partNumber,
+    quantity: Number(form.quantity),
+    overrideStaleCost: form.overrideStaleCost,
+  };
+  if (form.stockClass) item.stockClass = form.stockClass;
+  if (form.ood?.trim()) item.ood = form.ood.trim();
+  if (form.coo?.trim()) item.coo = form.coo.trim();
+  if (form.supplier?.trim()) item.supplier = form.supplier.trim();
+  if (form.supplierCountry?.trim()) item.supplierCountry = form.supplierCountry.trim();
+
   const request = {
     context: { hostSystem: 'DEV_CONSOLE', hostObjectType: 'QUOTE', purpose: form.purpose },
-    items: [
-      {
-        partNumber: form.partNumber,
-        quantity: Number(form.quantity),
-        overrideStaleCost: form.overrideStaleCost,
-      },
-    ],
+    items: [item],
   };
 
   const facts = {
@@ -73,11 +88,12 @@ export function buildPricingInput(form) {
       [form.partNumber]: {
         freight: form.freight,
         duty: form.duty,
+        tariff: form.tariff,
         pickCharge: form.pickCharge,
         molv: form.molv,
       },
     },
   };
 
-  return { request, facts, config: DEMO_CONFIG };
+  return { request, facts, config };
 }

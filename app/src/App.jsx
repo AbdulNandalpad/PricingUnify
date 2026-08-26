@@ -1,7 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { price, PURPOSE, CONFIDENCE } from '@tss-pricing/engine-core';
 import { DEFAULT_FORM, buildPricingInput } from './sampleData';
-import { priceViaBackend, DEMO_USERS, ApiError } from './api';
+import { priceViaBackend, getEffectiveConfig, DEMO_USERS, ApiError } from './api';
 import { DEFAULT_ROWS, newRow, newComponent, parseBulkText, toPricingItems } from './batch';
 import AdminConfig from './AdminConfig.jsx';
 import './App.css';
@@ -617,13 +617,34 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   );
 }
 
-/** Kernel-mechanics demo: one line, hand-edited facts, engine-core running in the browser
- *  — no backend. Kept simple on purpose; the real multi-part experience is BatchWorkspace. */
-function DirectWorkspace() {
+/** Single-line demo: one part, hand-edited facts, engine-core running in the browser.
+ *  The CONFIG is the real thing — the selected region's effective configuration is fetched
+ *  from the backend, so what you saved in the Configuration tab is exactly what prices here.
+ *  Falls back to the synthetic sample config if the backend isn't running. */
+function DirectWorkspace({ region, setRegion }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [outcome, setOutcome] = useState(null);
   const [error, setError] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [liveConfig, setLiveConfig] = useState(null);
+  const [configNote, setConfigNote] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLiveConfig(null);
+    setConfigNote(`Loading ${region} configuration…`);
+    getEffectiveConfig({ user: 'alice', region, salesOrg: '*' })
+      .then((config) => {
+        if (cancelled) return;
+        setLiveConfig(config);
+        setConfigNote(`Using the real ${region} configuration v${config.version} — the same one the calculator and the Configuration tab use.`);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setConfigNote(`Backend not reachable — falling back to the built-in synthetic EUROPE-shaped sample config.`);
+      });
+    return () => { cancelled = true; };
+  }, [region]);
 
   function update(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -633,7 +654,7 @@ function DirectWorkspace() {
     e.preventDefault();
     setError(null);
     try {
-      const input = buildPricingInput(form);
+      const input = buildPricingInput(form, liveConfig || undefined);
       const result = price(input);
       setOutcome({ input, line: result.items[0] });
     } catch (err) {
@@ -648,7 +669,26 @@ function DirectWorkspace() {
     <main className="layout">
       <form className="panel" onSubmit={runPricing}>
         <h2>Item &amp; facts</h2>
-        <p className="hint">Sample EUROPE-shaped calculation: base cost → 4.7% markup → freight/duty → pick charge → MOLV floor. One line, hand-edited facts — see the full step-by-step calculation.</p>
+        <p className="hint">
+          One line, hand-edited facts — pick a region and see its configured steps applied to your
+          numbers, right in the browser.
+        </p>
+
+        <Field label="Region">
+          <div className="region-pills">
+            {['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'].map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={region === r ? 'region-pill region-pill-active' : 'region-pill'}
+                onClick={() => setRegion(r)}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <p className="hint">{configNote}</p>
 
         <div className="field-grid">
           <Field label="Part number">
@@ -689,7 +729,33 @@ function DirectWorkspace() {
           <Field label="MOLV floor">
             <input value={form.molv} onChange={(e) => update('molv', e.target.value)} />
           </Field>
+          <Field label="Tariff (adder)">
+            <input value={form.tariff} onChange={(e) => update('tariff', e.target.value)} />
+          </Field>
+          <Field label="Stock class">
+            <select value={form.stockClass} onChange={(e) => update('stockClass', e.target.value)}>
+              <option value="">— not set —</option>
+              <option value="MTS">MTS</option>
+              <option value="NonMTS">NonMTS</option>
+            </select>
+          </Field>
+          <Field label="Data origin (OOD)">
+            <input value={form.ood} onChange={(e) => update('ood', e.target.value)} placeholder="e.g. CN, SAP, SMA, IN" />
+          </Field>
+          <Field label="Country of origin">
+            <input value={form.coo} onChange={(e) => update('coo', e.target.value)} placeholder="e.g. US" />
+          </Field>
+          <Field label="Supplier">
+            <input value={form.supplier} onChange={(e) => update('supplier', e.target.value)} placeholder="e.g. 88058 for China LCE" />
+          </Field>
+          <Field label="Supplier country">
+            <input value={form.supplierCountry} onChange={(e) => update('supplierCountry', e.target.value)} placeholder="e.g. US, IN" />
+          </Field>
         </div>
+        <p className="hint">
+          Stock class, data origin, origins and supplier feed the region's "applies when" conditions
+          directly — e.g. CHINA branches on data origin CN vs SAP, INDIA and AMERICAS on supplier country.
+        </p>
 
         <label className="checkbox-field">
           <input type="checkbox" checked={form.simulateMissingCost} onChange={(e) => update('simulateMissingCost', e.target.checked)} />
@@ -736,7 +802,7 @@ function DirectWorkspace() {
 
 const MODE_SUBTITLE = {
   backend: 'Region-aware landed cost pricing — Europe · China · India · Americas',
-  direct: 'Single-line demo — price one part by hand, no backend, see the full calculation step by step',
+  direct: 'Single-line demo — hand-edit one part’s facts and price it against the selected region’s real configuration',
   admin: 'Region pricing sheets, supplier overrides, routing, customers, and AI suggestions',
 };
 
@@ -767,7 +833,7 @@ export default function App() {
       </header>
 
       {mode === 'backend' && <BatchWorkspace region={region} setRegion={setRegion} goToConfig={() => setMode('admin')} />}
-      {mode === 'direct' && <DirectWorkspace />}
+      {mode === 'direct' && <DirectWorkspace region={region} setRegion={setRegion} />}
       {mode === 'admin' && <AdminConfig region={region} setRegion={setRegion} />}
     </div>
   );
