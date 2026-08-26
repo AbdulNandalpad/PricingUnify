@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { ApiError, saveRegionConfig, saveSupplierConfig, saveRegionRoute, savePartyConfig } from './api';
+import { ApiError, saveRegionConfig, saveSupplierConfig } from './api';
 
 function editErrorMessage(err) {
   return err instanceof ApiError ? `${err.status}: ${err.message}` : err.message;
@@ -504,63 +504,6 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
   );
 }
 
-/** Shared simple-document editor for supplier-config / region-route / party-config — a flat
- *  list of fields plus version/validFrom, saved as a new version via the matching endpoint. */
-function SimpleDocEditor({ title, fields, fixed, save, onSaved, onCancel }) {
-  const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.initial ?? ''])));
-  const [version, setVersion] = useState('');
-  const [validFrom, setValidFrom] = useState('');
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setError(null);
-    setSaving(true);
-    try {
-      const payload = { ...fixed, version: version.trim() };
-      if (validFrom) payload.validFrom = validFrom;
-      for (const f of fields) {
-        const v = String(values[f.key]).trim();
-        if (v !== '') payload[f.key] = v;
-      }
-      const saved = await save(payload);
-      onSaved(saved);
-    } catch (err) {
-      setError(editErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="admin-config-detail admin-editor">
-      <h3>{title}</h3>
-      <div className="field-grid">
-        <Field label="New version id (required)">
-          <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 2026.08.1" />
-        </Field>
-        <Field label="Effective from (blank = today)">
-          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-        </Field>
-        {fields.map((f) => (
-          <Field key={f.key} label={f.label}>
-            <input
-              value={values[f.key]}
-              onChange={(e) => setValues((cur) => ({ ...cur, [f.key]: e.target.value }))}
-              placeholder={f.placeholder || ''}
-            />
-          </Field>
-        ))}
-      </div>
-      {error && <p className="error">{error}</p>}
-      <div className="editor-actions">
-        <button type="button" onClick={handleSave} disabled={saving || !version.trim()}>{saving ? 'Saving…' : 'Save as new ACTIVE version'}</button>
-        <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
 function warehousesToRows(warehouses) {
   return Object.entries(warehouses || {}).map(([code, terms]) => ({
     code,
@@ -585,7 +528,7 @@ function rowsToWarehouses(rows) {
 /** Supplier-config is global — no region/salesOrg. supplierCountry/MOLV/MOQ are flat,
  *  supplier-wide fields; freight/duty/tariff vary by destination warehouse, so they're an
  *  editable per-warehouse table (same editable-rows pattern as RegionConfigEditor's build-up
- *  and constraints tables) rather than a flat SimpleDocEditor field. */
+ *  and constraints tables) rather than a flat field. */
 export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }) {
   const [version, setVersion] = useState('');
   const [validFrom, setValidFrom] = useState('');
@@ -674,39 +617,5 @@ export function SupplierConfigEditor({ user, supplier, base, onSaved, onCancel }
         </div>
       </div>
     </div>
-  );
-}
-
-export function RegionRouteEditor({ user, ood, salesOrg, base, onSaved, onCancel }) {
-  return (
-    <SimpleDocEditor
-      title={`New region-route version for ${ood}/${salesOrg}${base ? ` (based on ${base.version})` : ''}`}
-      fixed={{ ood, salesOrg, ...(base ? { supersedes: base.version } : {}) }}
-      fields={[
-        { key: 'region', label: 'Region (required)', initial: base?.region ?? '', placeholder: 'e.g. EUROPE' },
-        { key: 'entityLabel', label: 'Entity label', initial: base?.entityLabel ?? '', placeholder: 'e.g. TSS Germany' },
-      ]}
-      save={(payload) => saveRegionRoute({ user, payload })}
-      onSaved={onSaved}
-      onCancel={onCancel}
-    />
-  );
-}
-
-export function PartyConfigEditor({ user, customerId, base, onSaved, onCancel }) {
-  return (
-    <SimpleDocEditor
-      title={`New party-config version for ${customerId}${base ? ` (based on ${base.version})` : ''}`}
-      fixed={{ customerId, ...(base ? { supersedes: base.version } : {}) }}
-      fields={[
-        { key: 'territory', label: 'Territory', initial: base?.territory ?? '' },
-        { key: 'customerCountry', label: 'Customer country', initial: base?.customerCountry ?? '' },
-        { key: 'customerCurrency', label: 'Customer currency', initial: base?.customerCurrency ?? '' },
-        { key: 'customerOod', label: 'Customer OOD', initial: base?.customerOod ?? '', placeholder: 'e.g. SAP, SMA, CN, IN' },
-      ]}
-      save={(payload) => savePartyConfig({ user, payload })}
-      onSaved={onSaved}
-      onCancel={onCancel}
-    />
   );
 }

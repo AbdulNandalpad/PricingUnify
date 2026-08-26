@@ -6,19 +6,17 @@ import {
   listVersions,
   getEffectiveSupplierConfig,
   listSuppliers,
-  getEffectiveRegionRoute,
-  listRegionRouteVersions,
-  getEffectivePartyConfig,
-  listPartyConfigVersions,
-  listSuggestions,
-  suggestChange,
-  approveSuggestion,
-  rejectSuggestion,
 } from './api';
-import { RegionConfigEditor, SupplierConfigEditor, RegionRouteEditor, PartyConfigEditor } from './AdminConfigEdit.jsx';
+import { RegionConfigEditor, SupplierConfigEditor } from './AdminConfigEdit.jsx';
 
 const REGIONS = ['EUROPE', 'CHINA', 'INDIA', 'AMERICAS'];
-const ADMIN_SECTIONS = ['Region pricing', 'Suppliers', 'Routing', 'Customers', 'AI suggestions'];
+// Routing (region-route), Customers (party-config), and AI suggestions were removed from this
+// UI per owner request ("what is routing, customer and AI suggestion. I dont need it") — the
+// backend tables/endpoints/tests are untouched (resolveRegion() in srv/pricing-service.js
+// still uses region-route/party-config whenever a caller omits `region`, and the AI-suggestion
+// pipeline is still there for when ANTHROPIC_API_KEY is configured), this only drops the
+// admin browse/edit screens nobody was using.
+const ADMIN_SECTIONS = ['Region pricing', 'Suppliers'];
 
 function Field({ label, children }) {
   return (
@@ -262,8 +260,8 @@ function RegionConfigSection({ user, region, salesOrg, asOf }) {
 /** A supplier is independent of region: it manufactures in one country and ships to
  *  warehouses across every region that orders from it. supplierCountry/MOLV/MOQ are
  *  supplier-wide; freight/duty/tariff vary by destination warehouse, so they render as a
- *  per-warehouse table rather than flat columns. No region/salesOrg scoping — same shape as
- *  PartyConfigSection (a supplier either has a document on file or it doesn't). */
+ *  per-warehouse table rather than flat columns. No region/salesOrg scoping — a supplier
+ *  either has a document on file or it doesn't. */
 function SupplierConfigSection({ user, asOf }) {
   const isAdmin = user === 'bob';
   const [supplier, setSupplier] = useState('ACME');
@@ -395,333 +393,6 @@ function SupplierConfigSection({ user, asOf }) {
   );
 }
 
-/** From the C4C payload review: a real host system sends a customer's Origin of Data +
- *  salesOrg, not our internal region code — this table resolves that combination to a
- *  region, so a pricing request can omit `region` entirely (see srv/pricing-service.js
- *  resolveRegion). Read-only browse, same shape as SupplierConfigSection. */
-function RegionRouteSection({ user, salesOrg, asOf }) {
-  const isAdmin = user === 'bob';
-  const [ood, setOod] = useState('SAP');
-  const [current, setCurrent] = useState(null);
-  const [versions, setVersions] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [notFound, setNotFound] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [savedNote, setSavedNote] = useState(null);
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    setCurrent(null);
-    setVersions(null);
-    setNotFound(false);
-    setEditing(false);
-    try {
-      const [route, versionList] = await Promise.all([
-        getEffectiveRegionRoute({ user, ood, salesOrg, asOf }),
-        listRegionRouteVersions({ user, ood, salesOrg }),
-      ]);
-      setCurrent(route);
-      setVersions(versionList.versions);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setNotFound(true);
-      else setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      <p className="hint">Resolves which region a customer's Origin of Data + sales org routes to — the piece a real C4C payload needs since it never sends our internal region code directly.</p>
-      <div className="field-grid">
-        <Field label="Origin of Data (OOD)">
-          <input value={ood} onChange={(e) => setOod(e.target.value)} placeholder="e.g. SAP, SMA, CN, IN" />
-        </Field>
-      </div>
-      <button type="button" onClick={load} disabled={loading || !ood.trim()}>
-        {loading ? 'Loading…' : `Look up ${ood || '…'}/${salesOrg}`}
-      </button>
-      {error && <p className="error">{error}</p>}
-      {savedNote && <p className="hint">{savedNote}</p>}
-      {notFound && <p className="missing-reason">No effective region-route for "{ood}" / {salesOrg}.</p>}
-
-      {isAdmin && (current || notFound) && !editing && (
-        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
-          {current ? 'Edit as new version' : 'Create region route'}
-        </button>
-      )}
-
-      {current && !editing && (
-        <dl className="config-meta">
-          <div><dt>Region</dt><dd className="mono">{current.region}</dd></div>
-          <div><dt>Entity label</dt><dd>{current.entityLabel || '—'}</dd></div>
-          <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
-          <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
-        </dl>
-      )}
-
-      {editing && (
-        <RegionRouteEditor
-          user={user}
-          ood={ood}
-          salesOrg={salesOrg}
-          base={current}
-          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
-
-      {versions && versions.length > 0 && (
-        <>
-          <h4>Version history ({versions.length})</h4>
-          <table className="results-table">
-            <thead><tr><th>Version</th><th>Status</th><th>Region</th><th>Valid from</th><th>Valid to</th></tr></thead>
-            <tbody>
-              {versions.map((v) => (
-                <tr key={v.version}>
-                  <td className="mono">{v.version}</td>
-                  <td><span className={`badge-status badge-status-${v.status === 'ACTIVE' ? 'priced' : 'missing'}`}>{v.status}</span></td>
-                  <td className="mono">{v.region}</td>
-                  <td className="mono">{v.validFrom}</td>
-                  <td className="mono">{v.validTo || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Customer/party master data — territory, country, currency, and the customer's own OOD
- *  (which can diverge from an item's own ood on the same order). First real consumer of
- *  the `party.customerId` field the object-agnostic request has carried since Phase 1 but
- *  nothing previously read. Read-only browse, same shape as SupplierConfigSection. */
-function PartyConfigSection({ user, asOf }) {
-  const isAdmin = user === 'bob';
-  const [customerId, setCustomerId] = useState('CUST-DE-001');
-  const [current, setCurrent] = useState(null);
-  const [versions, setVersions] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [notFound, setNotFound] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [savedNote, setSavedNote] = useState(null);
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    setCurrent(null);
-    setVersions(null);
-    setNotFound(false);
-    setEditing(false);
-    try {
-      const [config, versionList] = await Promise.all([
-        getEffectivePartyConfig({ user, customerId, asOf }),
-        listPartyConfigVersions({ user, customerId }),
-      ]);
-      setCurrent(config);
-      setVersions(versionList.versions);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setNotFound(true);
-      else setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      <p className="hint">Customer master data from the host system's Customer Payload (e.g. C4C) — territory, country, currency, and the customer's own OOD.</p>
-      <div className="field-grid">
-        <Field label="Customer ID">
-          <input value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="e.g. CUST-DE-001" />
-        </Field>
-      </div>
-      <button type="button" onClick={load} disabled={loading || !customerId.trim()}>
-        {loading ? 'Loading…' : `Look up ${customerId || '…'}`}
-      </button>
-      {error && <p className="error">{error}</p>}
-      {savedNote && <p className="hint">{savedNote}</p>}
-      {notFound && <p className="missing-reason">No effective party-config for "{customerId}".</p>}
-
-      {isAdmin && (current || notFound) && !editing && (
-        <button type="button" onClick={() => { setEditing(true); setSavedNote(null); }}>
-          {current ? 'Edit as new version' : 'Create party config'}
-        </button>
-      )}
-
-      {current && !editing && (
-        <dl className="config-meta">
-          <div><dt>Territory</dt><dd>{current.territory || '—'}</dd></div>
-          <div><dt>Customer country</dt><dd className="mono">{current.customerCountry || '—'}</dd></div>
-          <div><dt>Customer currency</dt><dd className="mono">{current.customerCurrency || '—'}</dd></div>
-          <div><dt>Customer OOD</dt><dd className="mono">{current.customerOod || '—'}</dd></div>
-          <div><dt>Version</dt><dd className="mono">{current.version}</dd></div>
-          <div><dt>Valid from</dt><dd className="mono">{current.validFrom}</dd></div>
-        </dl>
-      )}
-
-      {editing && (
-        <PartyConfigEditor
-          user={user}
-          customerId={customerId}
-          base={current}
-          onSaved={(saved) => { setSavedNote(`Saved version ${saved.version} — now ACTIVE.`); load(); }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
-
-      {versions && versions.length > 0 && (
-        <>
-          <h4>Version history ({versions.length})</h4>
-          <table className="results-table">
-            <thead><tr><th>Version</th><th>Status</th><th>Customer OOD</th><th>Valid from</th><th>Valid to</th></tr></thead>
-            <tbody>
-              {versions.map((v) => (
-                <tr key={v.version}>
-                  <td className="mono">{v.version}</td>
-                  <td><span className={`badge-status badge-status-${v.status === 'ACTIVE' ? 'priced' : 'missing'}`}>{v.status}</span></td>
-                  <td className="mono">{v.customerOod || '—'}</td>
-                  <td className="mono">{v.validFrom}</td>
-                  <td className="mono">{v.validTo || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </div>
-  );
-}
-
-function AiSuggestionsSection({ user, region, salesOrg }) {
-  const isAdmin = user === 'bob';
-  const [status, setStatus] = useState('');
-  const [suggestions, setSuggestions] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [instruction, setInstruction] = useState('');
-  const [requestNote, setRequestNote] = useState(null);
-  const [actionNotes, setActionNotes] = useState({});
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await listSuggestions({ user, region, status: status || undefined });
-      setSuggestions(res.suggestions);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRequest = async (e) => {
-    e.preventDefault();
-    setRequestNote(null);
-    try {
-      const res = await suggestChange({ user, region, salesOrg, instruction });
-      if (res.status === 'AI_NOT_CONFIGURED') {
-        setRequestNote(res.message);
-      } else {
-        setRequestNote('Suggestion created — reload the list below to see it.');
-        setInstruction('');
-      }
-    } catch (err) {
-      setRequestNote(errorMessage(err));
-    }
-  };
-
-  const handleApprove = async (suggestionId) => {
-    const newVersion = actionNotes[suggestionId]?.newVersion;
-    if (!newVersion) return;
-    try {
-      await approveSuggestion({ user, suggestionId, newVersion });
-      load();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
-  const handleReject = async (suggestionId) => {
-    try {
-      await rejectSuggestion({ user, suggestionId, reviewNotes: actionNotes[suggestionId]?.reviewNotes });
-      load();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
-  return (
-    <div>
-      {isAdmin && (
-        <>
-          <h3>Request a new AI suggestion</h3>
-          <form onSubmit={handleRequest} className="field-grid">
-            <Field label="Instruction">
-              <input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. increase SCM markup to 5%" />
-            </Field>
-            <button type="submit" disabled={!instruction.trim()}>Suggest</button>
-          </form>
-          {requestNote && <p className="hint">{requestNote}</p>}
-        </>
-      )}
-
-      <h3>Review queue</h3>
-      <div className="field-grid">
-        <Field label="Status filter">
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All</option>
-            <option value="PENDING_REVIEW">Pending review</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
-        </Field>
-      </div>
-      <button type="button" onClick={load} disabled={loading}>{loading ? 'Loading…' : `Load suggestions for ${region}`}</button>
-      {error && <p className="error">{error}</p>}
-
-      {suggestions && suggestions.length === 0 && <p className="hint">No suggestions match this filter.</p>}
-
-      {suggestions && suggestions.length > 0 && (
-        <table className="results-table">
-          <thead>
-            <tr><th>ID</th><th>Instruction</th><th>Status</th><th>Confidence</th><th aria-hidden="true"></th></tr>
-          </thead>
-          <tbody>
-            {suggestions.map((s) => (
-              <tr key={s.id}>
-                <td className="mono">{s.id}</td>
-                <td>{s.instruction}</td>
-                <td><span className="badge-status badge-status-missing">{s.status}</span></td>
-                <td className="mono">{s.confidence ?? '—'}</td>
-                <td>
-                  {isAdmin && s.status === 'PENDING_REVIEW' && (
-                    <div className="suggestion-actions">
-                      <input
-                        className="mono"
-                        placeholder="new version id"
-                        onChange={(e) => setActionNotes((cur) => ({ ...cur, [s.id]: { ...cur[s.id], newVersion: e.target.value } }))}
-                      />
-                      <button type="button" onClick={() => handleApprove(s.id)}>Approve</button>
-                      <button type="button" onClick={() => handleReject(s.id)}>Reject</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
 export default function AdminConfig({ region: regionProp, setRegion: setRegionProp }) {
   const [user, setUser] = useState('bob');
   const [regionLocal, setRegionLocal] = useState('EUROPE');
@@ -732,7 +403,7 @@ export default function AdminConfig({ region: regionProp, setRegion: setRegionPr
   const [section, setSection] = useState(ADMIN_SECTIONS[0]);
 
   // Suppliers are global (independent of region) — the region pills don't apply there.
-  const regionMatters = section === 'Region pricing' || section === 'AI suggestions';
+  const regionMatters = section === 'Region pricing';
 
   return (
     <main className="admin-layout">
@@ -791,9 +462,6 @@ export default function AdminConfig({ region: regionProp, setRegion: setRegionPr
 
         {section === 'Region pricing' && <RegionConfigSection user={user} region={region} salesOrg={salesOrg} asOf={asOf} />}
         {section === 'Suppliers' && <SupplierConfigSection user={user} asOf={asOf} />}
-        {section === 'Routing' && <RegionRouteSection user={user} salesOrg={salesOrg} asOf={asOf} />}
-        {section === 'Customers' && <PartyConfigSection user={user} asOf={asOf} />}
-        {section === 'AI suggestions' && <AiSuggestionsSection user={user} region={region} salesOrg={salesOrg} />}
       </section>
     </main>
   );
