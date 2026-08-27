@@ -124,12 +124,15 @@ function numberOrString(value) {
 }
 
 const ELEMENT_TYPES = ['BASE', 'FACTOR', 'ADDER', 'PER_LINE'];
-/** Plain-language labels for the element types — the enum values read as engine jargon. */
+/** Plain-language labels for the element types — the enum values read as engine jargon.
+ *  "Factor %" (a percentage of earlier steps) vs "Flat add" (a fixed amount), per owner:
+ *  "use simple terms, flat add or factor like that" — "Markup ×" was misleading once
+ *  freight/duty/tariff became factors too. */
 const ELEMENT_TYPE_LABEL = {
   BASE: 'Base cost',
-  FACTOR: 'Markup ×',
-  ADDER: 'Charge +',
-  PER_LINE: 'Per-order charge',
+  FACTOR: 'Factor %',
+  ADDER: 'Flat add',
+  PER_LINE: 'Flat add / order',
 };
 const CONSTRAINT_KINDS = ['FLOOR', 'STEP', 'MIN_QTY'];
 const CONSTRAINT_KIND_LABEL = {
@@ -339,7 +342,7 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
       <div className="item-grid-scroll">
         <table className="item-grid edit-grid">
           <thead>
-            <tr><th>Step</th><th>Type</th><th title="Markups only — which earlier steps the percentage applies to; click to toggle">Applies to</th><th title="Multiplier for a markup, e.g. 0.047 = 4.7%">Rate</th><th title="Read the rate from the part's data instead of a fixed number">Rate from data</th><th title="Fixed amount for a charge">Amount</th><th title="Read the amount from the part's data (e.g. freight, duty, pickCharge)">Amount from data</th><th title="Conditions that must all be true for this step to apply">Applies when</th><th aria-hidden="true"></th></tr>
+            <tr><th>Step</th><th>Type</th><th title="Factors only — which earlier steps the percentage applies to; click a chip to remove, use + add for more">Applies to</th><th title="Percentage for a factor, e.g. 0.047 = 4.7%">Rate</th><th title="Read the rate from the part's data instead of a fixed number">Rate from data</th><th title="Fixed amount for a charge">Amount</th><th title="Read the amount from the part's data (e.g. freight, duty, pickCharge)">Amount from data</th><th title="Conditions that must all be true for this step to apply">Applies when</th><th aria-hidden="true"></th></tr>
           </thead>
           <tbody>
             {buildUpRows.map((row, i) => {
@@ -364,17 +367,35 @@ export function RegionConfigEditor({ user, region, salesOrg, baseConfig, default
                     </td>
                     <td>
                       {row.type === 'FACTOR' ? (
+                        // Only what the factor actually applies to is shown (click a chip to
+                        // remove it); the rest of the earlier steps live behind a compact
+                        // "+ add" picker — per owner, listing every step as a toggle palette
+                        // read as if they were all part of the basis.
                         <div className="basis-chips">
-                          {priorIds.map((id) => (
+                          {basisIds.map((id) => (
                             <button
                               key={id}
                               type="button"
-                              className={basisIds.includes(id) ? 'basis-chip basis-chip-on' : 'basis-chip'}
+                              className="basis-chip basis-chip-on"
                               onClick={() => toggleBasis(id)}
+                              title="Click to remove from the basis"
                             >
-                              {id}
+                              {id} ×
                             </button>
                           ))}
+                          {priorIds.filter((id) => !basisIds.includes(id)).length > 0 && (
+                            <select
+                              className="basis-add"
+                              value=""
+                              onChange={(e) => { if (e.target.value) toggleBasis(e.target.value); }}
+                              title="Add an earlier step to the basis"
+                            >
+                              <option value="">+ add</option>
+                              {priorIds.filter((id) => !basisIds.includes(id)).map((id) => (
+                                <option key={id} value={id}>{id}</option>
+                              ))}
+                            </select>
+                          )}
                           {priorIds.length === 0 && <span className="hint">no earlier steps</span>}
                         </div>
                       ) : (

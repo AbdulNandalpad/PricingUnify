@@ -814,6 +814,15 @@
   box-sizing: border-box;
 }
 
+/* The compact "+ add" basis picker must not inherit the full-width select rule above. */
+.edit-grid select.basis-add {
+  width: auto;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
 .json-editors {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

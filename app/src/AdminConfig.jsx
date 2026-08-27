@@ -33,6 +33,9 @@ function errorMessage(err) {
   return err instanceof ApiError ? `${err.status}: ${err.message}` : err.message;
 }
 
+/** Same simple type language as the editor — "Factor %" vs "Flat add", per owner. */
+const TYPE_LABEL = { BASE: 'Base cost', FACTOR: 'Factor %', ADDER: 'Flat add', PER_LINE: 'Flat add / order' };
+
 /** Warehouse freight/duty/tariff are stored as decimal rates (0.18 = 18%, applied on
  *  base cost + markup) — render them as the percentage a business user thinks in. */
 function ratePct(rate) {
@@ -67,7 +70,7 @@ function RegionConfigDetail({ config }) {
           {config.buildUp.map((el) => (
             <tr key={el.id}>
               <td className="mono">{el.id}</td>
-              <td><span className={`badge badge-${el.type.toLowerCase()}`}>{el.type}</span></td>
+              <td><span className={`badge badge-${el.type.toLowerCase()}`}>{TYPE_LABEL[el.type] || el.type}</span></td>
               <td className="mono">{el.basis ? el.basis.join(' + ') : '—'}</td>
               <td className="mono">{el.rate ?? el.rateRef ?? el.amount ?? el.amountRef ?? '—'}</td>
               <td className="mono">{el.when ? (Array.isArray(el.when) ? el.when.join(' AND ') : el.when) : '—'}</td>
