@@ -98,29 +98,29 @@
   },
   "elements": {
     "US-P001": {
-      "freight": "10.00",
-      "duty": "5.00",
-      "tariff": "2.00"
+      "freight": "0.1",
+      "duty": "0.05",
+      "tariff": "0.02"
     },
     "US-P002": {
-      "freight": "10.00",
-      "duty": "5.00",
-      "tariff": "2.00"
+      "freight": "0.1",
+      "duty": "0.05",
+      "tariff": "0.02"
     },
     "US-P003": {
-      "freight": "10.00",
-      "duty": "5.00",
-      "tariff": "2.00"
+      "freight": "0.1",
+      "duty": "0.05",
+      "tariff": "0.02"
     },
     "US-P004": {
-      "freight": "10.00",
-      "duty": "5.00",
-      "tariff": "2.00"
+      "freight": "0.1",
+      "duty": "0.05",
+      "tariff": "0.02"
     },
     "US-T100": {
-      "freight": "10.00",
-      "duty": "5.00",
-      "tariff": "8.00"
+      "freight": "0.1",
+      "duty": "0.05",
+      "tariff": "0.08"
     }
   },
   "classification": {

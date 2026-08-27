@@ -222,10 +222,11 @@ function AdvancedExplanation({ steps, currency }) {
     <details className="hint advanced-explain">
       <summary>Advanced explanation — how each number was resolved</summary>
       <p>
-        Charge amounts (freight, duty, tariff, pick) are read from the part's data as delivered
-        by the cost systems. When the line names a supplier <em>and</em> a destination warehouse,
-        that supplier's warehouse terms replace those values before this calculation runs — the
-        numbers below are the final resolved values either way.
+        Freight, duty and tariff are percentage rates applied on (base cost + markup); the pick
+        charge is a per-order amount. Rates and amounts are read from the part's data as
+        delivered by the cost systems. When the line names a supplier <em>and</em> a destination
+        warehouse, that supplier's warehouse rates replace the part-data rates before this
+        calculation runs — the numbers below are the final resolved values either way.
       </p>
       <ul>
         {steps.map((s) => {
@@ -535,11 +536,11 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           <summary>Sample parts to try (demo data)</summary>
           <p>
             <strong>Verification parts</strong> — one per region, each with a static base cost of exactly{' '}
-            <code>100.00</code> and round charges, so every configured factor is directly readable in the
-            result: <code>EU-T100</code> (qty 10 → 129.7 EUR: 4.7% markup + 10 freight + 5 duty + 8 tariff +
-            2 pick), <code>CN-T100</code> (data origin CN → 103.2 CNY; data origin SAP + supplier country US → 136.22),{' '}
-            <code>IN-T100</code> (supplier country IN → 100; otherwise → 140), <code>US-T100</code> (qty 10,
-            supplier country US → 133.1 USD; otherwise → 136.9).
+            <code>100.00</code> and round rates, so every configured factor is directly readable in the
+            result: <code>EU-T100</code> (qty 10 → 130.78 EUR: 4.7% markup, then 10% freight + 5% duty +
+            8% tariff on the 104.7 basis, + 2 pick), <code>CN-T100</code> (data origin CN → 103.2 CNY; data
+            origin SAP + supplier country US → 136.22), <code>IN-T100</code> (supplier country IN → 100;
+            otherwise → 140), <code>US-T100</code> (qty 10, supplier country US → 134.64 USD; otherwise → 139.32).
           </p>
           <p>
             Other parts: <code>P-10023</code>, <code>P-20045</code>, <code>P-30078</code> price normally.{' '}

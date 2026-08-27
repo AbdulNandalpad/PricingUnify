@@ -633,18 +633,23 @@ export function SupplierConfigEditor({ user, supplier, base, defaultVersion, def
       </div>
 
       <h4>Warehouses</h4>
-      <p className="hint">A line naming this supplier and one of these warehouse codes prices with that row's freight/duty/tariff. A warehouse this supplier doesn't ship to simply has no row — the line then falls back to whatever API6 already put in facts.</p>
+      <p className="hint">
+        Freight, duty and tariff are <strong>rates</strong> applied on (base cost + markup) —
+        enter <code>0.18</code> for 18%. A line naming this supplier and one of these warehouse
+        codes prices with that row's rates; a warehouse this supplier doesn't ship to simply has
+        no row — the line then falls back to the rates API6 already put in facts.
+      </p>
       <table className="item-grid edit-grid-narrow">
         <thead>
-          <tr><th>Warehouse code</th><th>Freight</th><th>Duty</th><th>Tariff</th><th aria-hidden="true"></th></tr>
+          <tr><th>Warehouse code</th><th title="Rate on (base cost + markup): 0.18 = 18%">Freight rate</th><th title="Rate on (base cost + markup): 0.095 = 9.5%">Duty rate</th><th title="Rate on (base cost + markup): 0.12 = 12%">Tariff rate</th><th aria-hidden="true"></th></tr>
         </thead>
         <tbody>
           {warehouseRows.map((row, i) => (
             <tr key={i}>
               <td><input value={row.code} onChange={(e) => updateWarehouseRow(i, 'code', e.target.value)} placeholder="e.g. EU01" /></td>
-              <td><input className="qty-input" value={row.freight} onChange={(e) => updateWarehouseRow(i, 'freight', e.target.value)} /></td>
-              <td><input className="qty-input" value={row.duty} onChange={(e) => updateWarehouseRow(i, 'duty', e.target.value)} /></td>
-              <td><input className="qty-input" value={row.tariff} onChange={(e) => updateWarehouseRow(i, 'tariff', e.target.value)} /></td>
+              <td><input className="qty-input" value={row.freight} onChange={(e) => updateWarehouseRow(i, 'freight', e.target.value)} placeholder="0.18" /></td>
+              <td><input className="qty-input" value={row.duty} onChange={(e) => updateWarehouseRow(i, 'duty', e.target.value)} placeholder="0.095" /></td>
+              <td><input className="qty-input" value={row.tariff} onChange={(e) => updateWarehouseRow(i, 'tariff', e.target.value)} placeholder="0.12" /></td>
               <td><button type="button" className="row-remove" onClick={() => setWarehouseRows((rows) => rows.filter((_, idx) => idx !== i))} aria-label="Remove row">×</button></td>
             </tr>
           ))}

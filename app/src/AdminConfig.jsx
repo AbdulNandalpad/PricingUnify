@@ -33,6 +33,14 @@ function errorMessage(err) {
   return err instanceof ApiError ? `${err.status}: ${err.message}` : err.message;
 }
 
+/** Warehouse freight/duty/tariff are stored as decimal rates (0.18 = 18%, applied on
+ *  base cost + markup) — render them as the percentage a business user thinks in. */
+function ratePct(rate) {
+  if (rate === undefined || rate === null || rate === '') return '—';
+  const n = Number(rate);
+  return Number.isFinite(n) ? `${+(n * 100).toFixed(2)}%` : rate;
+}
+
 /** Renders one region-config document: buildUp, constraints, and whichever optional
  * config-driven maps/sequences it declares (costAccessSequence, stockClassMap,
  * additionalCostMap, resolution) — a config that doesn't declare one just omits that section,
@@ -371,8 +379,9 @@ function SupplierConfigSection({ user, asOf }) {
       <p className="hint">
         A supplier is independent of region — it manufactures goods in one country and ships to
         warehouses in whichever regions order from it. Supplier country and MOLV are
-        supplier-wide; freight, duty and tariff vary by <em>destination warehouse</em> — a line
-        that names both a supplier and a warehouse prices with that specific row's numbers.
+        supplier-wide; freight, duty and tariff are <em>percentage rates</em> applied on
+        (base cost + markup) and vary by <em>destination warehouse</em> — a line that names both
+        a supplier and a warehouse prices with that specific row's rates.
       </p>
 
       {supplierList.length > 0 && (
@@ -446,14 +455,14 @@ function SupplierConfigSection({ user, asOf }) {
                 <h4>Warehouses</h4>
                 {result.warehouses && Object.keys(result.warehouses).length > 0 ? (
                   <table className="trace-table">
-                    <thead><tr><th>Warehouse</th><th className="num">Freight</th><th className="num">Duty</th><th className="num">Tariff</th>{isAdmin && <th aria-hidden="true"></th>}</tr></thead>
+                    <thead><tr><th>Warehouse</th><th className="num">Freight %</th><th className="num">Duty %</th><th className="num">Tariff %</th>{isAdmin && <th aria-hidden="true"></th>}</tr></thead>
                     <tbody>
                       {Object.entries(result.warehouses).map(([code, terms]) => (
                         <tr key={code}>
                           <td className="mono">{code}</td>
-                          <td className="num mono">{terms.freight ?? '—'}</td>
-                          <td className="num mono">{terms.duty ?? '—'}</td>
-                          <td className="num mono">{terms.tariff ?? '—'}</td>
+                          <td className="num mono">{ratePct(terms.freight)}</td>
+                          <td className="num mono">{ratePct(terms.duty)}</td>
+                          <td className="num mono">{ratePct(terms.tariff)}</td>
                           {isAdmin && (
                             <td>
                               <button

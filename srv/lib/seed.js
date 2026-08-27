@@ -55,12 +55,17 @@ function seedRegionConfig() {
     // freight+duty on top of the base cost, MTS does not (moving-average cost is already
     // "clean"). SCM markup and pick apply to both classes either way. Each element also
     // respects the Additional Cost flag above when a line sets one.
+    // Owner correction (2026-08-26): freight, duty and tariff are PERCENTAGES applied on
+    // (base cost + markup), not fixed amounts — FACTORs with basis [BASE_COST, SCM_MARKUP],
+    // rates read per line from the part's data / the supplier's warehouse terms (a rate of
+    // 0.10 = 10%). A skipped SCM_MARKUP (Additional Cost flag) contributes 0 to the basis,
+    // so the percentages then apply on the base cost alone.
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
-      { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
-      { id: 'DUTY', type: 'ADDER', amountRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
-      { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', when: "item.includeTariff !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
+      { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
+      { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'tariff', when: "item.includeTariff !== false", provenance: HUMAN_PROVENANCE },
       { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: "item.includePick !== false", provenance: HUMAN_PROVENANCE },
     ],
     constraints: [
@@ -201,9 +206,12 @@ function seedAmericasRegionConfig() {
     // conservative higher rate, never a silent under-price, and visible in the trace.
     { id: 'LCA_HANDLING_LOCAL', type: 'FACTOR', basis: ['BASE_COST'], rate: localRate, when: "item.supplierCountry === 'US'", provenance: HUMAN_PROVENANCE },
     { id: 'LCA_HANDLING_OVERSEAS', type: 'FACTOR', basis: ['BASE_COST'], rate: overseasRate, when: "item.supplierCountry !== 'US'", provenance: HUMAN_PROVENANCE },
-    { id: 'FREIGHT', type: 'ADDER', amountRef: 'freight', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
-    { id: 'DUTY', type: 'ADDER', amountRef: 'duty', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
-    { id: 'TARIFF', type: 'ADDER', amountRef: 'tariff', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
+    // Owner correction (2026-08-26): freight/duty/tariff are percentages on (base cost +
+    // markup) — here the markup is the LCA Handling Fee, whichever tier fired (the skipped
+    // tier contributes 0 to the basis, the topic-3 mechanism).
+    { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'freight', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
+    { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'duty', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
+    { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'tariff', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
     { id: 'PICK_CHARGE', type: 'PER_LINE', amount: 34, provenance: HUMAN_PROVENANCE },
   ];
 
@@ -263,10 +271,10 @@ function seedSupplierConfigs() {
       supplierCountry: 'DE',
       molv: '300.00',
       warehouses: {
-        EU01: { freight: '18.00', duty: '9.50', tariff: '12.00' },
-        US01: { freight: '25.00', duty: '15.00', tariff: '20.00' },
-        CN01: { freight: '30.00', duty: '20.00', tariff: '28.00' },
-        IN01: { freight: '22.00', duty: '12.00', tariff: '15.00' },
+        EU01: { freight: '0.18', duty: '0.095', tariff: '0.12' },
+        US01: { freight: '0.25', duty: '0.15', tariff: '0.2' },
+        CN01: { freight: '0.3', duty: '0.2', tariff: '0.28' },
+        IN01: { freight: '0.22', duty: '0.12', tariff: '0.15' },
       },
     },
     {
@@ -274,7 +282,7 @@ function seedSupplierConfigs() {
       supplierCountry: 'NL',
       molv: '50.00',
       warehouses: {
-        EU01: { freight: '8.00', duty: '4.00', tariff: '5.00' },
+        EU01: { freight: '0.08', duty: '0.04', tariff: '0.05' },
       },
     },
     {
@@ -282,8 +290,8 @@ function seedSupplierConfigs() {
       supplierCountry: 'CN',
       molv: '50.00',
       warehouses: {
-        EU01: { freight: '12.00', duty: '6.00', tariff: '20.00' },
-        CN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
+        EU01: { freight: '0.12', duty: '0.06', tariff: '0.2' },
+        CN01: { freight: '0.05', duty: '0.02', tariff: '0.03' },
       },
     },
     // Exists purely so pricing can resolve item.supplierCountry from supplier master data
@@ -298,9 +306,9 @@ function seedSupplierConfigs() {
       supplierCountry: 'JP',
       molv: '500.00',
       warehouses: {
-        EU01: { freight: '20.00', duty: '11.00', tariff: '15.00' },
-        US01: { freight: '16.00', duty: '8.00', tariff: '22.00' },
-        CN01: { freight: '10.00', duty: '5.00', tariff: '6.00' },
+        EU01: { freight: '0.2', duty: '0.11', tariff: '0.15' },
+        US01: { freight: '0.16', duty: '0.08', tariff: '0.22' },
+        CN01: { freight: '0.1', duty: '0.05', tariff: '0.06' },
       },
     },
     {
@@ -308,8 +316,8 @@ function seedSupplierConfigs() {
       supplierCountry: 'IN',
       molv: '20.00',
       warehouses: {
-        IN01: { freight: '5.00', duty: '2.00', tariff: '3.00' },
-        EU01: { freight: '28.00', duty: '14.00', tariff: '18.00' },
+        IN01: { freight: '0.05', duty: '0.02', tariff: '0.03' },
+        EU01: { freight: '0.28', duty: '0.14', tariff: '0.18' },
       },
     },
     {
@@ -317,7 +325,7 @@ function seedSupplierConfigs() {
       supplierCountry: 'MX',
       molv: '40.00',
       warehouses: {
-        US01: { freight: '6.00', duty: '3.00', tariff: '4.00' },
+        US01: { freight: '0.06', duty: '0.03', tariff: '0.04' },
       },
     },
   ];

@@ -328,25 +328,25 @@ async function priceRegion(region, item) {
 }
 
 test('topic 10: the Additional Cost flag (0-4) picks which elements apply, independent of stock class', async () => {
-  // P-90700: NonMTS, base 100, freight 10, duty 5, tariff 8, pick 20 (qty 1).
+  // P-90700: NonMTS, base 100, freight 10%, duty 5%, tariff 8% (rates on base+markup=104.7), pick 20 (qty 1).
   const opt0 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 0 });
   assert.equal(opt0.status, 'PRICED');
   assert.equal(opt0.result.unitPrice, '100'); // "0 - Nothing to add" -- base cost only
 
   const opt1 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 1 });
-  assert.equal(opt1.result.unitPrice, '147.7'); // "1 - Landed cost & Markup" -- everything applies, same as no flag at all
+  assert.equal(opt1.result.unitPrice, '148.78'); // "1 - Landed cost & Markup": 100 + 4.7 + 10.47 + 5.235 + 8.376 + 20
 
   const noFlag = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1 });
-  assert.equal(noFlag.result.unitPrice, '147.7'); // never setting the flag prices identically to option 1 for a NonMTS part
+  assert.equal(noFlag.result.unitPrice, '148.78'); // never setting the flag prices identically to option 1 for a NonMTS part
 
   const opt2 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 2 });
   assert.equal(opt2.result.unitPrice, '104.7'); // "2 - Markup only": 100 + 4.7
 
   const opt3 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 3 });
-  assert.equal(opt3.result.unitPrice, '112.7'); // "3 - No Landed cost and Pick": 100 + 4.7(markup) + 8(tariff, not named so stays included)
+  assert.equal(opt3.result.unitPrice, '113.08'); // "3 - No Landed cost and Pick": 100 + 4.7(markup) + 8.376(tariff 8% of 104.7, not named so stays included)
 
   const opt4 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 4 });
-  assert.equal(opt4.result.unitPrice, '139.7'); // "4 - Landed cost & Markup, No tariff": 100 + 4.7 + 10 + 5 + 20
+  assert.equal(opt4.result.unitPrice, '140.41'); // "4 - Landed cost & Markup, No tariff": 100 + 4.7 + 10.47 + 5.235 + 20
 });
 
 test('topic 10: additionalCost never forces freight/duty onto an MTS part -- stock class and the flag both have to allow it', async () => {
@@ -387,7 +387,7 @@ test('Americas: MTS, US supplier -- LCA Handling Fee only, no freight/duty/tarif
 test('Americas: Non-MTS, US supplier -- LCA Handling Fee plus freight/duty/tariff', async () => {
   const line = await priceRegion('AMERICAS', { partNumber: 'US-P002', quantity: 10, supplierCountry: 'US' });
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '127.1'); // 100 + 6.7 + (10+5+2) + 3.4
+  assert.equal(line.result.unitPrice, '128.24'); // 100 + 6.7 + 106.7*(0.10+0.05+0.02)(=18.139) + 3.4
 });
 
 test('Americas: MTS, overseas supplier -- the higher overseas LCA Handling Fee tier applies', async () => {
@@ -399,7 +399,7 @@ test('Americas: MTS, overseas supplier -- the higher overseas LCA Handling Fee t
 test('Americas: Non-MTS, overseas supplier -- overseas LCA Handling Fee plus freight/duty/tariff', async () => {
   const line = await priceRegion('AMERICAS', { partNumber: 'US-P004', quantity: 10, supplierCountry: 'CN' });
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '130.9'); // 100 + 10.5 + 17 + 3.4
+  assert.equal(line.result.unitPrice, '132.69'); // 100 + 10.5 + 110.5*(0.10+0.05+0.02)(=18.785) + 3.4
 });
 
 test('Americas: supplierCountry resolves from supplier-config when the item only names a supplier', async () => {
@@ -428,7 +428,7 @@ test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the
     body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 10 }] } }),
   }).then((r) => r.json());
   assert.equal(withoutSupplier.items[0].status, 'PRICED');
-  assert.equal(withoutSupplier.items[0].result.unitPrice, '167.35'); // generic freight/duty/tariff=0
+  assert.equal(withoutSupplier.items[0].result.unitPrice, '172.03'); // generic rates: 157.05 + 157.05*(0.06+0.022+0) + 21/10
 
   const withAcme = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
@@ -436,20 +436,21 @@ test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the
     body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'EU01' }] } }),
   }).then((r) => r.json());
   assert.equal(withAcme.items[0].status, 'PRICED');
-  assert.equal(withAcme.items[0].result.unitPrice, '197.25'); // ACME's EU01-warehouse freight/duty/tariff, quantity above ACME's MOQ so no constraint fires
+  assert.equal(withAcme.items[0].result.unitPrice, '219.78'); // ACME's EU01-warehouse rates (18%/9.5%/12% on 157.05), quantity above the part's MOQ so no constraint fires
   assert.equal(withAcme.items[0].trace.constraintPasses.length, 0);
 });
 
 test('freight/duty/tariff are per-warehouse, not supplier-wide -- the same supplier prices differently depending on which warehouse the goods ship to', async () => {
-  // P-70200: base 150, NonMTS (CMT), qty 30 -> base+4.7% = 157.05, pick 21/30 = 0.7.
+  // P-70200: base 150, NonMTS (CMT), qty 30 -> basis = base+4.7% = 157.05, pick 21/30 = 0.7;
+  // freight/duty/tariff are RATES on that basis.
   const noWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME' });
-  assert.equal(noWarehouse.result.unitPrice, '165.95'); // no warehouse named -- falls back to the generic API6 elements (freight 6/duty 2.2/tariff 0), same as no supplier at all
+  assert.equal(noWarehouse.result.unitPrice, '170.63'); // no warehouse named -- falls back to the generic API6 rates (6%/2.2%/0), same as no supplier at all
 
   const euWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(euWarehouse.result.unitPrice, '197.25'); // ACME's EU01 terms (18/9.5/12)
+  assert.equal(euWarehouse.result.unitPrice, '219.78'); // ACME's EU01 rates (18%/9.5%/12%)
 
   const usWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'US01' });
-  assert.equal(usWarehouse.result.unitPrice, '217.75'); // same supplier, US01 terms (25/15/20) -- a genuinely different landed cost for the same goods, same supplier
+  assert.equal(usWarehouse.result.unitPrice, '251.98'); // same supplier, US01 rates (25%/15%/20%) -- a genuinely different landed cost for the same goods, same supplier
 });
 
 test('a below-MOQ, below-MOLV order surfaces both constraints without silently failing -- MOLV from the supplier, MOQ from the part\'s own facts', async () => {
@@ -669,12 +670,12 @@ test('a PricingAdmin can save supplier-config, region-route, and party-config di
 // Verification parts: one per region, all with a STATIC 100.00 base cost and round charge
 // values, so every factor the config applies is directly readable in the result. These are
 // the numbers the owner verifies the config against by hand.
-test('EU-T100: 100 + 4.7% markup + 10 freight + 5 duty + 8 tariff + 20/10 pick = 129.7 EUR', async () => {
+test('EU-T100: 100 + 4.7% markup + 10%/5%/8% freight/duty/tariff on 104.7 + 20/10 pick = 130.78 EUR', async () => {
   const line = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.trace.costCandidate.value, '100.00');
   assert.equal(line.trace.stockClass, 'NonMTS');
-  assert.equal(line.result.unitPrice, '129.7');
+  assert.equal(line.result.unitPrice, '130.78');
 });
 
 test('CN-T100: JDE China route = 100 × 1.032 = 103.2 CNY; SAP route (US supplier country) = 136.22 CNY', async () => {
@@ -697,15 +698,15 @@ test('IN-T100: local supplier = 100 INR flat; overseas (or unresolved) supplier 
   assert.equal(overseas.result.unitPrice, '140');
 });
 
-test('US-T100: US supplier = 100 + 6.7% LCA + 10 + 5 + 8 + 34/10 pick = 133.1 USD; overseas = 136.9 USD', async () => {
+test('US-T100: US supplier = 100 + 6.7% LCA + 10%/5%/8% f/d/t on 106.7 + 34/10 pick = 134.64 USD; overseas = 139.32 USD', async () => {
   const domestic = await priceRegion('AMERICAS', { partNumber: 'US-T100', quantity: 10, supplierCountry: 'US' });
   assert.equal(domestic.status, 'PRICED');
   assert.equal(domestic.trace.stockClass, 'NonMTS');
-  assert.equal(domestic.result.unitPrice, '133.1');
+  assert.equal(domestic.result.unitPrice, '134.64');
 
   const overseas = await priceRegion('AMERICAS', { partNumber: 'US-T100', quantity: 10 });
   assert.equal(overseas.status, 'PRICED');
-  assert.equal(overseas.result.unitPrice, '136.9'); // 10.5% LCA instead of 6.7%
+  assert.equal(overseas.result.unitPrice, '139.32'); // 10.5% LCA instead of 6.7%, and the f/d/t rates apply on the larger 110.5 basis
 });
 
 test('listSuppliers returns every supplier globally, independent of region', async () => {
@@ -719,34 +720,34 @@ test('listSuppliers returns every supplier globally, independent of region', asy
   // are present, not that they're alone.
   for (const expected of ['ACME', 'GLOBEX', 'INITECH', 'US-ACME']) assert.ok(ids.includes(expected), `missing ${expected}`);
   const initech = suppliers.find((s) => s.supplier === 'INITECH');
-  assert.equal(initech.warehouses.EU01.tariff, '20.00');
+  assert.equal(initech.warehouses.EU01.tariff, '0.2'); // a RATE: 20%
   assert.equal(initech.supplierCountry, 'CN');
 });
 
 test('same part shipped to the same warehouse via three different suppliers — three different landed costs, driven by the supplier\'s per-warehouse terms, not the region', async () => {
   // EU-T100 qty 10, NonMTS: 100 + 4.7 markup + supplier freight + duty + tariff + 2 pick.
   const acme = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(acme.result.unitPrice, '146.2'); // 18 + 9.5 + 12
+  assert.equal(acme.result.unitPrice, '148.06'); // 104.7 * (0.18+0.095+0.12) = 41.36
 
   const globex = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'GLOBEX', warehouse: 'EU01' });
-  assert.equal(globex.result.unitPrice, '123.7'); // 8 + 4 + 5
+  assert.equal(globex.result.unitPrice, '124.5'); // 104.7 * (0.08+0.04+0.05) = 17.8
 
   const initech = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'INITECH', warehouse: 'EU01' });
-  assert.equal(initech.result.unitPrice, '144.7'); // 12 + 6 + 20
+  assert.equal(initech.result.unitPrice, '146.49'); // 104.7 * (0.12+0.06+0.2) = 39.79
 
   const none = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
-  assert.equal(none.result.unitPrice, '129.7'); // no supplier -> the part's own generic facts (10 + 5 + 8)
+  assert.equal(none.result.unitPrice, '130.78'); // no supplier -> the part's own generic rates (10%/5%/8%)
 });
 
 test('the same supplier (ACME) prices the same part differently depending on the destination warehouse', async () => {
   const toEurope = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(toEurope.result.unitPrice, '146.2'); // ACME's EU01 terms (18/9.5/12)
+  assert.equal(toEurope.result.unitPrice, '148.06'); // ACME's EU01 rates (18%/9.5%/12%)
 
   const toAmericas = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'US01' });
-  assert.equal(toAmericas.result.unitPrice, '166.7'); // same ACME, US01 terms (25/15/20) -- ships the same goods, different landed cost
+  assert.equal(toAmericas.result.unitPrice, '169.52'); // same ACME, US01 rates (25%/15%/20%) -- ships the same goods, different landed cost
 
   const noWarehouse = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME' });
-  assert.equal(noWarehouse.result.unitPrice, '129.7'); // ACME named but no warehouse -- falls back to the part's own generic facts
+  assert.equal(noWarehouse.result.unitPrice, '130.78'); // ACME named but no warehouse -- falls back to the part's own generic rates
 });
 
 test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {

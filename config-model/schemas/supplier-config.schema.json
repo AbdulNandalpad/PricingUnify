@@ -16,7 +16,7 @@
     "molv": { "type": ["string", "number", "null"], "description": "Minimum order line value for this supplier — supplier-wide, not per-warehouse." },
     "warehouses": {
       "type": "object",
-      "description": "Per-destination-warehouse landed-cost charges this supplier bills, keyed by warehouse code (e.g. \"US01\", \"EU01\", \"CN01\", \"IN01\") — matches an item's `warehouse` field. A warehouse this supplier doesn't ship to simply has no entry; the line then falls back to whatever API6 already put in facts.elements for freight/duty/tariff, same as a supplier with no override at all.",
+      "description": "Per-destination-warehouse landed-cost RATES this supplier bills (owner correction 2026-08-26: freight/duty/tariff are percentages applied on base cost + markup, not fixed amounts — 0.18 = 18%), keyed by warehouse code (e.g. \"US01\", \"EU01\", \"CN01\", \"IN01\") — matches an item's `warehouse` field. A warehouse this supplier doesn't ship to simply has no entry; the line then falls back to whatever API6 already put in facts.elements for freight/duty/tariff, same as a supplier with no override at all.",
       "additionalProperties": {
         "type": "object",
         "properties": {

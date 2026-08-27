@@ -14,7 +14,7 @@ test('getPricingFacts replays the region-shaped recorded fixture', async () => {
 
   assert.ok(facts.costs['P-10023']);
   assert.equal(facts.costs['P-10023'].candidates[0].value, '100.00');
-  assert.equal(facts.elements['P-10023'].freight, '5.00');
+  assert.equal(facts.elements['P-10023'].freight, '0.05'); // freight is a RATE (5%), not an amount -- owner correction 2026-08-26
 });
 
 test('live mode is configurable with a real auth strategy without needing a network call to construct it', () => {
