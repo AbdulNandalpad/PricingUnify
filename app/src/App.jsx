@@ -355,9 +355,10 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   const [knownSuppliers, setKnownSuppliers] = useState([]);
 
   // Suppliers are global (independent of region). If this fails (backend not up yet when the
-  // page mounted), the supplier column silently degrades to a free-text input — so it's
-  // retried after every successful backend call below, not just fetched once, and the
-  // dropdown reappears as soon as the backend is reachable.
+  // page mounted), the supplier column degrades to a free-text input, which reads as if the
+  // dropdown was removed — so keep polling until the backend answers (every 3s while the list
+  // is empty), retry again after any successful backend call, and say so on screen while the
+  // list isn't loaded rather than degrading silently.
   function refreshSuppliers() {
     listSuppliers({ user: 'alice' })
       .then((res) => setKnownSuppliers(res.suppliers || []))
@@ -365,9 +366,12 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   }
 
   useEffect(() => {
+    if (knownSuppliers.length > 0) return undefined;
     refreshSuppliers();
+    const timer = setInterval(refreshSuppliers, 3000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [knownSuppliers.length > 0]);
 
   function updateGlobal(key, value) {
     setGlobals((g) => ({ ...g, [key]: value }));
@@ -591,6 +595,13 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
           </button>
         </div>
         {attributesNote && <p className="saved-note">{attributesNote}</p>}
+        {knownSuppliers.length === 0 && (
+          <p className="error">
+            Supplier list not loaded — the backend isn't reachable yet, so the Supplier column shows
+            a text box instead of the dropdown. Retrying automatically; make sure{' '}
+            <code>node srv/server.js</code> is running and the dropdown will appear by itself.
+          </p>
+        )}
         <p className="hint">
           For now, enter each line's supplier, stock class, supplier country and warehouse
           yourself — deliberately manual, so the pricing logic stays easy to follow. Fetching
