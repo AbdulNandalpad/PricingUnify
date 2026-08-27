@@ -200,6 +200,91 @@ function DetailHeader({ line, regionLabel }) {
   );
 }
 
+/** Collapsed-by-default deep dive: for every calculation step, WHERE its number came from
+ *  and HOW it was combined — the freight/duty/tariff amounts' source field, the factor's
+ *  basis sum × rate arithmetic, per-order charges' division by quantity. Everything here is
+ *  read straight off the engine trace (basisAmount/rate/rateSource/source/perQuantity notes);
+ *  nothing is recomputed, so it can never disagree with the actual priced result. */
+function AdvancedExplanation({ steps, currency }) {
+  if (!steps?.length) return null;
+  const cur = currency ? ` ${currency}` : '';
+  const pct = (rate) => {
+    const n = Number(rate);
+    return Number.isFinite(n) ? `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%` : rate;
+  };
+  const whenText = (when) => (Array.isArray(when) ? when.join(' AND ') : when);
+  const sourceText = (source) =>
+    source === 'CONFIG'
+      ? 'a fixed amount in the region configuration'
+      : `the part's data field “${source}”`;
+
+  return (
+    <details className="hint advanced-explain">
+      <summary>Advanced explanation — how each number was resolved</summary>
+      <p>
+        Charge amounts (freight, duty, tariff, pick) are read from the part's data as delivered
+        by the cost systems. When the line names a supplier <em>and</em> a destination warehouse,
+        that supplier's warehouse terms replace those values before this calculation runs — the
+        numbers below are the final resolved values either way.
+      </p>
+      <ul>
+        {steps.map((s) => {
+          const label = stepLabel(s.id);
+          if (s.note?.skipped) {
+            return (
+              <li key={s.id}>
+                <strong>{label}</strong> — not applied. Its condition wasn't met for this line
+                {s.note.when ? <>: <code>{whenText(s.note.when)}</code></> : ''}. It contributes 0 but stays visible for audit.
+              </li>
+            );
+          }
+          if (s.missing) {
+            return (
+              <li key={s.id}>
+                <strong>{label}</strong> — could not be resolved ({s.missing.reason}).
+              </li>
+            );
+          }
+          if (s.type === 'BASE') {
+            return (
+              <li key={s.id}>
+                <strong>{label}</strong> = {fmt2(s.delta)}{cur} — the cost candidate chosen above
+                (see “Cost used”), the starting point everything else builds on.
+              </li>
+            );
+          }
+          if (s.type === 'FACTOR') {
+            const rateFrom = s.note?.rateSource && s.note.rateSource !== 'CONFIG'
+              ? `read from the part's data field “${s.note.rateSource}”`
+              : 'set in the region configuration';
+            return (
+              <li key={s.id}>
+                <strong>{label}</strong> = {fmt2(s.note?.basisAmount)} (sum of: {(s.note?.basis || []).map(stepLabel).join(' + ')})
+                × {s.note?.rate} (= {pct(s.note?.rate)}, {rateFrom}) = <strong>{fmt2(s.delta)}{cur}</strong> per unit.
+              </li>
+            );
+          }
+          if (s.type === 'PER_LINE') {
+            const orderTotal = Number(s.delta) * Number(s.note?.perQuantity);
+            return (
+              <li key={s.id}>
+                <strong>{label}</strong> = {fmt2(orderTotal)}{cur} once per order, from {sourceText(s.note?.source)},
+                spread over qty {s.note?.perQuantity}: {fmt2(orderTotal)} ÷ {s.note?.perQuantity} = <strong>{fmt2(s.delta)}{cur}</strong> per unit.
+              </li>
+            );
+          }
+          // ADDER
+          return (
+            <li key={s.id}>
+              <strong>{label}</strong> = +{fmt2(s.delta)}{cur} per unit, from {sourceText(s.note?.source)}.
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
 function LineDetail({ line }) {
   return (
     <>
@@ -225,6 +310,7 @@ function LineDetail({ line }) {
         constraintPasses={line.trace.constraintPasses}
         unitPrice={line.result?.unitPrice}
       />
+      <AdvancedExplanation steps={line.trace.steps} currency={line.result?.currency} />
       {line.trace.kit && <KitComponents components={line.trace.components} />}
       {line.status === 'PRICED' && line.result && (
         <MarginWhatIf unitPrice={line.result.unitPrice} currency={line.result.currency} />
@@ -496,10 +582,11 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
         </div>
         {attributesNote && <p className="saved-note">{attributesNote}</p>}
         <p className="hint">
-          Fetching attributes resolves each part's supplier, stock class, supplier country and
-          warehouse before you price — the same two-step flow a real integration follows (a host
-          system resolves these via C4C, then calls the pricing API with them already set). You
-          can still edit anything it fills in before pricing.
+          For now, enter each line's supplier, stock class, supplier country and warehouse
+          yourself — deliberately manual, so the pricing logic stays easy to follow. Fetching
+          attributes resolves the stock class (and a picked supplier's country) up front; once
+          the C4C connection is live, the same step will bring back all of these automatically,
+          and pricing works identically either way.
         </p>
 
         <form id="batch-price-form" onSubmit={runBatch}>

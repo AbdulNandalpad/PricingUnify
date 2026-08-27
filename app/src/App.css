@@ -78,6 +78,22 @@
   border-radius: 4px;
 }
 
+.advanced-explain {
+  margin-top: 12px;
+}
+
+.advanced-explain summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.advanced-explain ul {
+  margin: 8px 0 0 18px;
+  display: grid;
+  gap: 6px;
+}
+
 .mode-toggle-header {
   display: flex;
   gap: 4px;

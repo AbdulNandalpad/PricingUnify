@@ -44,7 +44,9 @@ function applyFactor(el, ctx) {
     return { delta: null, missing: { element: el.id, reason: 'RATE_MISSING', from: source } };
   }
   const delta = basisAmount.times(rate);
-  return { delta, note: { basis: el.basis, basisAmount: basisAmount.toString(), rate: rate.toString() } };
+  // rateSource: 'CONFIG' for a literal rate in the region sheet, else the facts field the
+  // rateRef read — so the trace can say where the percentage itself came from, not just its value.
+  return { delta, note: { basis: el.basis, basisAmount: basisAmount.toString(), rate: rate.toString(), rateSource: source || 'CONFIG' } };
 }
 
 function applyAdder(el, ctx) {
