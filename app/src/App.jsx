@@ -353,13 +353,19 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [knownSuppliers, setKnownSuppliers] = useState([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Suppliers are global (independent of region) — fetched once, not per-region.
+  // Suppliers are global (independent of region). If this fails (backend not up yet when the
+  // page mounted), the supplier column silently degrades to a free-text input — so it's
+  // retried after every successful backend call below, not just fetched once, and the
+  // dropdown reappears as soon as the backend is reachable.
+  function refreshSuppliers() {
     listSuppliers({ user: 'alice' })
-      .then((res) => { if (!cancelled) setKnownSuppliers(res.suppliers || []); })
-      .catch(() => { if (!cancelled) setKnownSuppliers([]); });
-    return () => { cancelled = true; };
+      .then((res) => setKnownSuppliers(res.suppliers || []))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshSuppliers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateGlobal(key, value) {
@@ -441,6 +447,8 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
       const body = await priceViaBackend({ ...globals, region, items });
       setResult({ ...body, submittedItems: items });
       setPricedRowIds(pricedRows.map((r) => r.id));
+      if (knownSuppliers.length === 0) refreshSuppliers(); // backend is clearly reachable now
+
     } catch (err) {
       setResult(null);
       setPricedRowIds([]);
@@ -477,6 +485,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
         };
       }));
       setAttributesNote(`Fetched item attributes for ${Object.keys(body.attributes || {}).length} part(s) — review below, then price.`);
+      if (knownSuppliers.length === 0) refreshSuppliers(); // backend is clearly reachable now
     } catch (err) {
       setError(err instanceof ApiError ? `${err.status}: ${err.message}` : err.message);
     } finally {
