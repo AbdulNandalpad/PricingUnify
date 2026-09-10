@@ -31,8 +31,8 @@ locally — the CAP project root is always the repo root, never `srv/` itself.
 |---|---|---|
 | local (default) | SQLite file `db.sqlite` at the repo root (gitignored) | `@cap-js/sqlite`; `cds deploy` runs on first boot; seeds load only when `ConfigDocuments` is empty |
 | `CDS_ENV=test` | SQLite in memory | what `srv/test` uses |
-| `[production]` on BTP | **HANA Cloud** via CAP (`@cap-js/hana`, HDI container) | bind a `hana` `hdi-shared` instance; CAP picks it up from VCAP |
-| SaaS path | **Postgres** via `@cap-js/postgres` | same CDS model, `cds.requires.db.kind: postgres`; no HANA-specific SQL exists anywhere, by rule |
+| `[production]` on BTP, **today** | Same SQLite file, on CF's local (ephemeral) disk | Deliberate placeholder (2026-09-10) so `cf push` boots and is reachable before a real database decision/cost is committed to — **data does not survive a restage/restart**. Do not treat anything written under this state as durable. |
+| `[production]` on BTP, **once decided** | **HANA Cloud** (`@cap-js/hana`, HDI container) **or Postgres** (`@cap-js/postgres`) | Either: `cf create-service hana hdi-shared ...` or a Postgres service, add `@cap-js/hana`/`@cap-js/postgres` to `srv/package.json`, add `"[production]": { "kind": "hana" }` (or `postgres`) back to root `package.json`'s `cds.requires.db`, bind the service in `manifest.yml`. No HANA-specific SQL exists anywhere, by rule, so either works with the same CDS model. |
 
 Two tables carry everything (`ARCHITECTURE_V2.md` §4.1): `ConfigDocuments` (every
 version of every rules document, DRAFT/ACTIVE/SUPERSEDED) and `PricingDocuments` (one row

@@ -15,8 +15,7 @@
       "db": {
         "kind": "sqlite",
         "credentials": { "url": "db.sqlite" },
-        "[test]": { "credentials": { "url": ":memory:" } },
-        "[production]": { "kind": "hana" }
+        "[test]": { "credentials": { "url": ":memory:" } }
       },
       "auth": {
         "kind": "mocked",
