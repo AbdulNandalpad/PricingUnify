@@ -1,26 +1,60 @@
-const { store } = require('./store');
-
 const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'seed@tss.example', authoredAt: '2026-08-01T00:00:00Z' };
 
 /**
- * Synthetic Europe-shaped region-wide default config, not real TSS rates — matches
- * engine-core's own test fixture and api6-client's recorded europe-default.json, so the
- * whole stack prices the same known numbers end to end. Real region configs land via a
- * real config-authoring flow once finance-verified rates exist.
+ * Demo documents for every config kind, as DATA — `seedDocuments()` returns them in
+ * dependency order (books before the routing rules that point at them) and `seed(store)`
+ * saves them into a ConfigStore. Both srv (on first boot, when ConfigDocuments is empty) and
+ * the golden runner (tests/run-golden.js) read the same list, so the finance-verified golden
+ * numbers always pin exactly the configuration srv seeds.
+ *
+ * Synthetic Europe-shaped region-wide defaults, not real TSS rates — matches engine-core's
+ * own test fixtures and api6-client's recorded payloads, so the whole stack prices the same
+ * known numbers end to end. Real region configs land via the real authoring flow once
+ * finance-verified rates exist.
+ *
+ * v2 (owner decisions 2026-09-10): every region gets a `sell.defaultMargin` — cost plus
+ * unitPrice = landedCost / (1 - margin) — parties get a `tier`, and the EU_SEALS price list,
+ * PTFE_BEARINGS catalog + routing rules from engine-core/test/techniques.test.js are seeded
+ * ACTIVE from 2026-09-01.
  */
-function seed() {
-  seedRegionConfig();
-  seedChinaRegionConfig();
-  seedIndiaRegionConfig();
-  seedAmericasRegionConfig();
-  seedSupplierConfigs();
-  seedRegionRoutes();
-  seedPartyConfigs();
+function seedDocuments() {
+  return [
+    ...regionConfigs().map((doc) => ({ kind: 'region-config', doc })),
+    ...supplierConfigs().map((doc) => ({ kind: 'supplier-config', doc })),
+    ...regionRoutes().map((doc) => ({ kind: 'region-route', doc })),
+    ...partyConfigs().map((doc) => ({ kind: 'party-config', doc })),
+    { kind: 'price-list', doc: euSealsPriceList() },
+    { kind: 'catalog-book', doc: ptfeBearingsCatalog() },
+    { kind: 'routing-rules', doc: routingRules() },
+  ];
 }
 
-function seedRegionConfig() {
-  if (store.listVersions('EUROPE', '*').length > 0) return; // idempotent — safe to call more than once
-  store.saveVersion({
+/** Saves every seed document that is not already in the store (idempotent per bucket). */
+function seed(store) {
+  for (const { kind, doc } of seedDocuments()) {
+    const key = kindKey(kind, doc);
+    if (store.listVersions(kind, key).some((v) => String(v.version) === String(doc.version))) continue;
+    store.saveSync(kind, doc);
+  }
+}
+
+function kindKey(kind, doc) {
+  const { docKeyOf } = require('@tss-pricing/config-model');
+  return docKeyOf(kind, doc);
+}
+
+const STOCK_CLASS_MAP = { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' };
+
+// Cost plus sell margins per region (owner decision 2026-09-10) — the only v2 addition to
+// the region documents; every landed-cost element below is exactly as it was.
+const SELL = { EUROPE: 0.30, CHINA: 0.25, INDIA: 0.28, AMERICAS: 0.32 };
+
+function regionConfigs() {
+  return [europeRegionConfig(), chinaRegionConfig(), indiaRegionConfig(), ...americasRegionConfigs()];
+}
+
+function europeRegionConfig() {
+  return {
     region: 'EUROPE',
     salesOrg: '*',
     version: '2026.08.0',
@@ -37,13 +71,13 @@ function seedRegionConfig() {
       '*': ['C4C', 'ERP', 'CCD', 'CCP'],
     },
     // Normalizes this region's raw ERP stock-class codes into the two canonical buckets
-    // buildUp `when` conditions can branch on — see srv/pricing-service.js's
+    // buildUp `when` conditions can branch on — see srv/lib/pricing.js's
     // applyStockClassNormalization and engine-core/src/kernel.js.
-    stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+    stockClassMap: STOCK_CLASS_MAP,
     // Topic 10: the host UI's line-level "Additional Cost" selector (0-4) picks which of
     // these elements apply for that one line, independent of stock class — e.g. "2 - Markup
     // only" means markup fires but freight/duty/tariff/pick don't, even for an otherwise
-    // Non-MTS part. See srv/pricing-service.js:applyAdditionalCostFlags.
+    // Non-MTS part. See srv/lib/pricing.js:applyAdditionalCostFlags.
     additionalCostMap: {
       0: { markup: false, landedCost: false, tariff: false, pick: false }, // "0 - Nothing to add"
       1: { markup: true, landedCost: true, tariff: true, pick: true }, // "1 - Landed cost & Markup"
@@ -62,19 +96,20 @@ function seedRegionConfig() {
     // so the percentages then apply on the base cost alone.
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
-      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
-      { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
-      { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
-      { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'tariff', when: "item.includeTariff !== false", provenance: HUMAN_PROVENANCE },
-      { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: "item.includePick !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: 'item.includeMarkup !== false', provenance: HUMAN_PROVENANCE },
+      { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'freight', when: ["item.stockClass === 'NonMTS'", 'item.includeLandedCost !== false'], provenance: HUMAN_PROVENANCE },
+      { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'duty', when: ["item.stockClass === 'NonMTS'", 'item.includeLandedCost !== false'], provenance: HUMAN_PROVENANCE },
+      { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'tariff', when: 'item.includeTariff !== false', provenance: HUMAN_PROVENANCE },
+      { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: 'item.includePick !== false', provenance: HUMAN_PROVENANCE },
     ],
     constraints: [
       { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE },
       { id: 'MOQ', type: 'CONSTRAINT', kind: 'MIN_QTY', minRef: 'moq', provenance: HUMAN_PROVENANCE },
     ],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    sell: { defaultMargin: SELL.EUROPE },
     provenance: HUMAN_PROVENANCE,
-  });
+  };
 }
 
 /**
@@ -107,9 +142,8 @@ function seedRegionConfig() {
  * decision). stockClassMap is declared anyway, purely for classification/audit visibility —
  * same as Europe's originally was before any element consumed it.
  */
-function seedChinaRegionConfig() {
-  if (store.listVersions('CHINA', '*').length > 0) return;
-  store.saveVersion({
+function chinaRegionConfig() {
+  return {
     region: 'CHINA',
     salesOrg: '*',
     version: '2026.08.0',
@@ -121,7 +155,7 @@ function seedChinaRegionConfig() {
       { id: 'RES_JDE_CHINA', originOfData: 'CN', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE },
       { id: 'RES_SAP_EUROPE_FALLBACK', originOfData: 'SAP', fallback: ['RES_JDE_CHINA'], costBasis: 'SUPPLIER_CATALOG', provenance: HUMAN_PROVENANCE },
     ],
-    stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+    stockClassMap: STOCK_CLASS_MAP,
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'ROUTE_JDE_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.032, when: "item.ood === 'CN'", provenance: HUMAN_PROVENANCE },
@@ -140,8 +174,9 @@ function seedChinaRegionConfig() {
       { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', mode: 'QUANTITY', provenance: HUMAN_PROVENANCE },
     ],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    sell: { defaultMargin: SELL.CHINA },
     provenance: HUMAN_PROVENANCE,
-  });
+  };
 }
 
 /**
@@ -156,9 +191,8 @@ function seedChinaRegionConfig() {
  * No stock-class split — Appendix A gives India the identical formula for both classes, so no
  * stockClassMap is declared (would only add unnecessary classification risk with no payoff).
  */
-function seedIndiaRegionConfig() {
-  if (store.listVersions('INDIA', '*').length > 0) return;
-  store.saveVersion({
+function indiaRegionConfig() {
+  return {
     region: 'INDIA',
     salesOrg: '*',
     version: '2026.08.0',
@@ -176,8 +210,9 @@ function seedIndiaRegionConfig() {
     ],
     constraints: [],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    sell: { defaultMargin: SELL.INDIA },
     provenance: HUMAN_PROVENANCE,
-  });
+  };
 }
 
 /**
@@ -189,15 +224,13 @@ function seedIndiaRegionConfig() {
  * "SMA") and overseas (anything else) — mirroring India's local/overseas split via the same
  * OOD-based `when` pattern.
  *
- * Two versions are seeded deliberately, as a concrete effective-dated repricing example (the
- * kind CLAUDE.md has flagged as still-needed since Phase 1 started): the real LCA Handling Fee
- * changed 6.2%->6.7% (local) / 10%->10.5% (overseas) effective Jan 2026. Pricing as of a date
- * before 2026-01-01 uses the old rate; on/after uses the new one — engine-core needs zero
- * changes for this, it's purely config-model's effective-dating doing its job.
+ * Two versions are seeded deliberately, as a concrete effective-dated repricing example: the
+ * real LCA Handling Fee changed 6.2%->6.7% (local) / 10%->10.5% (overseas) effective Jan
+ * 2026. Pricing as of a date before 2026-01-01 uses the old rate; on/after uses the new one —
+ * engine-core needs zero changes for this, it's purely config-model's effective-dating doing
+ * its job.
  */
-function seedAmericasRegionConfig() {
-  if (store.listVersions('AMERICAS', '*').length > 0) return;
-  const stockClassMap = { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' };
+function americasRegionConfigs() {
   const buildUpFor = (localRate, overseasRate) => [
     { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
     // Owner decision (2026-08-26, mockup review): the domestic/overseas split keys off the
@@ -214,37 +247,20 @@ function seedAmericasRegionConfig() {
     { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'tariff', when: "item.stockClass === 'NonMTS'", provenance: HUMAN_PROVENANCE },
     { id: 'PICK_CHARGE', type: 'PER_LINE', amount: 34, provenance: HUMAN_PROVENANCE },
   ];
-
-  store.saveVersion({
+  const common = {
     region: 'AMERICAS',
     salesOrg: '*',
-    version: '2025.06.0',
-    status: 'ACTIVE',
-    supersedes: null,
-    validFrom: '2025-06-01',
-    validTo: null,
     resolution: [{ id: 'RES_JDE_E1', originOfData: 'SMA', costBasis: 'WEIGHTED_AVG', provenance: HUMAN_PROVENANCE }],
-    stockClassMap,
-    buildUp: buildUpFor(0.062, 0.10),
+    stockClassMap: STOCK_CLASS_MAP,
     constraints: [],
     rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
+    sell: { defaultMargin: SELL.AMERICAS },
     provenance: HUMAN_PROVENANCE,
-  });
-  store.saveVersion({
-    region: 'AMERICAS',
-    salesOrg: '*',
-    version: '2026.01.0',
-    status: 'ACTIVE',
-    supersedes: '2025.06.0',
-    validFrom: '2026-01-01',
-    validTo: null,
-    resolution: [{ id: 'RES_JDE_E1', originOfData: 'SMA', costBasis: 'WEIGHTED_AVG', provenance: HUMAN_PROVENANCE }],
-    stockClassMap,
-    buildUp: buildUpFor(0.067, 0.105),
-    constraints: [],
-    rounding: { mode: 'HALF_UP', decimalPlaces: 2 },
-    provenance: HUMAN_PROVENANCE,
-  });
+  };
+  return [
+    { ...common, version: '2025.06.0', status: 'ACTIVE', supersedes: null, validFrom: '2025-06-01', validTo: null, buildUp: buildUpFor(0.062, 0.10) },
+    { ...common, version: '2026.01.0', status: 'ACTIVE', supersedes: '2025.06.0', validFrom: '2026-01-01', validTo: null, buildUp: buildUpFor(0.067, 0.105) },
+  ];
 }
 
 /**
@@ -263,8 +279,7 @@ function seedAmericasRegionConfig() {
  * costs. ACME deliberately ships to all four regions' warehouses to demonstrate that; GLOBEX
  * and INITECH each ship to a subset.
  */
-function seedSupplierConfigs() {
-  if (store.listSupplierConfigVersions('ACME').length > 0) return;
+function supplierConfigs() {
   const suppliers = [
     {
       supplier: 'ACME',
@@ -277,22 +292,12 @@ function seedSupplierConfigs() {
         IN01: { freight: '0.22', duty: '0.12', tariff: '0.15' },
       },
     },
-    {
-      supplier: 'GLOBEX',
-      supplierCountry: 'NL',
-      molv: '50.00',
-      warehouses: {
-        EU01: { freight: '0.08', duty: '0.04', tariff: '0.05' },
-      },
-    },
+    { supplier: 'GLOBEX', supplierCountry: 'NL', molv: '50.00', warehouses: { EU01: { freight: '0.08', duty: '0.04', tariff: '0.05' } } },
     {
       supplier: 'INITECH',
       supplierCountry: 'CN',
       molv: '50.00',
-      warehouses: {
-        EU01: { freight: '0.12', duty: '0.06', tariff: '0.2' },
-        CN01: { freight: '0.05', duty: '0.02', tariff: '0.03' },
-      },
+      warehouses: { EU01: { freight: '0.12', duty: '0.06', tariff: '0.2' }, CN01: { freight: '0.05', duty: '0.02', tariff: '0.03' } },
     },
     // Exists purely so pricing can resolve item.supplierCountry from supplier master data
     // (owner decision 2026-08-26: the LCA domestic/overseas split keys off the supplier's
@@ -305,40 +310,12 @@ function seedSupplierConfigs() {
       supplier: 'TOKYO',
       supplierCountry: 'JP',
       molv: '500.00',
-      warehouses: {
-        EU01: { freight: '0.2', duty: '0.11', tariff: '0.15' },
-        US01: { freight: '0.16', duty: '0.08', tariff: '0.22' },
-        CN01: { freight: '0.1', duty: '0.05', tariff: '0.06' },
-      },
+      warehouses: { EU01: { freight: '0.2', duty: '0.11', tariff: '0.15' }, US01: { freight: '0.16', duty: '0.08', tariff: '0.22' }, CN01: { freight: '0.1', duty: '0.05', tariff: '0.06' } },
     },
-    {
-      supplier: 'BHARAT',
-      supplierCountry: 'IN',
-      molv: '20.00',
-      warehouses: {
-        IN01: { freight: '0.05', duty: '0.02', tariff: '0.03' },
-        EU01: { freight: '0.28', duty: '0.14', tariff: '0.18' },
-      },
-    },
-    {
-      supplier: 'AZTECA',
-      supplierCountry: 'MX',
-      molv: '40.00',
-      warehouses: {
-        US01: { freight: '0.06', duty: '0.03', tariff: '0.04' },
-      },
-    },
+    { supplier: 'BHARAT', supplierCountry: 'IN', molv: '20.00', warehouses: { IN01: { freight: '0.05', duty: '0.02', tariff: '0.03' }, EU01: { freight: '0.28', duty: '0.14', tariff: '0.18' } } },
+    { supplier: 'AZTECA', supplierCountry: 'MX', molv: '40.00', warehouses: { US01: { freight: '0.06', duty: '0.03', tariff: '0.04' } } },
   ];
-  for (const s of suppliers) {
-    store.saveSupplierConfig({
-      version: '2026.08.0',
-      status: 'ACTIVE',
-      validFrom: '2026-08-01',
-      validTo: null,
-      provenance: HUMAN_PROVENANCE,
-      ...s,
-    });
-  }
+  return suppliers.map((s) => ({ version: '2026.08.0', status: 'ACTIVE', validFrom: '2026-08-01', validTo: null, provenance: HUMAN_PROVENANCE, ...s }));
 }
 
 /**
@@ -347,62 +324,117 @@ function seedSupplierConfigs() {
  * owner shared: SMA/SAP/CN/IN, each an ood-wide ("*" salesOrg) default. A sales-org-specific
  * route only needs its own document where it actually diverges from its ood's default.
  */
-function seedRegionRoutes() {
-  if (store.listRegionRouteVersions('SAP', '*').length > 0) return;
-  const routes = [
+function regionRoutes() {
+  return [
     { ood: 'SAP', region: 'EUROPE', entityLabel: 'TSS Germany' },
     { ood: 'SMA', region: 'AMERICAS', entityLabel: 'TSS US Industrial' },
     { ood: 'CN', region: 'CHINA', entityLabel: 'TSS China' },
     { ood: 'IN', region: 'INDIA', entityLabel: 'TSS India' },
-  ];
-  for (const r of routes) {
-    store.saveRegionRoute({
-      ood: r.ood,
-      salesOrg: '*',
-      region: r.region,
-      entityLabel: r.entityLabel,
-      version: '2026.08.0',
-      status: 'ACTIVE',
-      validFrom: '2026-08-01',
-      validTo: null,
-      provenance: HUMAN_PROVENANCE,
-    });
-  }
+  ].map((r) => ({ ...r, salesOrg: '*', version: '2026.08.0', status: 'ACTIVE', validFrom: '2026-08-01', validTo: null, provenance: HUMAN_PROVENANCE }));
 }
 
 /**
- * Demo customer master data — first real consumer of `party.customerId`, which the object-
- * agnostic request has carried since Phase 1 (requirements §7) but nothing previously read.
- * CUST-DE-001's customerOod (SAP) matches its country; CUST-US-002 is the "can diverge"
- * demo from the C4C payload review — a US customer (ood SMA) who can still order a part
- * whose own item-level ood/supplierCountry point elsewhere, since item-level routing is independent.
+ * Demo customer master data — the consumer of `party.customerId` (requirements §7).
+ * CUST-DE-001's customerOod (SAP) matches its country; CUST-US-002 is the "can diverge" demo
+ * from the C4C payload review — a US customer (ood SMA) who can still order a part whose own
+ * item-level ood/supplierCountry point elsewhere. v2 adds `tier`, the price-list / catalog
+ * dimension (A = key account, B = standard), plus three more customers so every region has a
+ * customer to demo price lists against.
  */
-function seedPartyConfigs() {
-  if (store.listPartyConfigVersions('CUST-DE-001').length > 0) return;
-  store.savePartyConfig({
-    customerId: 'CUST-DE-001',
-    version: '2026.08.0',
-    status: 'ACTIVE',
-    validFrom: '2026-08-01',
-    validTo: null,
-    territory: 'DACH',
-    customerCountry: 'DE',
-    customerCurrency: 'EUR',
-    customerOod: 'SAP',
-    provenance: HUMAN_PROVENANCE,
-  });
-  store.savePartyConfig({
-    customerId: 'CUST-US-002',
-    version: '2026.08.0',
-    status: 'ACTIVE',
-    validFrom: '2026-08-01',
-    validTo: null,
-    territory: 'US-INDUSTRIAL',
-    customerCountry: 'US',
-    customerCurrency: 'USD',
-    customerOod: 'SMA',
-    provenance: HUMAN_PROVENANCE,
-  });
+function partyConfigs() {
+  const base = { version: '2026.08.0', status: 'ACTIVE', validFrom: '2026-08-01', validTo: null, provenance: HUMAN_PROVENANCE };
+  return [
+    { ...base, customerId: 'CUST-DE-001', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'A' },
+    { ...base, customerId: 'CUST-US-002', territory: 'US-INDUSTRIAL', customerCountry: 'US', customerCurrency: 'USD', customerOod: 'SMA', tier: 'B' },
+    { ...base, customerId: 'CUST-DE-007', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'B' },
+    { ...base, customerId: 'CUST-CN-003', territory: 'CN-CONSTRUCTION', customerCountry: 'CN', customerCurrency: 'CNY', customerOod: 'CN', tier: 'A' },
+    { ...base, customerId: 'CUST-IN-004', territory: 'IN-CONSTRUCTION', customerCountry: 'IN', customerCurrency: 'INR', customerOod: 'IN', tier: 'B' },
+  ];
 }
 
-module.exports = { seed };
+/** EU standard seals price list — a SELL price book (ARCHITECTURE_V2 §2.6), exactly the book
+ *  engine-core/test/techniques.test.js pins: customer row beats tier row beats default row,
+ *  quantity tiers, tier-A discount, MOLV 100 as an order rule. */
+function euSealsPriceList() {
+  return {
+    id: 'EU_SEALS',
+    name: 'EU standard seals',
+    version: '2026.09.1',
+    status: 'ACTIVE',
+    supersedes: null,
+    validFrom: '2026-09-01',
+    validTo: null,
+    currency: 'EUR',
+    appliesWhen: { region: 'EUROPE', family: 'O-Rings' },
+    dimensions: [
+      { attr: 'customer', label: 'Customer', weight: 100 },
+      { attr: 'tier', label: 'Tier', weight: 30 },
+      { attr: 'region', label: 'Region', weight: 20 },
+    ],
+    rows: [
+      { part: 'OR-25X3-NBR', match: {}, tiers: [{ from: 0, value: '1.20' }, { from: 500, value: '1.10' }, { from: 2000, value: '0.98' }], validFrom: '2026-01-01' },
+      { part: 'OR-25X3-NBR', match: { tier: 'A' }, tiers: [{ from: 0, value: '1.08' }, { from: 500, value: '0.99' }], validFrom: '2026-01-01' },
+      { part: 'OR-25X3-NBR', match: { customer: 'CUST-DE-001' }, tiers: [{ from: 0, value: '0.95' }], validFrom: '2026-07-01', validTo: '2026-12-31' },
+      { part: 'OR-40X5-FKM', match: {}, tiers: [{ from: 0, value: '3.40' }, { from: 250, value: '3.10' }, { from: 1000, value: '2.85' }], validFrom: '2026-01-01' },
+    ],
+    discount: [{ match: { tier: 'A' }, value: '0.03' }, { match: {}, value: 0 }],
+    constraints: [{ id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', min: 100, mode: 'PRICE', provenance: HUMAN_PROVENANCE }],
+    provenance: HUMAN_PROVENANCE,
+  };
+}
+
+/** PTFE slide bearings catalog + formula book (ARCHITECTURE_V2 §2.7), exactly as pinned by
+ *  engine-core/test/techniques.test.js: negotiated rates for the standard sizes, a fallback
+ *  formula for custom diameters over effective-dated cost inputs, tiered margin, 12% floor. */
+function ptfeBearingsCatalog() {
+  return {
+    id: 'PTFE_BEARINGS',
+    name: 'PTFE slide bearings',
+    version: '2026.09.1',
+    status: 'ACTIVE',
+    supersedes: null,
+    validFrom: '2026-09-01',
+    validTo: null,
+    currency: 'EUR',
+    dsl_version: 1,
+    appliesWhen: { family: 'PTFE bearings' },
+    matchOn: ['spec', 'variant'],
+    rows: [
+      { match: { spec: '120', variant: 'standard' }, rate: '84.00' },
+      { match: { spec: '160', variant: 'standard' }, rate: '112.00' },
+    ],
+    fallbackFormula: 'diameter_mm * cost.ptfe_rate_per_mm + cost.machining_setup / quantity',
+    costInputs: {
+      ptfe_rate_per_mm: { value: '0.62', unit: 'EUR / mm', validFrom: '2026-08-01', source: 'MANUAL' },
+      machining_setup: [
+        { value: '150', validFrom: '2026-01-01', validTo: '2026-06-01', source: 'MANUAL' },
+        { value: '180', validFrom: '2026-06-01', source: 'MANUAL' },
+      ],
+    },
+    freight: 0,
+    margin: [{ match: { tier: 'A' }, value: '0.18' }, { match: {}, value: '0.22' }],
+    floor: '0.12',
+    discount: [{ match: { tier: 'A' }, value: '0.02' }, { match: {}, value: 0 }],
+    provenance: HUMAN_PROVENANCE,
+  };
+}
+
+/** Which technique prices a line (ARCHITECTURE_V2 §2.5): O-Rings → the EU price list, PTFE
+ *  bearings → the catalog; everything else defaults to cost plus with the region config. */
+function routingRules() {
+  return {
+    key: '*',
+    version: '2026.09.1',
+    status: 'ACTIVE',
+    supersedes: null,
+    validFrom: '2026-09-01',
+    validTo: null,
+    rules: [
+      { when: { family: 'O-Rings' }, type: 'PRICE_LIST', book: 'EU_SEALS' },
+      { when: { family: 'PTFE bearings' }, type: 'CATALOG_FORMULA', book: 'PTFE_BEARINGS' },
+    ],
+    provenance: HUMAN_PROVENANCE,
+  };
+}
+
+module.exports = { seed, seedDocuments, HUMAN_PROVENANCE, SELL };

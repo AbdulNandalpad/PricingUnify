@@ -1,0 +1,39 @@
+{
+  "name": "EUROPE catalog PTFE-BRG-120 qty 4, tier A: negotiated rate 84.00 is a sell price, 2% discount = 82.32",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-DE-001",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "PTFE-BRG-120",
+        "quantity": 4
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "europe-default",
+  "config": {
+    "region": "EUROPE"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "PTFE-BRG-120",
+        "status": "PRICED",
+        "technique": "CATALOG_FORMULA",
+        "book": "PTFE_BEARINGS",
+        "routedBy": "RULE:1",
+        "unitPrice": "82.32",
+        "landedCost": null,
+        "margin": null
+      }
+    ]
+  }
+}

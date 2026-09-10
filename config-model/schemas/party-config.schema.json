@@ -16,6 +16,7 @@
     "customerCountry": { "type": ["string", "null"] },
     "customerCurrency": { "type": ["string", "null"] },
     "customerOod": { "type": ["string", "null"], "description": "The customer's own Origin of Data — feeds region-route resolution when a pricing request omits `region` explicitly." },
+    "tier": { "type": ["string", "null"], "description": "Commercial tier (e.g. \"A\", \"B\") — a price-list / catalog dimension: rows and discounts may match on it (ARCHITECTURE_V2 §2.6). srv copies it onto request.party.tier before pricing." },
     "provenance": { "$ref": "provenance.schema.json" }
   },
   "additionalProperties": false

@@ -1,0 +1,40 @@
+{
+  "name": "EUROPE EU-T100 NonMTS qty 10: 100 + 4.7% + 10%/5%/8% on 104.7 + 20/10 pick = 130.78 landed; / 0.7 = 186.83 sell",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-DE-001",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "EU-T100",
+        "quantity": 10,
+        "stockClass": "NonMTS"
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "europe-default",
+  "config": {
+    "region": "EUROPE"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "EU-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "routedBy": "DEFAULT",
+        "unitPrice": "186.83",
+        "landedCost": "130.78",
+        "margin": "0.3",
+        "currency": "EUR"
+      }
+    ]
+  }
+}

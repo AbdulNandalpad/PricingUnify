@@ -5,8 +5,9 @@ const Decimal = require('decimal.js');
 
 const ELEMENT_TYPES = Object.freeze(['BASE', 'FACTOR', 'ADDER', 'PER_LINE', 'CONSTRAINT']);
 
+// Own properties only — a `when` path or a facts ref can never reach prototype members.
 function readPath(obj, path) {
-  return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  return path.split('.').reduce((o, k) => (o != null && typeof o === 'object' && Object.hasOwn(o, k) ? o[k] : undefined), obj);
 }
 
 /** A literal `amount`/`rate`/`min`/`step` in config wins; a `*Ref` pulls the value from facts.elements. */

@@ -1,0 +1,40 @@
+{
+  "name": "EUROPE price list OR-25X3-NBR qty 10, CUST-DE-007 (tier B): default row 1.20, MOLV 100 lifts to 10",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-DE-007",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "OR-25X3-NBR",
+        "quantity": 10
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "europe-default",
+  "config": {
+    "region": "EUROPE"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "OR-25X3-NBR",
+        "status": "PRICED",
+        "technique": "PRICE_LIST",
+        "book": "EU_SEALS",
+        "unitPrice": "10",
+        "landedCost": null,
+        "flags": [
+          "MOLV_APPLIED"
+        ]
+      }
+    ]
+  }
+}

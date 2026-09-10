@@ -13,7 +13,10 @@
     "aiConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "aiRationale": { "type": "string" },
     "approvedBy": { "type": "string", "description": "Required before an AI_SUGGESTED value may go ACTIVE — see design principle: AI suggests, never silently applies." },
-    "approvedAt": { "type": "string", "format": "date-time" }
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "publishedBy": { "type": "string", "description": "The user who flipped this document DRAFT -> ACTIVE (ConfigStore.publish). Always req.user.id server-side, never from a payload." },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "note": { "type": "string", "description": "Free-text publish note (\"why this went live\")." }
   },
   "additionalProperties": false
 }

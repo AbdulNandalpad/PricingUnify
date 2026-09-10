@@ -1,0 +1,15 @@
+{
+  "name": "@tss-pricing/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server exposing PricingUnify capabilities as tools. Forwards the caller's own user credential to srv on every call — it has no identity of its own (on behalf of user, enforced).",
+  "main": "src/index.js",
+  "bin": { "pricingunify-mcp": "src/index.js" },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,828 @@
+<title>PricingUnify</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #f2f4f8; --panel: #ffffff; --panel-2: #f7f8fb; --ink: #16192b; --muted: #5d637a; --faint: #8e94aa;
+  --border: #d8dce7; --border-strong: #b9bfd0; --navy: #1e2761; --navy-ink: #1e2761; --navy-soft: #e8ebf7;
+  --cp: #2f5f9e; --cp-soft: #e6eef9; --pl: #1f7a6a; --pl-soft: #e3f3ef; --cf: #a3661a; --cf-soft: #f8eedd;
+  --good: #1f7a4a; --good-soft: #e3f3ea; --warn: #b26a00; --warn-soft: #fbf0dc; --crit: #b3261e; --crit-soft: #fbe5e3;
+  --shadow: 0 8px 30px rgba(22,25,43,.12); --on-navy: #ffffff;
+  --sans: 'IBM Plex Sans', 'Segoe UI', Roboto, Arial, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1220; --panel: #171b2c; --panel-2: #1d2234; --ink: #e8eaf2; --muted: #a2a8bd; --faint: #7a809a;
+    --border: #2a3047; --border-strong: #3b4360; --navy: #8b97e6; --navy-ink: #c3caf5; --navy-soft: #232a4a;
+    --cp: #7fa8e0; --cp-soft: #1d2b44; --pl: #5fc4ad; --pl-soft: #17332d; --cf: #e0a95a; --cf-soft: #3a2c15;
+    --good: #5cc48a; --good-soft: #163526; --warn: #e6a53a; --warn-soft: #3a2d12; --crit: #f07a72; --crit-soft: #3d1a17;
+    --shadow: 0 8px 30px rgba(0,0,0,.45); --on-navy: #0f1220; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1220; --panel: #171b2c; --panel-2: #1d2234; --ink: #e8eaf2; --muted: #a2a8bd; --faint: #7a809a;
+  --border: #2a3047; --border-strong: #3b4360; --navy: #8b97e6; --navy-ink: #c3caf5; --navy-soft: #232a4a;
+  --cp: #7fa8e0; --cp-soft: #1d2b44; --pl: #5fc4ad; --pl-soft: #17332d; --cf: #e0a95a; --cf-soft: #3a2c15;
+  --good: #5cc48a; --good-soft: #163526; --warn: #e6a53a; --warn-soft: #3a2d12; --crit: #f07a72; --crit-soft: #3d1a17;
+  --shadow: 0 8px 30px rgba(0,0,0,.45); --on-navy: #0f1220; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
+h1,h2,h3,h4 { margin: 0; text-wrap: balance; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.num { text-align: right; }
+a { color: var(--navy); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.small { font-size: 12px; }
+.label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* shell */
+.shell { display: grid; grid-template-columns: 208px 1fr; grid-template-rows: 52px 1fr; min-height: 100vh; }
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand .name { font-weight: 700; font-size: 17px; letter-spacing: -.01em; color: var(--navy-ink); }
+.brand .tag { font-size: 12px; color: var(--muted); }
+.context { display: flex; gap: 14px; align-items: center; margin-left: auto; font-size: 13px; color: var(--muted); }
+.context .live { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; }
+.dot.warn { background: var(--warn); }
+nav.side { background: var(--panel); border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+nav.side .group { margin-top: 14px; padding: 0 10px 6px; }
+nav.side button { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 8px 10px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--ink); }
+nav.side button:hover { background: var(--panel-2); }
+nav.side button.active { background: var(--navy-soft); color: var(--navy-ink); font-weight: 600; }
+nav.side button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+nav.side .count { font-size: 11px; background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+main { padding: 22px 26px 60px; min-width: 0; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.page-head h1 { font-size: 20px; font-weight: 600; }
+.page-head p { margin: 4px 0 0; color: var(--muted); max-width: 64ch; }
+
+/* controls */
+.btn { border: 1px solid var(--border-strong); background: var(--panel); color: var(--ink); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--navy); border-color: var(--navy); color: var(--on-navy); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--navy-ink); }
+.btn.small { padding: 4px 9px; font-size: 12px; }
+.btn.danger { color: var(--crit); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > span { font-size: 12px; color: var(--muted); }
+input[type=text], input[type=number], input[type=date], select, textarea { border: 1px solid var(--border-strong); background: var(--panel); border-radius: 5px; padding: 6px 8px; min-width: 0; }
+input[type=number] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td input[type=text], td input[type=number], td select { width: 100%; padding: 4px 6px; }
+td select { min-width: 120px; }
+td select.type-select { min-width: 0; }
+td input.n { width: 84px; }
+.controls { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* panels & tables */
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.panel .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.panel .head h2 { font-size: 15px; font-weight: 600; }
+.panel .body { padding: 14px 16px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; background: var(--panel-2); }
+th.num, td.num { text-align: right; }
+tbody tr:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+tr.sel { background: var(--navy-soft) !important; }
+tfoot td { border-bottom: 0; font-weight: 600; }
+.grid { display: grid; gap: 14px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* chips */
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; line-height: 1.5; }
+.chip.cp { background: var(--cp-soft); color: var(--cp); } .chip.pl { background: var(--pl-soft); color: var(--pl); } .chip.cf { background: var(--cf-soft); color: var(--cf); }
+.chip.good { background: var(--good-soft); color: var(--good); } .chip.warn { background: var(--warn-soft); color: var(--warn); } .chip.crit { background: var(--crit-soft); color: var(--crit); }
+.chip.neutral { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+.chip.navy { background: var(--navy-soft); color: var(--navy-ink); }
+.type-select { border: 0; background: transparent; padding: 0; font-weight: 600; font-size: 12px; cursor: pointer; }
+.type-select.cp { color: var(--cp); } .type-select.pl { color: var(--pl); } .type-select.cf { color: var(--cf); }
+.why { border: 1px solid var(--border-strong); background: var(--panel); border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--navy-ink); font-weight: 600; }
+.why:hover { background: var(--navy-soft); }
+
+/* quote summary */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+.stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.stat .v { font-family: var(--mono); font-size: 20px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* drawer */
+.drawer-wrap { position: fixed; inset: 0; z-index: 30; display: none; }
+.drawer-wrap.open { display: block; }
+.drawer-wrap .scrim { position: absolute; inset: 0; background: rgba(10,12,25,.35); }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: var(--panel); border-left: 1px solid var(--border); box-shadow: var(--shadow); overflow-y: auto; padding: 20px 24px 40px; }
+.drawer .dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.drawer .dhead .part { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+.drawer .dhead .desc { color: var(--muted); margin-top: 2px; }
+.drawer .price { text-align: right; }
+.drawer .price .v { font-family: var(--mono); font-size: 28px; font-weight: 600; line-height: 1.1; }
+.drawer .price .u { font-size: 12px; color: var(--muted); }
+.drawer section { margin-top: 20px; }
+.drawer section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.card { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; background: var(--panel-2); }
+.card .k { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.card .v { font-family: var(--mono); font-weight: 600; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.card.na .v { color: var(--faint); font-weight: 400; }
+.sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.calc { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.calc .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--border); align-items: baseline; }
+.calc .row:last-child { border-bottom: 0; }
+.calc .row.skip { color: var(--faint); }
+.calc .row.final { background: var(--navy-soft); font-weight: 600; }
+.calc .n { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+.calc .how { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.calc .amt { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.calc .amt.d { color: var(--muted); font-size: 12px; margin-right: 8px; }
+.cand { border: 1px solid var(--border); border-radius: 6px; }
+.cand .r { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; }
+.cand .r:last-child { border-bottom: 0; }
+.cand .r.won { background: var(--good-soft); }
+.cand .r.lost { color: var(--muted); }
+.cand .r .why-l { font-size: 12px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.formula { font-family: var(--mono); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.formula b { color: var(--cf); font-weight: 600; }
+.margin-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; align-items: center; }
+input[type=range] { width: 100%; accent-color: var(--navy); }
+.callout { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; }
+.callout.crit { border-color: var(--crit); background: var(--crit-soft); }
+.callout.good { border-color: var(--good); background: var(--good-soft); }
+.callout.info { border-color: var(--navy); background: var(--navy-soft); }
+
+/* config sheets */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button { border: 0; background: transparent; padding: 8px 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; }
+.tabs button.active { color: var(--navy-ink); border-bottom-color: var(--navy); font-weight: 600; }
+.tabs button .chip { margin-left: 6px; }
+.banner { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 10px 14px; margin: -8px 0 14px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 8px; }
+.banner strong { color: var(--warn); }
+.basis { display: flex; flex-wrap: wrap; gap: 4px; }
+.basis .b { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+.when { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.type-b { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap; }
+.applies { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; max-width: 70ch; }
+.seq { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; }
+.seq .s { border: 1px solid var(--border-strong); border-radius: 4px; padding: 2px 8px; background: var(--panel); }
+.seq .arr { color: var(--faint); }
+.diff { font-family: var(--mono); font-size: 12px; }
+.diff .add { color: var(--good); } .diff .rem { color: var(--crit); }
+.vers { display: grid; grid-template-columns: 110px 1fr auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: start; }
+.vers:last-child { border-bottom: 0; }
+.delta.up { color: var(--crit); } .delta.down { color: var(--good); } .delta.same { color: var(--faint); }
+.empty { padding: 26px; text-align: center; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: 8px; }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; z-index: 40; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.proto { font-size: 11px; color: var(--faint); border: 1px dashed var(--border-strong); border-radius: 999px; padding: 1px 8px; }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; }
+  nav.side { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; }
+  nav.side .group { display: none; }
+  nav.side button { width: auto; }
+  main { padding: 16px; }
+  .context .hide-m { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><span class="name">PricingUnify</span><span class="tag">TSS Pricing Engine</span><span class="proto">clickable prototype</span></div>
+    <div class="context">
+      <span class="hide-m" id="ctx-entity"></span>
+      <span class="live"><span class="dot" id="ctx-dot"></span><span id="ctx-version"></span></span>
+      <span class="hide-m">Signed in: <b>bob</b> · Pricing admin</span>
+    </div>
+  </header>
+  <nav class="side" id="nav"></nav>
+  <main id="main"></main>
+</div>
+<div class="drawer-wrap" id="drawer-wrap"><div class="scrim" onclick="closeDrawer()"></div><aside class="drawer" id="drawer" aria-label="Why this price"></aside></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOTYPE ENGINE — mirrors the merged design: TSS regional build-up
+   (5 primitives, when-conditions, cost access sequence, constraints) for
+   cost plus; attribute rules, most-specific-wins, qty tiers for price lists;
+   catalog row → formula fallback for catalog + formula. Plain JS numbers here;
+   the real engine-core stays decimal.js.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const r2 = (n) => Math.round(n * 100) / 100;
+const fmt = (n, c) => (n === null || n === undefined || Number.isNaN(n)) ? '—' : n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (c ? ' ' + c : '');
+const pct = (r) => (r * 100).toFixed(r * 100 % 1 === 0 ? 0 : 1) + '%';
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const TYPES = { COST_PLUS: { code: 'cp', label: 'Cost plus' }, PRICE_LIST: { code: 'pl', label: 'Price list' }, CATALOG_FORMULA: { code: 'cf', label: 'Catalog + formula' } };
+const TYPE_LABEL = { BASE: 'Base cost', FACTOR: 'Factor %', ADDER: 'Flat add', PER_LINE: 'Flat add / order' };
+
+/* ── master data (would come from API6 / C4C) ─────────────────────────────── */
+const CUSTOMERS = {
+  'CUST-DE-001': { name: 'Bosch Rexroth AG', tier: 'A', country: 'DE', currency: 'EUR', ood: 'SAP', salesOrg: 'DE01' },
+  'CUST-DE-007': { name: 'HYDAC International', tier: 'B', country: 'DE', currency: 'EUR', ood: 'SAP', salesOrg: 'DE01' },
+  'CUST-US-002': { name: 'Parker Hannifin', tier: 'B', country: 'US', currency: 'USD', ood: 'SMA', salesOrg: 'US10' },
+  'CUST-CN-003': { name: 'Sany Heavy Industry', tier: 'A', country: 'CN', currency: 'CNY', ood: 'CN', salesOrg: 'CN01' },
+  'CUST-IN-004': { name: 'Tata Hitachi', tier: 'B', country: 'IN', currency: 'INR', ood: 'IN', salesOrg: 'IN01' },
+};
+const ROUTES = { SAP: { region: 'EUROPE', entity: 'TSS Germany' }, SMA: { region: 'AMERICAS', entity: 'TSS US Industrial' }, CN: { region: 'CHINA', entity: 'TSS China' }, IN: { region: 'INDIA', entity: 'TSS India' } };
+const cand = (id, value, currency, basis, system, table, field, confidence, validFrom) => ({ id, value, currency, basis, system, table, field, confidence, validFrom });
+const PARTS = {
+  'EU-T100':   { desc: 'Turcon® Stepseal® 2K rod seal, Ø60', family: 'Hydraulic seals', stockClassRaw: 'OMT', costs: { default: 'PIR_1', candidates: [cand('PIR_1', 100, 'EUR', 'SUPPLIER_CATALOG', 'CCD', 'EINE', 'NETPR', 'EXACT', '2026-08-01')] }, elements: { freight: 0.10, duty: 0.05, tariff: 0.08, pickCharge: 20, molv: 50, moq: 1 } },
+  'P-10023':   { desc: 'Zurcon® DA24 wiper seal, Ø45', family: 'Hydraulic seals', stockClassRaw: 'MTS', costs: { default: 'MAV_1', candidates: [cand('MAV_1', 100, 'EUR', 'MOVING_AVG', 'ERP', 'MBEW', 'VERPR', 'EXACT', '2026-08-01')] }, elements: { freight: 0.05, duty: 0.02, tariff: 0, pickCharge: 21, molv: 50, moq: 1 } },
+  'P-70200':   { desc: 'Glyd Ring® T piston seal, Ø80', family: 'Hydraulic seals', stockClassRaw: 'CMT', costs: { default: 'PIR_1', candidates: [cand('PIR_1', 150, 'EUR', 'SUPPLIER_CATALOG', 'CCD', 'EINE', 'NETPR', 'EXACT', '2026-08-01')] }, elements: { freight: 0.06, duty: 0.022, tariff: 0, pickCharge: 21, molv: 50, moq: 25 } },
+  'P-60150':   { desc: 'Rotary shaft seal FKM, Ø35', family: 'Rotary seals', stockClassRaw: 'MTS', costs: { default: 'ERP_1', candidates: [cand('ERP_1', 200, 'EUR', 'MOVING_AVG', 'ERP', 'MBEW', 'VERPR', 'EXACT', '2026-08-01'), cand('C4C_1', 180, 'EUR', 'MANUAL', 'C4C', 'QUOTE_LINE', 'MANUAL_COST', 'EXACT', '2026-08-20')] }, elements: { freight: 0.08, duty: 0.035, tariff: 0, pickCharge: 21, molv: 50, moq: 1 } },
+  'P-40012':   { desc: 'Back-up ring PTFE, Ø20', family: 'Hydraulic seals', stockClassRaw: 'MTO', costs: { default: 'SUP_1', candidates: [cand('SUP_1', 19.90, 'EUR', 'SUPPLIER_CATALOG', 'CCD', 'CATALOG', 'PRICE', 'FALLBACK', '2026-08-01')] }, elements: { freight: 0.015, duty: 0.004, tariff: 0, pickCharge: 21, molv: 50, moq: 1 } },
+  'P-90600':   { desc: 'Zurcon® U-cup 32×40, quantity-break part', family: 'Hydraulic seals', stockClassRaw: 'MTO', costs: { default: 'SUP_1', candidates: [cand('SUP_1', 18.49, 'EUR', 'SUPPLIER_CATALOG', 'JDE_E1', 'F41291', 'UNIT_COST', 'EXACT', '2026-08-01')] }, elements: { freight: 0, duty: 0, tariff: 0, pickCharge: 21, molv: 50, moq: 1 }, qtyBreaks: [{ minQty: 10, value: 18.49 }, { minQty: 25, value: 15.41 }, { minQty: 50, value: 12.84 }, { minQty: 100, value: 10.70 }, { minQty: 250, value: 7.58 }] },
+  'OR-25X3-NBR': { desc: 'O-Ring 25×3 NBR 70 Sh', family: 'O-Rings', spec: '25x3', variant: 'NBR70' },
+  'OR-40X5-FKM': { desc: 'O-Ring 40×5 FKM 75 Sh', family: 'O-Rings', spec: '40x5', variant: 'FKM75' },
+  'PTFE-BRG-120': { desc: 'PTFE slide bearing, Ø120 standard', family: 'PTFE bearings', spec: '120', variant: 'standard', diameter_mm: 120 },
+  'PTFE-BRG-137': { desc: 'PTFE slide bearing, Ø137 custom bore', family: 'PTFE bearings', spec: '137', variant: 'custom', diameter_mm: 137 },
+  'CN-T100':   { desc: 'Verification part, China', family: 'Hydraulic seals', stockClassRaw: 'MTS', ood: 'CN', costs: { default: 'JDE_1', candidates: [cand('JDE_1', 100, 'CNY', 'MOVING_AVG', 'JDE_CN', 'F4105', 'UNCS', 'EXACT', '2026-08-01')] }, elements: { molv: 500 } },
+  'IN-T100':   { desc: 'Verification part, India', family: 'Hydraulic seals', stockClassRaw: 'MTS', costs: { default: 'FS_1', candidates: [cand('FS_1', 100, 'INR', 'STANDARD', 'FOURTH_SHIFT', 'ITEM', 'COST', 'EXACT', '2026-08-01')] }, elements: {} },
+  'US-T100':   { desc: 'Verification part, Americas', family: 'Hydraulic seals', stockClassRaw: 'OMT', costs: { default: 'JDE_1', candidates: [cand('JDE_1', 100, 'USD', 'WEIGHTED_AVG', 'JDE_E1', 'F4105', 'UNCS', 'EXACT', '2026-08-01')] }, elements: { freight: 0.10, duty: 0.05, tariff: 0.08 } },
+};
+
+/* ── configuration (what the pricing team owns) ───────────────────────────── */
+const H = 'HUMAN';
+const LIVE_SEED = {
+  version: '2026.09.1', validFrom: '2026-09-01',
+  regions: {
+    EUROPE: { currency: 'EUR', sellMargin: 0.30, rounding: 2,
+      costAccessSequence: { NonMTS: ['CCD', 'C4C', 'ERP', 'CCP'], '*': ['C4C', 'ERP', 'CCD', 'CCP'] },
+      stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+      additionalCostMap: { 0: { label: 'Nothing to add', markup: false, landedCost: false, tariff: false, pick: false }, 1: { label: 'Landed cost & markup', markup: true, landedCost: true, tariff: true, pick: true }, 2: { label: 'Markup only', markup: true, landedCost: false, tariff: false, pick: false }, 3: { label: 'No landed cost and pick', markup: true, landedCost: false, tariff: true, pick: false }, 4: { label: 'Landed cost & markup, no tariff', markup: true, landedCost: true, tariff: false, pick: true } },
+      buildUp: [
+        { id: 'BASE_COST', type: 'BASE' },
+        { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: "item.includeMarkup !== false" },
+        { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"] },
+        { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"] },
+        { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'tariff', when: "item.includeTariff !== false" },
+        { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: "item.includePick !== false" },
+      ],
+      constraints: [{ id: 'MOLV', kind: 'FLOOR', minRef: 'molv', mode: 'PRICE' }, { id: 'MOQ', kind: 'MIN_QTY', minRef: 'moq' }] },
+    CHINA: { currency: 'CNY', sellMargin: 0.25, rounding: 2, costAccessSequence: { '*': ['JDE_CN', 'SAP'] },
+      stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS' },
+      buildUp: [
+        { id: 'BASE_COST', type: 'BASE' },
+        { id: 'ROUTE_JDE_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.032, when: "item.ood === 'CN'" },
+        { id: 'FREIGHT_DUTY_US', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.32, composite: true, when: ["item.ood !== 'CN'", "item.supplierCountry === 'US'"] },
+        { id: 'FREIGHT_DUTY_NONUS', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.21, composite: true, when: ["item.ood !== 'CN'", "item.supplierCountry !== 'US'"] },
+        { id: 'DIRECT_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier !== '88058'"] },
+        { id: 'LCE_MARKUP_BASE', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS'], rate: 0.032, when: ["item.ood !== 'CN'", "item.supplier === '88058'"] },
+        { id: 'LCE_MARKUP', type: 'FACTOR', basis: ['BASE_COST', 'FREIGHT_DUTY_US', 'FREIGHT_DUTY_NONUS', 'LCE_MARKUP_BASE'], rate: 0.06, when: ["item.ood !== 'CN'", "item.supplier === '88058'"] },
+      ],
+      constraints: [{ id: 'MOLV', kind: 'FLOOR', minRef: 'molv', mode: 'QUANTITY' }] },
+    INDIA: { currency: 'INR', sellMargin: 0.28, rounding: 2, costAccessSequence: { '*': ['FOURTH_SHIFT'] },
+      buildUp: [{ id: 'BASE_COST', type: 'BASE' }, { id: 'OVERSEAS_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.40, when: "item.supplierCountry !== 'IN'" }], constraints: [] },
+    AMERICAS: { currency: 'USD', sellMargin: 0.32, rounding: 2, costAccessSequence: { '*': ['JDE_E1'] },
+      stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS' },
+      buildUp: [
+        { id: 'BASE_COST', type: 'BASE' },
+        { id: 'LCA_HANDLING_LOCAL', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.067, when: "item.supplierCountry === 'US'" },
+        { id: 'LCA_HANDLING_OVERSEAS', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.105, when: "item.supplierCountry !== 'US'" },
+        { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'freight', when: "item.stockClass === 'NonMTS'" },
+        { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'duty', when: "item.stockClass === 'NonMTS'" },
+        { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'LCA_HANDLING_LOCAL', 'LCA_HANDLING_OVERSEAS'], rateRef: 'tariff', when: "item.stockClass === 'NonMTS'" },
+        { id: 'PICK_CHARGE', type: 'PER_LINE', amount: 34 },
+      ], constraints: [] },
+  },
+  suppliers: {
+    ACME:    { country: 'DE', molv: 300, warehouses: { EU01: { freight: 0.18, duty: 0.095, tariff: 0.12 }, US01: { freight: 0.25, duty: 0.15, tariff: 0.20 }, CN01: { freight: 0.30, duty: 0.20, tariff: 0.28 }, IN01: { freight: 0.22, duty: 0.12, tariff: 0.15 } } },
+    GLOBEX:  { country: 'NL', molv: 50, warehouses: { EU01: { freight: 0.08, duty: 0.04, tariff: 0.05 } } },
+    INITECH: { country: 'CN', molv: 50, warehouses: { EU01: { freight: 0.12, duty: 0.06, tariff: 0.20 }, CN01: { freight: 0.05, duty: 0.02, tariff: 0.03 } } },
+    TOKYO:   { country: 'JP', molv: 500, warehouses: { EU01: { freight: 0.20, duty: 0.11, tariff: 0.15 }, US01: { freight: 0.16, duty: 0.08, tariff: 0.22 } } },
+    BHARAT:  { country: 'IN', molv: 20, warehouses: { IN01: { freight: 0.05, duty: 0.02, tariff: 0.03 }, EU01: { freight: 0.28, duty: 0.14, tariff: 0.18 } } },
+    'US-ACME': { country: 'US', molv: null, warehouses: {} },
+  },
+  routing: [
+    { when: { family: 'O-Rings' }, type: 'PRICE_LIST', book: 'EU_SEALS' },
+    { when: { family: 'PTFE bearings' }, type: 'CATALOG_FORMULA', book: 'PTFE_BEARINGS' },
+  ],
+  priceLists: {
+    EU_SEALS: { name: 'EU standard seals', currency: 'EUR', appliesWhen: { region: 'EUROPE', family: 'O-Rings' },
+      dimensions: [{ attr: 'customer', label: 'Customer', weight: 100 }, { attr: 'tier', label: 'Tier', weight: 30 }, { attr: 'region', label: 'Region', weight: 20 }],
+      rows: [
+        { part: 'OR-25X3-NBR', match: {}, tiers: [{ from: 0, value: 1.20 }, { from: 500, value: 1.10 }, { from: 2000, value: 0.98 }], validFrom: '2026-01-01' },
+        { part: 'OR-25X3-NBR', match: { tier: 'A' }, tiers: [{ from: 0, value: 1.08 }, { from: 500, value: 0.99 }], validFrom: '2026-01-01' },
+        { part: 'OR-25X3-NBR', match: { customer: 'CUST-DE-001' }, tiers: [{ from: 0, value: 0.95 }], validFrom: '2026-07-01', validTo: '2026-12-31' },
+        { part: 'OR-40X5-FKM', match: {}, tiers: [{ from: 0, value: 3.40 }, { from: 250, value: 3.10 }], validFrom: '2026-01-01' },
+      ],
+      discount: [{ match: { tier: 'A' }, value: 0.03 }, { match: {}, value: 0 }],
+      constraints: [{ id: 'MOLV', kind: 'FLOOR', min: 100, mode: 'PRICE' }] },
+  },
+  catalogs: {
+    PTFE_BEARINGS: { name: 'PTFE slide bearings', currency: 'EUR', appliesWhen: { family: 'PTFE bearings' },
+      rows: [{ spec: '120', variant: 'standard', rate: 84.00 }, { spec: '160', variant: 'standard', rate: 112.00 }, { spec: '120', variant: 'FDA', rate: 96.00 }],
+      fallbackFormula: 'diameter_mm * cost.ptfe_rate_per_mm + cost.machining_setup / quantity',
+      costInputs: { ptfe_rate_per_mm: { value: 0.62, unit: 'EUR / mm Ø', validFrom: '2026-08-01', source: 'MANUAL' }, machining_setup: { value: 180, unit: 'EUR / order', validFrom: '2026-06-01', source: 'MANUAL' } },
+      freight: 0, margin: [{ match: { tier: 'A' }, value: 0.18 }, { match: {}, value: 0.22 }], floor: 0.12, discount: [{ match: { tier: 'A' }, value: 0.02 }, { match: {}, value: 0 }] },
+  },
+};
+
+let LIVE = clone(LIVE_SEED);
+let DRAFT = clone(LIVE_SEED);
+const VERSIONS = [
+  { version: '2026.08.0', validFrom: '2026-08-01', status: 'SUPERSEDED', by: 'seed@tss', changes: ['All four regions seeded from Appendix A', 'EUROPE freight/duty/tariff as % on base + markup'] },
+  { version: '2026.09.1', validFrom: '2026-09-01', status: 'ACTIVE', by: 'bob', changes: ['Price list EU standard seals added (O-Rings)', 'Catalog + formula book PTFE slide bearings added', 'Routing: O-Rings → price list, PTFE bearings → catalog'] },
+];
+
+/* ── engine ───────────────────────────────────────────────────────────────── */
+function readPath(o, p) { return p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o); }
+function parseLit(raw) { if (/^'.*'$/.test(raw) || /^".*"$/.test(raw)) return raw.slice(1, -1); if (raw === 'true') return true; if (raw === 'false') return false; if (raw === 'null') return null; const n = Number(raw); return Number.isNaN(n) ? raw : n; }
+function evalWhen(expr, scope) {
+  if (Array.isArray(expr)) return expr.every((e) => evalWhen(e, scope));
+  const m = String(expr).match(/^\s*([\w.]+)\s*(===|==|!==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
+  if (!m) throw new Error('Unsupported when: ' + expr);
+  const l = readPath(scope, m[1]), r = parseLit(m[3]);
+  switch (m[2]) { case '===': case '==': return l === r; case '!==': case '!=': return l !== r; case '>': return l > r; case '<': return l < r; case '>=': return l >= r; case '<=': return l <= r; }
+  return false;
+}
+const whenText = (w) => Array.isArray(w) ? w.join(' AND ') : (w || '—');
+const humanWhen = (w) => whenText(w).replace(/item\./g, '').replace(/ !== false/g, ' allowed').replace(/===/g, 'is').replace(/!==/g, 'is not').replace(/'/g, '');
+
+function costLadder(item, part, regionCfg) {
+  const seqCfg = regionCfg.costAccessSequence || {};
+  const seq = (item.stockClass && seqCfg[item.stockClass]) || seqCfg['*'] || [];
+  const cands = (part.costs?.candidates || []).map((c) => ({ ...c }));
+  const fates = [];
+  let chosen = null, selectedBy = null;
+  if (item.selectedCostId) { chosen = cands.find((c) => c.id === item.selectedCostId) || null; selectedBy = 'USER'; }
+  if (!chosen) for (const sys of seq) { const c = cands.find((x) => x.system === sys); if (c) { chosen = c; selectedBy = 'ACCESS_SEQUENCE:' + sys; break; } }
+  if (!chosen && cands.length) { chosen = cands.find((c) => c.id === part.costs.default) || cands[0]; selectedBy = 'DEFAULT'; }
+  for (const c of cands) fates.push({ ...c, won: chosen && c.id === chosen.id, reason: chosen && c.id === chosen.id ? (selectedBy === 'USER' ? 'picked by user' : selectedBy.startsWith('ACCESS') ? `first system in the ${item.stockClass || 'default'} cost order` : 'default candidate') : (seq.includes(c.system) ? `later in cost order (${seq.indexOf(c.system) + 1} of ${seq.length})` : 'system not in cost order') });
+  return { chosen, selectedBy, seq, fates };
+}
+
+function priceCostPlus(item, ctx, cfg) {
+  const part = PARTS[item.part];
+  const regionCfg = cfg.regions[ctx.region];
+  const cur = regionCfg.currency;
+  const it = { ...item };
+  // supplier terms → country + warehouse charges
+  const elements = { ...(part.elements || {}) };
+  const sup = it.supplier && cfg.suppliers[it.supplier];
+  const notes = [];
+  if (sup) {
+    if (!it.supplierCountry && sup.country) it.supplierCountry = sup.country;
+    if (sup.molv != null) { elements.molv = sup.molv; notes.push(`MOLV ${fmt(sup.molv)} from supplier ${it.supplier}`); }
+    const wh = it.warehouse && sup.warehouses[it.warehouse];
+    if (wh) { Object.assign(elements, wh); notes.push(`freight/duty/tariff from ${it.supplier} → ${it.warehouse}`); }
+    else if (it.warehouse) notes.push(`${it.supplier} has no terms for ${it.warehouse} — part data used`);
+  }
+  if (part.ood && !it.ood) it.ood = part.ood;
+  // stock class
+  if (regionCfg.stockClassMap && !it.stockClass) {
+    const raw = part.stockClassRaw;
+    if (!raw) return missing(item, 'STOCK_CLASS_NOT_PROVIDED', 'The part carries no ERP stock-class code.');
+    if (!(raw in regionCfg.stockClassMap)) return missing(item, 'STOCK_CLASS_UNMAPPED', `Raw code "${raw}" is not in the ${ctx.region} stock class map.`);
+    it.stockClass = regionCfg.stockClassMap[raw];
+  }
+  // additional cost flag
+  if (regionCfg.additionalCostMap && it.additionalCost !== undefined && it.additionalCost !== '') {
+    const m = regionCfg.additionalCostMap[it.additionalCost]; if (!m) return missing(item, 'ADDITIONAL_COST_UNMAPPED', `Option ${it.additionalCost} is unknown.`);
+    it.includeMarkup = m.markup; it.includeLandedCost = m.landedCost; it.includeTariff = m.tariff; it.includePick = m.pick;
+  }
+  // quantity break cost
+  if (part.qtyBreaks && !it.selectedCostId) {
+    const q = Number(it.quantity); const tier = [...part.qtyBreaks].filter((b) => b.minQty <= q).sort((a, b) => b.minQty - a.minQty)[0];
+    if (tier) { part.costs.candidates = part.costs.candidates.filter((c) => !c.id.startsWith('QTY_BREAK')); part.costs.candidates.push(cand('QTY_BREAK_' + tier.minQty, tier.value, cur, 'SUPPLIER_CATALOG', 'JDE_E1', 'F41291', 'QTY_BREAK', 'EXACT', '2026-08-01')); it.selectedCostId = 'QTY_BREAK_' + tier.minQty; notes.push(`quantity break ≥${tier.minQty} → ${fmt(tier.value)}`); }
+  }
+  const ladder = costLadder(it, part, regionCfg);
+  if (!ladder.chosen) return missing(item, 'COST_MISSING', `No cost candidate for ${item.part} in ${ctx.region}.`);
+  const scope = { item: it };
+  const stepValues = {}; const steps = []; let running = 0; const qty = Number(it.quantity) || 1;
+  for (const el of regionCfg.buildUp) {
+    if (el.when && !evalWhen(el.when, scope)) { stepValues[el.id] = 0; steps.push({ id: el.id, type: el.type, skipped: true, when: el.when, running }); continue; }
+    let delta, note = {};
+    if (el.type === 'BASE') { delta = ladder.chosen.value; note = { source: ladder.chosen.system }; }
+    else if (el.type === 'FACTOR') { const basisAmt = el.basis.reduce((s, b) => s + (stepValues[b] || 0), 0); const rate = el.rate !== undefined ? Number(el.rate) : elements[el.rateRef]; if (rate === undefined || rate === null) return missing(item, 'RATE_MISSING', `${el.id}: no rate in part data field "${el.rateRef}".`); delta = basisAmt * rate; note = { basis: el.basis, basisAmt, rate, rateSource: el.rate !== undefined ? 'CONFIG' : el.rateRef }; }
+    else if (el.type === 'ADDER') { const v = el.amount !== undefined ? Number(el.amount) : elements[el.amountRef]; if (v == null) return missing(item, 'AMOUNT_MISSING', `${el.id}: no amount.`); delta = v; note = { source: el.amount !== undefined ? 'CONFIG' : el.amountRef }; }
+    else if (el.type === 'PER_LINE') { const v = el.amount !== undefined ? Number(el.amount) : elements[el.amountRef]; if (v == null) return missing(item, 'AMOUNT_MISSING', `${el.id}: no amount.`); delta = v / qty; note = { source: el.amount !== undefined ? 'CONFIG' : el.amountRef, perOrder: v, qty }; }
+    stepValues[el.id] = delta; running += delta; steps.push({ id: el.id, type: el.type, delta, running, note });
+  }
+  let quantity = qty; const passes = [];
+  for (const c of regionCfg.constraints || []) {
+    const min = c.min !== undefined ? Number(c.min) : elements[c.minRef]; if (min == null) continue;
+    if (c.kind === 'FLOOR') { const lineTotal = running * quantity; if (lineTotal < min) { if (c.mode === 'QUANTITY') { const nq = Math.ceil(min / running); passes.push({ id: c.id, kind: 'FLOOR', mode: 'QUANTITY', min, from: lineTotal, quantityFrom: quantity, quantityTo: nq }); quantity = nq; } else { const adj = min / quantity; passes.push({ id: c.id, kind: 'FLOOR', mode: 'PRICE', min, from: running, to: adj }); running = adj; } } }
+    if (c.kind === 'MIN_QTY' && quantity < min) passes.push({ id: c.id, kind: 'MIN_QTY', min, quantity, warning: `Requested ${quantity} is below the minimum order quantity of ${min}.` });
+  }
+  const landed = r2(running);
+  const margin = item.marginOverride != null ? item.marginOverride : regionCfg.sellMargin;
+  const sell = r2(landed / (1 - margin));
+  const flags = [];
+  if (ladder.chosen.confidence !== 'EXACT') flags.push({ level: 'warn', text: `Cost is an ${ladder.chosen.confidence === 'FALLBACK' ? 'estimate (fallback source)' : ladder.chosen.confidence.toLowerCase()} — a binding quote would need a confirmed cost.` });
+  passes.filter((p) => p.kind === 'MIN_QTY').forEach((p) => flags.push({ level: 'warn', text: p.warning }));
+  passes.filter((p) => p.kind === 'FLOOR').forEach((p) => flags.push({ level: 'info', text: p.mode === 'QUANTITY' ? `Minimum order line value ${fmt(p.min, cur)}: quantity raised ${p.quantityFrom} → ${p.quantityTo}.` : `Minimum order line value ${fmt(p.min, cur)}: unit cost raised to ${fmt(p.to, cur)}.` }));
+  return { status: 'PRICED', type: 'COST_PLUS', part: item.part, currency: cur, quantity, unitCost: landed, unitPrice: sell, margin, flags, trace: { region: ctx.region, stockClass: it.stockClass, resolved: it, ladder, steps, passes, notes, elements, sellMargin: margin } };
+}
+
+function specificity(match, dims) { return Object.keys(match).reduce((s, k) => s + (dims.find((d) => d.attr === k)?.weight || 10), 0); }
+function matches(match, ctxAttrs) { return Object.entries(match).every(([k, v]) => String(ctxAttrs[k]) === String(v)); }
+function resolveRows(rows, ctxAttrs, dims, date) {
+  const cands = rows.map((r) => { const inDate = (!r.validFrom || r.validFrom <= date) && (!r.validTo || r.validTo >= date); const ok = matches(r.match || {}, ctxAttrs); const spec = specificity(r.match || {}, dims); return { row: r, ok, inDate, spec, reason: !inDate ? 'outside validity' : !ok ? 'condition not met' : '' }; });
+  const live = cands.filter((c) => c.ok && c.inDate).sort((a, b) => b.spec - a.spec);
+  const winner = live[0] || null; const ambiguous = live.length > 1 && live[1].spec === winner.spec;
+  cands.forEach((c) => { c.won = winner && c.row === winner.row; if (!c.won && c.ok && c.inDate) c.reason = `less specific (${c.spec} vs ${winner.spec})`; });
+  return { winner, cands, ambiguous };
+}
+function tierValue(tiers, qty) { return [...tiers].filter((t) => t.from <= qty).sort((a, b) => b.from - a.from)[0]; }
+
+function pricePriceList(item, ctx, cfg, bookId) {
+  const book = cfg.priceLists[bookId]; const part = PARTS[item.part]; const qty = Number(item.quantity) || 1; const cur = book.currency;
+  const attrs = { customer: ctx.customerId, tier: ctx.customer.tier, region: ctx.region, family: part.family };
+  const partRows = book.rows.filter((r) => r.part === item.part);
+  if (!partRows.length) return missing(item, 'NO_LIST_PRICE', `${item.part} has no row in the ${book.name} price list.`);
+  const res = resolveRows(partRows, attrs, book.dimensions, ctx.priceDate);
+  if (!res.winner) return missing(item, 'NO_MATCHING_ROW', `No price list row applies to this customer/region on ${ctx.priceDate}.`);
+  if (res.ambiguous) return missing(item, 'AMBIGUOUS_RULE', 'Two rows match with equal specificity — fix the price list.');
+  const tier = tierValue(res.winner.row.tiers, qty);
+  const steps = []; let running = tier.value;
+  steps.push({ id: 'LIST_PRICE', type: 'RULE', delta: tier.value, running, note: { how: `row ${describeMatch(res.winner.row.match)} · tier from ${tier.from}` } });
+  const disc = resolveRows(book.discount, attrs, book.dimensions, ctx.priceDate).winner;
+  const dv = disc ? disc.row.value : 0; const dd = -running * dv; running += dd;
+  steps.push({ id: 'CUST_DISC', type: 'PERCENT', delta: dd, running, skipped: dv === 0, note: { how: dv ? `${pct(dv)} for ${describeMatch(disc.row.match)}` : 'no discount row matched' }, rate: dv });
+  const passes = []; let quantity = qty;
+  for (const c of book.constraints || []) { if (c.kind === 'FLOOR' && running * quantity < c.min) { const adj = c.min / quantity; passes.push({ id: c.id, kind: 'FLOOR', mode: 'PRICE', min: c.min, from: running, to: adj }); running = adj; } }
+  const flags = passes.map((p) => ({ level: 'info', text: `Minimum order line value ${fmt(p.min, cur)}: unit price raised to ${fmt(p.to, cur)}.` }));
+  if (res.winner.row.validTo) flags.push({ level: 'info', text: `Customer-specific row valid until ${res.winner.row.validTo}.` });
+  return { status: 'PRICED', type: 'PRICE_LIST', part: item.part, currency: cur, quantity, unitCost: null, unitPrice: r2(running), margin: null, flags, trace: { region: ctx.region, book: bookId, attrs, resolution: res, tier, steps, passes } };
+}
+
+function evalFormula(src, vars) {
+  const toks = src.match(/\d+(\.\d+)?|[A-Za-z_][\w.]*|[-+*/^()]/g) || []; let i = 0; const used = {};
+  const peek = () => toks[i], next = () => toks[i++];
+  function prim() { const t = next(); if (t === '(') { const v = expr(); if (next() !== ')') throw new Error('Expected )'); return v; } if (t === '-') return -prim(); if (/^\d/.test(t)) return Number(t); if (/^[A-Za-z_]/.test(t)) { if (peek() === '(') { next(); const args = [expr()]; while (peek() === ',') { next(); args.push(expr()); } next(); return ({ min: Math.min, max: Math.max, round: Math.round })[t](...args); } const v = readPath(vars, t); if (v === undefined || v === null) throw Object.assign(new Error(`"${t}" has no value`), { missingVar: t }); used[t] = v; return Number(v); } throw new Error('Unexpected ' + t); }
+  function pow() { let v = prim(); while (peek() === '^') { next(); v = Math.pow(v, prim()); } return v; }
+  function mul() { let v = pow(); while (peek() === '*' || peek() === '/') { const o = next(); const r = pow(); v = o === '*' ? v * r : v / r; } return v; }
+  function expr() { let v = mul(); while (peek() === '+' || peek() === '-') { const o = next(); const r = mul(); v = o === '+' ? v + r : v - r; } return v; }
+  const value = expr(); if (i < toks.length) throw new Error('Unexpected ' + toks[i]);
+  return { value, used };
+}
+
+function priceCatalog(item, ctx, cfg, bookId) {
+  const book = cfg.catalogs[bookId]; const part = PARTS[item.part]; const qty = Number(item.quantity) || 1; const cur = book.currency;
+  const attrs = { tier: ctx.customer.tier, region: ctx.region, customer: ctx.customerId };
+  const checked = book.rows.map((r) => ({ row: r, ok: r.spec === part.spec && r.variant === part.variant }));
+  const hit = checked.find((c) => c.ok);
+  const steps = []; let running, formulaRes = null, source;
+  if (hit) { running = hit.row.rate; source = 'CATALOG'; steps.push({ id: 'CATALOG_RATE', type: 'RULE', delta: running, running, note: { how: `catalog row ${part.spec} / ${part.variant}` } }); }
+  else {
+    const vars = { diameter_mm: part.diameter_mm, quantity: qty, spec: part.spec, cost: Object.fromEntries(Object.entries(book.costInputs).map(([k, v]) => [k, v.value])) };
+    try { formulaRes = evalFormula(book.fallbackFormula, vars); } catch (e) { return missing(item, 'FORMULA_INPUT_MISSING', e.message); }
+    running = formulaRes.value; source = 'FORMULA';
+    steps.push({ id: 'FORMULA_COST', type: 'FORMULA', delta: running, running, note: { how: 'no catalog row — fallback formula' } });
+  }
+  const costBase = running;
+  const fr = book.freight || 0; running += fr; steps.push({ id: 'FREIGHT', type: 'ADDER', delta: fr, running, skipped: fr === 0, note: { how: fr ? 'flat per unit' : 'no freight for this book' } });
+  const landed = running;
+  let marginRate = 0, floorBreach = false;
+  if (source === 'FORMULA') {
+    const m = resolveRows(book.margin, attrs, [{ attr: 'tier', weight: 30 }, { attr: 'customer', weight: 100 }, { attr: 'region', weight: 20 }], ctx.priceDate).winner; marginRate = m ? m.row.value : 0;
+    const md = landed * marginRate; running += md; steps.push({ id: 'MARGIN', type: 'PERCENT', delta: md, running, note: { how: `${pct(marginRate)} on landed cost for ${describeMatch(m.row.match)}` }, rate: marginRate });
+  } else steps.push({ id: 'MARGIN', type: 'PERCENT', delta: 0, running, skipped: true, note: { how: 'catalog rate is already a negotiated sell price' } });
+  const d = resolveRows(book.discount, attrs, [{ attr: 'tier', weight: 30 }, { attr: 'customer', weight: 100 }], ctx.priceDate).winner; const dv = d ? d.row.value : 0; const dd = -running * dv; running += dd;
+  steps.push({ id: 'CUST_DISC', type: 'PERCENT', delta: dd, running, skipped: dv === 0, note: { how: dv ? `${pct(dv)} for ${describeMatch(d.row.match)}` : 'no discount row matched' }, rate: dv });
+  const flags = [];
+  if (source === 'FORMULA') { const realised = (running - landed) / landed; if (realised < book.floor) { floorBreach = true; flags.push({ level: 'crit', text: `Margin ${pct(realised)} is below the ${pct(book.floor)} floor after discount — needs pricing approval.` }); } }
+  if (source === 'FORMULA') flags.push({ level: 'info', text: 'Priced by formula — no negotiated rate exists for this size.' });
+  return { status: 'PRICED', type: 'CATALOG_FORMULA', part: item.part, currency: cur, quantity: qty, unitCost: source === 'FORMULA' ? r2(landed) : null, unitPrice: r2(running), margin: source === 'FORMULA' ? (running - landed) / landed : null, flags, floorBreach, trace: { region: ctx.region, book: bookId, checked, source, formula: book.fallbackFormula, formulaRes, costInputs: book.costInputs, steps, costBase } };
+}
+
+function missing(item, reason, detail) { return { status: 'MISSING', part: item.part, reason, detail, flags: [{ level: 'crit', text: detail }], trace: {} }; }
+function describeMatch(m) { const e = Object.entries(m || {}); return e.length ? e.map(([k, v]) => `${k} = ${v}`).join(', ') : 'everyone (default)'; }
+
+function resolveType(item, ctx, cfg) {
+  if (item.typeOverride) return { type: item.typeOverride.type, book: item.typeOverride.book, by: 'user' };
+  const part = PARTS[item.part]; if (!part) return { type: 'COST_PLUS', by: 'default' };
+  for (const r of cfg.routing) {
+    if (Object.entries(r.when).every(([k, v]) => part[k] === v)) {
+      const book = r.type === 'PRICE_LIST' ? cfg.priceLists[r.book] : cfg.catalogs[r.book];
+      const scope = book?.appliesWhen || {}; const ok = Object.entries(scope).every(([k, v]) => k === 'region' ? ctx.region === v : part[k] === v);
+      if (book && ok) return { type: r.type, book: r.book, by: `rule: ${describeMatch(r.when)}` };
+    }
+  }
+  return { type: 'COST_PLUS', by: 'default for the region' };
+}
+function priceLine(item, ctx, cfg) {
+  if (!PARTS[item.part]) return { ...missing(item, 'UNKNOWN_PART', `${item.part || '(blank)'} is not in the item master.`), type: 'COST_PLUS' };
+  const rt = resolveType(item, ctx, cfg);
+  let res;
+  if (rt.type === 'PRICE_LIST') res = pricePriceList(item, ctx, cfg, rt.book);
+  else if (rt.type === 'CATALOG_FORMULA') res = priceCatalog(item, ctx, cfg, rt.book);
+  else res = priceCostPlus(item, ctx, cfg);
+  res.type = rt.type; res.routedBy = rt.by; res.book = rt.book; return res;
+}
+function priceQuote(lines, ctx, cfg) { return lines.map((l) => priceLine(l, ctx, cfg)); }
+
+/* ── app state ────────────────────────────────────────────────────────────── */
+const state = {
+  screen: 'price', customerId: 'CUST-DE-001', region: 'EUROPE', priceDate: '2026-09-10', showMore: false,
+  lines: [
+    { id: 1, part: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01', stockClass: '', additionalCost: '' },
+    { id: 2, part: 'P-10023', quantity: 50, supplier: '', warehouse: '', stockClass: '', additionalCost: '' },
+    { id: 3, part: 'P-70200', quantity: 10, supplier: 'INITECH', warehouse: 'EU01', stockClass: '', additionalCost: '' },
+    { id: 4, part: 'P-40012', quantity: 20, supplier: '', warehouse: '', stockClass: '', additionalCost: '' },
+    { id: 5, part: 'OR-25X3-NBR', quantity: 500, supplier: '', warehouse: '', stockClass: '', additionalCost: '' },
+    { id: 6, part: 'PTFE-BRG-120', quantity: 4, supplier: '', warehouse: '', stockClass: '', additionalCost: '' },
+    { id: 7, part: 'PTFE-BRG-137', quantity: 2, supplier: '', warehouse: '', stockClass: '', additionalCost: '' },
+  ],
+  results: null, drawer: null, configTab: 'regions', regionTab: 'EUROPE', nextId: 8, suggestions: [], goLiveNote: '',
+};
+const ctxOf = () => ({ customerId: state.customerId, customer: CUSTOMERS[state.customerId], region: state.region, priceDate: state.priceDate });
+function reprice() { state.results = priceQuote(state.lines, ctxOf(), LIVE); }
+const isDirty = () => JSON.stringify(DRAFT) !== JSON.stringify(LIVE);
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200); }
+
+/* ── rendering ────────────────────────────────────────────────────────────── */
+function render() {
+  const dirty = isDirty();
+  document.getElementById('ctx-entity').textContent = `${ROUTES[CUSTOMERS[state.customerId].ood].entity} · ${state.region}`;
+  document.getElementById('ctx-version').textContent = dirty ? `v${LIVE.version} live · unsaved changes` : `v${LIVE.version} live`;
+  document.getElementById('ctx-dot').className = 'dot' + (dirty ? ' warn' : '');
+  const navItems = [['price', 'Price calculator'], ['config', 'Pricing rules'], ['golive', 'Go live & history']];
+  document.getElementById('nav').innerHTML = `<div class="label group">Work</div>` + navItems.map(([k, l], i) => (i === 1 ? `<div class="label group">Configure</div>` : '') + `<button class="${state.screen === k ? 'active' : ''}" onclick="go('${k}')">${l}${k === 'golive' && dirty ? '<span class="count">draft</span>' : ''}</button>`).join('');
+  const main = document.getElementById('main');
+  main.innerHTML = state.screen === 'price' ? renderPrice() : state.screen === 'config' ? renderConfig() : renderGoLive();
+}
+function go(s) { state.screen = s; render(); }
+
+function typeChip(type) { const t = TYPES[type]; return `<span class="chip ${t.code}">${t.label}</span>`; }
+function statusChip(r) { if (r.status === 'MISSING') return '<span class="chip crit">Missing</span>'; if (r.flags.some((f) => f.level === 'crit')) return '<span class="chip crit">Needs approval</span>'; if (r.flags.some((f) => f.level === 'warn')) return '<span class="chip warn">Check</span>'; return '<span class="chip good">Priced</span>'; }
+
+function renderPrice() {
+  if (!state.results) reprice();
+  const R = state.results; const cust = CUSTOMERS[state.customerId];
+  const priced = R.filter((r) => r.status === 'PRICED');
+  const totals = {}; priced.forEach((r) => { totals[r.currency] = (totals[r.currency] || 0) + r.unitPrice * r.quantity; });
+  const costTot = priced.filter((r) => r.unitCost != null).reduce((s, r) => s + r.unitCost * r.quantity, 0);
+  const sellTotCost = priced.filter((r) => r.unitCost != null).reduce((s, r) => s + r.unitPrice * r.quantity, 0);
+  const blended = sellTotCost ? (sellTotCost - costTot) / sellTotCost : null;
+  const attention = R.filter((r) => r.status !== 'PRICED' || r.flags.some((f) => f.level !== 'info')).length;
+  const supOpts = ['', ...Object.keys(LIVE.suppliers)].map((s) => `<option value="${s}">${s ? `${s} (${LIVE.suppliers[s].country})` : '— none —'}</option>`).join('');
+  const whOpts = ['', 'EU01', 'US01', 'CN01', 'IN01'].map((w) => `<option value="${w}">${w || '—'}</option>`).join('');
+  const rows = state.lines.map((l, i) => {
+    const r = R[i]; const part = PARTS[l.part]; const t = TYPES[r.type]; const rt = resolveType(l, ctxOf(), LIVE);
+    const typeSel = `<select class="type-select ${t.code}" onchange="setType(${l.id}, this.value)" title="Routed by ${esc(rt.by)}">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${k === r.type ? 'selected' : ''}>${v.label}${k === r.type && rt.by !== 'user' ? '' : ''}</option>`).join('')}</select>${rt.by === 'user' ? '<span class="chip neutral" title="Overridden by you">manual</span>' : ''}`;
+    return `<tr class="${state.drawer === l.id ? 'sel' : ''}">
+      <td><input type="text" class="mono" list="parts" value="${esc(l.part)}" onchange="setLine(${l.id},'part',this.value)" style="width:132px"><div class="small muted" style="margin-top:2px;max-width:220px">${esc(part?.desc || 'unknown part')}</div></td>
+      <td><input type="number" class="n" min="1" value="${l.quantity}" onchange="setLine(${l.id},'quantity',Number(this.value))">${r.status === 'PRICED' && r.quantity !== Number(l.quantity) ? `<div class="small warn" style="color:var(--warn)">→ ${r.quantity}</div>` : ''}</td>
+      <td>${typeSel}</td>
+      <td><select onchange="setLine(${l.id},'supplier',this.value)" ${r.type !== 'COST_PLUS' ? 'disabled title="Supplier terms only affect cost plus lines"' : ''}>${supOpts.replace(`value="${l.supplier}"`, `value="${l.supplier}" selected`)}</select></td>
+      <td><select onchange="setLine(${l.id},'warehouse',this.value)" ${r.type !== 'COST_PLUS' ? 'disabled' : ''}>${whOpts.replace(`value="${l.warehouse}"`, `value="${l.warehouse}" selected`)}</select></td>
+      <td><select onchange="setLine(${l.id},'stockClass',this.value)" ${r.type !== 'COST_PLUS' ? 'disabled' : ''}><option value="">auto</option><option ${l.stockClass === 'MTS' ? 'selected' : ''}>MTS</option><option ${l.stockClass === 'NonMTS' ? 'selected' : ''}>NonMTS</option></select>${r.trace?.stockClass ? `<div class="small muted">→ ${r.trace.stockClass}</div>` : ''}</td>
+      ${state.showMore ? `<td><select onchange="setLine(${l.id},'additionalCost',this.value)" ${r.type !== 'COST_PLUS' || !LIVE.regions[state.region].additionalCostMap ? 'disabled' : ''}><option value="">default</option>${Object.entries(LIVE.regions[state.region].additionalCostMap || {}).map(([k, v]) => `<option value="${k}" ${String(l.additionalCost) === k ? 'selected' : ''}>${k} – ${v.label}</option>`).join('')}</select></td>` : ''}
+      <td>${statusChip(r)}</td>
+      <td class="num mono">${r.status === 'PRICED' ? fmt(r.unitCost) : '—'}</td>
+      <td class="num mono"><b>${r.status === 'PRICED' ? fmt(r.unitPrice) : '—'}</b></td>
+      <td class="num mono">${r.status === 'PRICED' && r.margin != null ? pct(r.margin) : '—'}</td>
+      <td class="num mono">${r.status === 'PRICED' ? fmt(r.unitPrice * r.quantity) : '—'}</td>
+      <td style="white-space:nowrap"><button class="why" onclick="openDrawer(${l.id})">why?</button> <button class="btn ghost small" onclick="removeLine(${l.id})" aria-label="Remove line">×</button></td>
+    </tr>`;
+  }).join('');
+  const dl = `<datalist id="parts">${Object.keys(PARTS).map((p) => `<option value="${p}">${esc(PARTS[p].desc)}</option>`).join('')}</datalist>`;
+  return `
+  <div class="page-head"><div><h1>Price calculator</h1><p>Add the parts, the engine picks the pricing type per line from your rules, prices it, and explains every number.</p></div>
+    <div style="display:flex;gap:8px"><button class="btn" onclick="addLine()">+ Add line</button><button class="btn" onclick="toggleMore()">${state.showMore ? 'Fewer columns' : 'More columns'}</button><button class="btn primary" onclick="reprice();render();toast('Priced ' + state.lines.length + ' lines against v' + LIVE.version)">Price all lines</button></div></div>
+  <div class="controls">
+    <label class="field"><span>Customer</span><select onchange="setCustomer(this.value)">${Object.entries(CUSTOMERS).map(([k, c]) => `<option value="${k}" ${k === state.customerId ? 'selected' : ''}>${c.name} · tier ${c.tier}</option>`).join('')}</select></label>
+    <label class="field"><span>Region <span class="faint">(from customer's data origin ${cust.ood})</span></span><select onchange="state.region=this.value;reprice();render()">${Object.keys(LIVE.regions).map((r) => `<option ${r === state.region ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+    <label class="field"><span>Price date</span><input type="date" value="${state.priceDate}" onchange="state.priceDate=this.value;reprice();render()"></label>
+    <label class="field"><span>Quote</span><span class="mono" style="padding:6px 0">Q-2026-01847 · ${cust.salesOrg}</span></label>
+  </div>
+  <div class="summary">
+    <div class="stat"><div class="label">Lines priced</div><div class="v">${priced.length} / ${R.length}</div><div class="s">${attention ? `${attention} need attention` : 'nothing to check'}</div></div>
+    ${Object.entries(totals).map(([c, v]) => `<div class="stat"><div class="label">Quote total</div><div class="v">${fmt(v)} ${c}</div><div class="s">net, ex VAT</div></div>`).join('')}
+    <div class="stat"><div class="label">Blended margin</div><div class="v">${blended == null ? '—' : pct(blended)}</div><div class="s">on cost-based lines</div></div>
+    <div class="stat"><div class="label">Rules version</div><div class="v">v${LIVE.version}</div><div class="s">effective ${LIVE.validFrom} · ${ROUTES[cust.ood].entity}</div></div>
+  </div>
+  <div class="panel"><div class="scroll"><table>
+    <thead><tr><th>Part</th><th>Qty</th><th>Pricing type</th><th>Supplier</th><th>Warehouse</th><th>Stock class</th>${state.showMore ? '<th>Additional cost</th>' : ''}<th>Status</th><th class="num">Unit cost</th><th class="num">Unit price</th><th class="num">Margin</th><th class="num">Line total</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div class="body small muted">Cost plus lines land the cost from the region's rules and add the region's default margin (adjust per line in <b>why?</b>). Price list and catalog lines are sell prices — no cost is shown unless a formula built it.</div>
+  </div>${dl}`;
+}
+
+function setLine(id, k, v) { const l = state.lines.find((x) => x.id === id); l[k] = v; if (k === 'part') l.typeOverride = null; reprice(); render(); }
+function setType(id, type) { const l = state.lines.find((x) => x.id === id); const auto = resolveType({ ...l, typeOverride: null }, ctxOf(), LIVE); if (auto.type === type) l.typeOverride = null; else l.typeOverride = { type, book: type === 'PRICE_LIST' ? Object.keys(LIVE.priceLists)[0] : type === 'CATALOG_FORMULA' ? Object.keys(LIVE.catalogs)[0] : null }; reprice(); render(); }
+function setCustomer(id) { state.customerId = id; state.region = ROUTES[CUSTOMERS[id].ood].region; reprice(); render(); }
+function addLine() { state.lines.push({ id: state.nextId++, part: '', quantity: 1, supplier: '', warehouse: '', stockClass: '', additionalCost: '' }); reprice(); render(); }
+function removeLine(id) { state.lines = state.lines.filter((l) => l.id !== id); reprice(); render(); }
+function toggleMore() { state.showMore = !state.showMore; render(); }
+
+/* ── drawer: why this price ───────────────────────────────────────────────── */
+function openDrawer(id) { state.drawer = id; renderDrawer(); document.getElementById('drawer-wrap').classList.add('open'); render(); }
+function closeDrawer() { state.drawer = null; document.getElementById('drawer-wrap').classList.remove('open'); render(); }
+function setMargin(id, v) { const l = state.lines.find((x) => x.id === id); l.marginOverride = Number(v) / 100; reprice(); renderDrawer(); render(); }
+function resetMargin(id) { const l = state.lines.find((x) => x.id === id); delete l.marginOverride; reprice(); renderDrawer(); render(); }
+
+const SW = { BASE: 'var(--muted)', FACTOR: 'var(--cp)', ADDER: 'var(--cp)', PER_LINE: 'var(--cp)', RULE: 'var(--pl)', PERCENT: 'var(--pl)', FORMULA: 'var(--cf)' };
+function calcRows(steps, cur, finalLabel, finalValue) {
+  let n = 0;
+  return `<div class="calc">${steps.map((s) => {
+    n++;
+    const how = s.skipped ? (s.when ? `not applied — ${esc(humanWhen(s.when))}` : esc(s.note?.how || 'not applied')) : s.type === 'FACTOR' ? `${fmt(s.note.basisAmt)} (${s.note.basis.map((b) => b.replace(/_/g, ' ').toLowerCase()).join(' + ')}) × ${pct(s.note.rate)}${s.note.rateSource !== 'CONFIG' ? ` from ${s.note.rateSource}` : ''}` : s.type === 'PER_LINE' ? `${fmt(s.note.perOrder)} per order ÷ ${s.note.qty}` : s.type === 'BASE' ? `cost from ${s.note.source}` : esc(s.note?.how || '');
+    return `<div class="row ${s.skipped ? 'skip' : ''}"><span class="n">${n}</span><span>${s.type === 'BASE' || s.type === 'RULE' || s.type === 'FORMULA' ? '' : (s.delta < 0 ? '− ' : '+ ')}${esc(s.id.replace(/_/g, ' ').toLowerCase())}<span class="how">${how}</span></span><span>${s.skipped ? '<span class="amt d">—</span>' : `<span class="amt d">${s.delta < 0 ? '−' : '+'}${fmt(Math.abs(s.delta))}</span>`}<span class="amt">${s.skipped ? '' : fmt(s.running)}</span></span></div>`;
+  }).join('')}<div class="row final"><span class="n">=</span><span>${finalLabel}</span><span class="amt">${fmt(finalValue, cur)}</span></div></div>`;
+}
+function flagsHtml(flags) { return flags.length ? `<section><h3>Attention</h3><div style="display:grid;gap:8px">${flags.map((f) => `<div class="callout ${f.level === 'crit' ? 'crit' : f.level === 'info' ? 'info' : ''}">${esc(f.text)}</div>`).join('')}</div></section>` : ''; }
+
+function renderDrawer() {
+  const l = state.lines.find((x) => x.id === state.drawer); if (!l) return;
+  const i = state.lines.indexOf(l); const r = state.results[i]; const part = PARTS[l.part] || {}; const cur = r.currency || LIVE.regions[state.region].currency;
+  const d = document.getElementById('drawer');
+  const head = `<div class="dhead"><div><div class="part">${esc(l.part)}</div><div class="desc">${esc(part.desc || '')}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${typeChip(r.type)}<span class="chip neutral">${state.region}</span>${r.trace?.stockClass ? `<span class="chip neutral">${r.trace.stockClass}</span>` : ''}<span class="chip neutral">Qty ${r.quantity || l.quantity}</span>${r.book ? `<span class="chip neutral">${(LIVE.priceLists[r.book] || LIVE.catalogs[r.book]).name}</span>` : ''}</div><div class="small muted" style="margin-top:6px">Pricing type ${esc(r.routedBy)} · rules v${LIVE.version} · price date ${state.priceDate}</div></div>
+    <div class="price">${r.status === 'PRICED' ? `<div class="v">${fmt(r.unitPrice)}</div><div class="u">${cur} / unit</div>${r.unitCost != null ? `<div class="u">cost ${fmt(r.unitCost)} · margin ${pct(r.margin)}</div>` : ''}` : '<span class="chip crit">Missing</span>'}<div style="margin-top:8px"><button class="btn small" onclick="closeDrawer()">Close</button></div></div></div>`;
+  let body = '';
+  if (r.status === 'MISSING') body = `<section><h3>Why there is no price</h3><div class="callout crit"><b>${esc(r.reason)}</b><br>${esc(r.detail)}</div><p class="note">Nothing is ever priced at zero. Fix the input (or the rule) and price again.</p></section>`;
+  else if (r.type === 'COST_PLUS') {
+    const t = r.trace; const c = t.ladder.chosen;
+    body += `<section><h3>Cost used</h3><div class="cand">${t.ladder.fates.map((f) => `<div class="r ${f.won ? 'won' : 'lost'}"><div><span class="mono"><b>${fmt(f.value, f.currency)}</b></span> · ${f.basis.replace(/_/g, ' ').toLowerCase()} from <b>${f.system}</b> <span class="mono small muted">${f.table}.${f.field}</span> · valid from ${f.validFrom}<div class="why-l">${f.won ? '✓ ' : ''}${esc(f.reason)}${f.confidence !== 'EXACT' ? ` · <span style="color:var(--warn)">${f.confidence.toLowerCase()} confidence</span>` : ''}</div></div><span class="chip ${f.won ? 'good' : 'neutral'}">${f.won ? 'used' : 'not used'}</span></div>`).join('')}</div>
+      <div class="note">Cost source order for <b>${t.stockClass || 'this region'}</b>: <span class="seq">${t.ladder.seq.map((s, k) => `<span class="s">${s}</span>${k < t.ladder.seq.length - 1 ? '<span class="arr">→</span>' : ''}`).join('')}</span>${t.notes.length ? `<br>${t.notes.map(esc).join(' · ')}` : ''}</div></section>`;
+    body += `<section><h3>Cost build-up</h3><div class="cards">${t.steps.map((s) => `<div class="card ${s.skipped ? 'na' : ''}"><div class="k"><span class="sw" style="background:${s.skipped ? 'var(--border-strong)' : SW[s.type]}"></span>${esc(s.id.replace(/_/g, ' ').toLowerCase())}</div><div class="v">${s.skipped ? 'n/a' : fmt(s.delta)}</div></div>`).join('')}</div></section>`;
+    body += `<section><h3>Calculation</h3>${calcRows(t.steps, cur, 'Landed cost per unit' + (t.passes.some((p) => p.kind === 'FLOOR') ? ' (after order rules)' : ''), r.unitCost)}
+      ${t.passes.length ? `<div class="note"><b>Order rules:</b> ${t.passes.map((p) => p.kind === 'MIN_QTY' ? `MOQ ${p.min} (requested ${p.quantity}) — warning only` : p.mode === 'QUANTITY' ? `MOLV ${fmt(p.min)}: qty ${p.quantityFrom} → ${p.quantityTo}` : `MOLV ${fmt(p.min)}: ${fmt(p.from)} → ${fmt(p.to)} per unit`).join(' · ')}</div>` : ''}</section>`;
+    body += `<section><h3>Sell price</h3><div class="margin-row"><input type="number" step="0.5" min="0" max="90" value="${(t.sellMargin * 100).toFixed(1)}" onchange="setMargin(${l.id}, this.value)"><input type="range" min="0" max="70" step="0.5" value="${(t.sellMargin * 100).toFixed(1)}" oninput="setMargin(${l.id}, this.value)"><span class="mono"><b>${fmt(r.unitPrice, cur)}</b></span></div><div class="note">Sell = landed cost ÷ (1 − margin). Region default ${pct(LIVE.regions[state.region].sellMargin)}${l.marginOverride != null ? ` — <button class="btn ghost small" onclick="resetMargin(${l.id})">reset to default</button>` : ''}. Margin per unit ${fmt(r.unitPrice - r.unitCost, cur)}, line ${fmt((r.unitPrice - r.unitCost) * r.quantity, cur)}.</div></section>`;
+  } else if (r.type === 'PRICE_LIST') {
+    const t = r.trace; const book = LIVE.priceLists[t.book];
+    body += `<section><h3>Which row applied</h3><div class="cand">${t.resolution.cands.map((c) => `<div class="r ${c.won ? 'won' : 'lost'}"><div><b>${esc(describeMatch(c.row.match))}</b> <span class="small muted">specificity ${c.spec}</span><div class="why-l">${c.won ? '✓ most specific match' : esc(c.reason)} · tiers ${c.row.tiers.map((x) => `${x.from}+ ${fmt(x.value)}`).join(' / ')}${c.row.validTo ? ` · until ${c.row.validTo}` : ''}</div></div><span class="chip ${c.won ? 'good' : 'neutral'}">${c.won ? 'used' : 'not used'}</span></div>`).join('')}</div>
+      <div class="note">Matched on ${Object.entries(t.attrs).filter(([k]) => k !== 'family').map(([k, v]) => `${k} = <b>${esc(v)}</b>`).join(', ')}. Quantity ${r.quantity} falls in the tier from <b>${t.tier.from}</b> → ${fmt(t.tier.value, cur)}. More specific rows always win; equal specificity is an error, never a coin toss.</div></section>`;
+    body += `<section><h3>Calculation</h3>${calcRows(t.steps, cur, 'Net unit price' + (t.passes.length ? ' (after order rules)' : ''), r.unitPrice)}</section>`;
+  } else {
+    const t = r.trace; const book = LIVE.catalogs[t.book];
+    body += `<section><h3>Catalog or formula?</h3><div class="cand">${t.checked.map((c) => `<div class="r ${c.ok ? 'won' : 'lost'}"><div><span class="mono">Ø${c.row.spec} · ${c.row.variant}</span> — ${fmt(c.row.rate, cur)}<div class="why-l">${c.ok ? '✓ exact spec match' : `spec ${c.row.spec}/${c.row.variant} ≠ ${part.spec}/${part.variant}`}</div></div><span class="chip ${c.ok ? 'good' : 'neutral'}">${c.ok ? 'used' : 'no match'}</span></div>`).join('')}
+      <div class="r ${t.source === 'FORMULA' ? 'won' : 'lost'}"><div><b>Fallback formula</b><div class="why-l">${t.source === 'FORMULA' ? '✓ no catalog row for this size — formula prices it' : 'not needed — a catalog row matched'}</div></div><span class="chip ${t.source === 'FORMULA' ? 'cf' : 'neutral'}">${t.source === 'FORMULA' ? 'used' : 'skipped'}</span></div></div>
+      ${t.source === 'FORMULA' ? `<div class="formula" style="margin-top:10px">${esc(t.formula)}\n<span class="muted">= </span>${esc(t.formula.replace(/[A-Za-z_][\w.]*/g, (v) => (v in t.formulaRes.used ? String(t.formulaRes.used[v]) : v)))}<span class="muted"> = </span><b>${fmt(t.formulaRes.value)}</b></div>
+      <div class="kv" style="margin-top:10px">${Object.entries(t.formulaRes.used).map(([k, v]) => `<dt class="mono">${esc(k)}</dt><dd><span class="mono">${v}</span>${book.costInputs[k.replace('cost.', '')] ? ` <span class="small muted">${book.costInputs[k.replace('cost.', '')].unit} · valid from ${book.costInputs[k.replace('cost.', '')].validFrom} · ${book.costInputs[k.replace('cost.', '')].source.toLowerCase()}</span>` : ' <span class="small muted">from the line</span>'}</dd>`).join('')}</div>` : ''}</section>`;
+    body += `<section><h3>Calculation</h3>${calcRows(t.steps, cur, 'Net unit price', r.unitPrice)}${t.source === 'FORMULA' ? `<div class="note">Margin floor for this book: ${pct(book.floor)} on landed cost. ${r.floorBreach ? '<b style="color:var(--crit)">Breached after discount.</b>' : 'Respected.'}</div>` : ''}</section>`;
+  }
+  d.innerHTML = head + (r.status === 'PRICED' ? flagsHtml(r.flags) : '') + body + `<section><h3>Sent to the customer as</h3><div class="kv"><dt>Unit price</dt><dd class="mono">${r.status === 'PRICED' ? fmt(r.unitPrice, cur) : '—'}</dd><dt>Quantity</dt><dd class="mono">${r.quantity || l.quantity}</dd><dt>Line total</dt><dd class="mono">${r.status === 'PRICED' ? fmt(r.unitPrice * r.quantity, cur) : '—'}</dd><dt>Trace id</dt><dd class="mono small">PD-2026-09-10-${String(l.id).padStart(4, '0')}</dd></div></section>`;
+}
+
+/* ── configuration ────────────────────────────────────────────────────────── */
+function renderConfig() {
+  const dirty = isDirty();
+  const tabs = [['regions', 'Regions · cost plus', 'cp'], ['pricelists', 'Price lists', 'pl'], ['catalogs', 'Catalog + formula', 'cf'], ['routing', 'Which type applies', ''], ['suppliers', 'Suppliers', '']];
+  return `<div class="page-head"><div><h1>Pricing rules</h1><p>Every number behind a price lives here, as tables you can edit. Changes wait as a draft until you go live.</p></div><div><span class="chip neutral">Editing draft of v${LIVE.version}</span></div></div>
+  ${dirty ? `<div class="banner"><strong>Unsaved changes</strong><span class="muted small">${diffSummary().length} change${diffSummary().length === 1 ? '' : 's'} — nothing prices with them until you go live.</span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn small" onclick="discard()">Discard</button><button class="btn primary small" onclick="go('golive')">Review & go live →</button></span></div>` : ''}
+  <div class="tabs">${tabs.map(([k, l, c]) => `<button class="${state.configTab === k ? 'active' : ''}" onclick="state.configTab='${k}';render()">${l}</button>`).join('')}</div>
+  ${{ regions: renderRegions, pricelists: renderPriceLists, catalogs: renderCatalogs, routing: renderRouting, suppliers: renderSuppliers }[state.configTab]()}`;
+}
+function setD(path, value) { const ks = path.split('/'); let o = DRAFT; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; const last = ks[ks.length - 1]; o[last] = value; render(); }
+function numD(path, value) { setD(path, value === '' ? null : Number(value)); }
+function pctD(path, value) { setD(path, value === '' ? null : Number(value) / 100); }
+function discard() { DRAFT = clone(LIVE); render(); toast('Draft discarded — back to v' + LIVE.version); }
+
+function renderRegions() {
+  const rg = state.regionTab; const R = DRAFT.regions[rg]; const base = `regions/${rg}`;
+  const buildUp = R.buildUp.map((el, i) => `<tr>
+    <td class="mono">${esc(el.id)}</td><td><span class="type-b">${TYPE_LABEL[el.type]}</span>${el.composite ? ' <span class="small muted">composite</span>' : ''}</td>
+    <td>${el.type === 'FACTOR' ? `<div class="basis">${el.basis.map((b) => `<span class="b">${esc(b)}</span>`).join('')}</div>` : el.type === 'PER_LINE' ? '<span class="small muted">÷ quantity</span>' : '<span class="small muted">—</span>'}</td>
+    <td>${el.type === 'BASE' ? '<span class="small muted">resolved cost</span>' : el.rate !== undefined ? `<input type="number" class="n" step="0.1" value="${(el.rate * 100).toFixed(2).replace(/\.?0+$/, '')}" onchange="pctD('${base}/buildUp/${i}/rate', this.value)"> %` : el.rateRef ? `<span class="mono small">${esc(el.rateRef)} %</span> <span class="small muted">from part / supplier</span>` : el.amount !== undefined ? `<input type="number" class="n" step="1" value="${el.amount}" onchange="numD('${base}/buildUp/${i}/amount', this.value)"> ${R.currency}` : `<span class="mono small">${esc(el.amountRef)}</span> <span class="small muted">from part data</span>`}</td>
+    <td class="when">${esc(humanWhen(el.when))}</td>
+    <td><button class="btn ghost small danger" onclick="DRAFT.regions['${rg}'].buildUp.splice(${i},1);render()" ${el.type === 'BASE' ? 'disabled' : ''}>remove</button></td></tr>`).join('');
+  const cons = (R.constraints || []).map((c, i) => `<tr><td class="mono">${c.id}</td><td>${c.kind === 'FLOOR' ? 'Minimum order line value' : c.kind === 'MIN_QTY' ? 'Minimum order quantity (warning)' : 'Pack step'}</td><td>${c.kind === 'FLOOR' ? `<select onchange="setD('${base}/constraints/${i}/mode', this.value)"><option ${c.mode === 'PRICE' ? 'selected' : ''} value="PRICE">raise the unit price</option><option ${c.mode === 'QUANTITY' ? 'selected' : ''} value="QUANTITY">raise the quantity</option></select>` : '—'}</td><td class="mono small">${c.min !== undefined ? c.min : `${c.minRef} · from part / supplier`}</td></tr>`).join('');
+  const seq = R.costAccessSequence || {};
+  return `<div class="tabs" style="border:0;margin-bottom:8px">${Object.keys(DRAFT.regions).map((r) => `<button class="${r === rg ? 'active' : ''}" onclick="state.regionTab='${r}';render()">${r}</button>`).join('')}</div>
+  <div class="grid g2" style="margin-bottom:14px">
+    <div class="panel"><div class="head"><h2>Where the cost comes from</h2><span class="small muted">first system with a cost wins</span></div><div class="body">
+      ${Object.entries(seq).map(([k, s]) => `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><span class="label" style="width:80px">${k === '*' ? 'Default' : k}</span><span class="seq">${s.map((x, j) => `<span class="s">${x}</span>${j < s.length - 1 ? '<span class="arr">→</span>' : ''}`).join('')}</span></div>`).join('')}
+      <div class="note">A user's manual cost on the quote line (C4C) still wins when they pick it. Which system was actually used is always named in the price trace.</div></div></div>
+    <div class="panel"><div class="head"><h2>Sell price</h2></div><div class="body"><div class="kv"><dt>Default margin</dt><dd><input type="number" class="n" step="0.5" value="${(R.sellMargin * 100).toFixed(1)}" onchange="pctD('${base}/sellMargin', this.value)"> % <span class="small muted">sell = landed ÷ (1 − margin); reps can adjust per line</span></dd><dt>Currency</dt><dd class="mono">${R.currency}</dd><dt>Rounding</dt><dd class="mono">half-up, ${R.rounding} dp</dd></div></div></div>
+  </div>
+  <div class="panel" style="margin-bottom:14px"><div class="head"><h2>Landed cost build-up · ${rg}</h2><button class="btn small" onclick="addFactor('${rg}')">+ Add factor</button></div>
+    <div class="scroll"><table><thead><tr><th>Step</th><th>Type</th><th>Applies to</th><th>Rate / amount</th><th>When</th><th></th></tr></thead><tbody>${buildUp}</tbody></table></div>
+    <div class="body note">Order matters: each step is added on top of the running total, and a factor % is applied to exactly the steps listed under “applies to”. A step whose condition is not met contributes zero and still shows in the trace as “not applied”.</div></div>
+  <div class="grid g2">
+    <div class="panel"><div class="head"><h2>Order rules</h2></div>${cons ? `<div class="scroll"><table><thead><tr><th>Rule</th><th>Meaning</th><th>When below the minimum</th><th>Minimum</th></tr></thead><tbody>${cons}</tbody></table></div>` : '<div class="body muted">No order rules in this region.</div>'}</div>
+    ${R.stockClassMap ? `<div class="panel"><div class="head"><h2>Stock class map</h2><span class="small muted">ERP code → MTS / Non-MTS</span></div><div class="body"><div class="applies">${Object.entries(R.stockClassMap).map(([k, v]) => `<span class="chip neutral"><span class="mono">${k}</span> → ${v}</span>`).join('')}</div><div class="note">A part with an unmapped code is never priced silently — it comes back as Missing.</div></div></div>` : ''}
+    ${R.additionalCostMap ? `<div class="panel"><div class="head"><h2>Additional cost options</h2><span class="small muted">the line-level selector in C4C</span></div><div class="scroll"><table><thead><tr><th>Option</th><th>Markup</th><th>Freight + duty</th><th>Tariff</th><th>Pick</th></tr></thead><tbody>${Object.entries(R.additionalCostMap).map(([k, m]) => `<tr><td>${k} – ${m.label}</td>${['markup', 'landedCost', 'tariff', 'pick'].map((f) => `<td><input type="checkbox" ${m[f] ? 'checked' : ''} onchange="setD('${base}/additionalCostMap/${k}/${f}', this.checked)"></td>`).join('')}</tr>`).join('')}</tbody></table></div></div>` : ''}
+  </div>`;
+}
+function addFactor(rg) { const R = DRAFT.regions[rg]; const id = prompt('Step id (e.g. HANDLING_SURCHARGE)', 'NEW_FACTOR'); if (!id) return; R.buildUp.push({ id: id.toUpperCase().replace(/\W+/g, '_'), type: 'FACTOR', basis: ['BASE_COST'], rate: 0.02, when: undefined }); render(); toast('Factor added to the draft — set its rate and go live to use it'); }
+
+function renderPriceLists() {
+  const id = Object.keys(DRAFT.priceLists)[0]; const B = DRAFT.priceLists[id]; const base = `priceLists/${id}`;
+  const rows = B.rows.map((r, i) => `<tr><td><input type="text" class="mono" list="parts" value="${esc(r.part)}" onchange="setD('${base}/rows/${i}/part', this.value)" style="width:130px"></td>
+    ${B.dimensions.map((d) => `<td><input type="text" value="${esc(r.match[d.attr] ?? '')}" placeholder="any" onchange="setMatch('${base}/rows/${i}', '${d.attr}', this.value)" style="width:110px"></td>`).join('')}
+    <td class="num"><span class="chip neutral">${specificity(r.match, B.dimensions)}</span></td>
+    <td><div style="display:flex;gap:6px;flex-wrap:wrap">${r.tiers.map((t, j) => `<span class="chip neutral" style="gap:4px"><span class="small muted">${t.from}+</span><input type="number" step="0.01" value="${t.value}" onchange="numD('${base}/rows/${i}/tiers/${j}/value', this.value)" style="width:70px;padding:1px 4px;border:0;background:transparent;text-align:right"></span>`).join('')}<button class="btn ghost small" onclick="addTier('${base}/rows/${i}')">+ tier</button></div></td>
+    <td><input type="date" value="${r.validFrom || ''}" onchange="setD('${base}/rows/${i}/validFrom', this.value)"> <input type="date" value="${r.validTo || ''}" onchange="setD('${base}/rows/${i}/validTo', this.value || undefined)"></td>
+    <td><button class="btn ghost small danger" onclick="DRAFT.priceLists['${id}'].rows.splice(${i},1);render()">remove</button></td></tr>`).join('');
+  return `<div class="panel" style="margin-bottom:14px"><div class="head"><div><h2>${esc(B.name)} <span class="chip pl">Price list</span></h2><div class="small muted">Applies when ${describeMatch(B.appliesWhen)} · ${B.currency} · net, ex VAT</div></div><div style="display:flex;gap:8px"><button class="btn small">Import CSV</button><button class="btn small" onclick="DRAFT.priceLists['${id}'].rows.push({part:'',match:{},tiers:[{from:0,value:0}],validFrom:state.priceDate});render()">+ Add row</button></div></div>
+    <div class="scroll"><table><thead><tr><th>Part</th>${B.dimensions.map((d) => `<th>${d.label} <span class="faint">w${d.weight}</span></th>`).join('')}<th class="num">Specificity</th><th>Price by quantity</th><th>Valid from / to</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="body note">Leave a dimension blank to mean “any”. When several rows fit a line, the one with the highest specificity wins — a customer-specific row (100) beats a tier row (30) beats a default (0). Two rows with equal specificity are flagged as an error at go-live, never resolved by chance.</div></div>
+  <div class="grid g2">
+    <div class="panel"><div class="head"><h2>After the list price</h2></div><div class="scroll"><table><thead><tr><th>Step</th><th>Condition</th><th class="num">Rate</th></tr></thead><tbody>
+      ${B.discount.map((d, i) => `<tr><td>Customer discount</td><td>${esc(describeMatch(d.match))}</td><td class="num"><input type="number" class="n" step="0.5" value="${(d.value * 100).toFixed(1)}" onchange="pctD('${base}/discount/${i}/value', this.value)"> %</td></tr>`).join('')}
+      ${B.constraints.map((c, i) => `<tr><td>Minimum order line value</td><td>raise the unit price</td><td class="num"><input type="number" class="n" value="${c.min}" onchange="numD('${base}/constraints/${i}/min', this.value)"> ${B.currency}</td></tr>`).join('')}
+    </tbody></table></div></div>
+    <div class="panel"><div class="head"><h2>Dimensions</h2><span class="small muted">the columns a row can condition on</span></div><div class="body"><div class="kv">${B.dimensions.map((d, i) => `<dt>${d.label}</dt><dd>weight <input type="number" class="n" value="${d.weight}" onchange="numD('${base}/dimensions/${i}/weight', this.value)" style="width:64px"> <span class="small muted mono">${d.attr}</span></dd>`).join('')}</div><div class="note">Adding a dimension (e.g. sales org, product group) is one row here — no code, no migration.</div></div></div>
+  </div><datalist id="parts">${Object.keys(PARTS).map((p) => `<option value="${p}">`).join('')}</datalist>`;
+}
+function setMatch(path, attr, v) { const ks = path.split('/'); let o = DRAFT; for (const k of ks) o = o[k]; if (v === '') delete o.match[attr]; else o.match[attr] = v; render(); }
+function addTier(path) { const ks = path.split('/'); let o = DRAFT; for (const k of ks) o = o[k]; const last = o.tiers[o.tiers.length - 1]; const from = prompt('Tier starts at quantity', String((last.from || 0) * 2 || 100)); if (!from) return; o.tiers.push({ from: Number(from), value: last.value }); render(); }
+
+function renderCatalogs() {
+  const id = Object.keys(DRAFT.catalogs)[0]; const B = DRAFT.catalogs[id]; const base = `catalogs/${id}`;
+  let preview = ''; try { const v = evalFormula(B.fallbackFormula, { diameter_mm: 137, quantity: 2, cost: Object.fromEntries(Object.entries(B.costInputs).map(([k, x]) => [k, x.value])) }); preview = `<span class="chip good">valid</span> <span class="small muted">e.g. Ø137, qty 2 → ${fmt(v.value, B.currency)}</span>`; } catch (e) { preview = `<span class="chip crit">${esc(e.message)}</span>`; }
+  return `<div class="grid g2" style="margin-bottom:14px">
+    <div class="panel"><div class="head"><div><h2>${esc(B.name)} <span class="chip cf">Catalog + formula</span></h2><div class="small muted">Applies when ${describeMatch(B.appliesWhen)} · ${B.currency}</div></div><button class="btn small" onclick="DRAFT.catalogs['${id}'].rows.push({spec:'',variant:'standard',rate:0});render()">+ Add size</button></div>
+      <div class="scroll"><table><thead><tr><th>Size Ø</th><th>Variant</th><th class="num">Negotiated rate</th><th></th></tr></thead><tbody>${B.rows.map((r, i) => `<tr><td><input type="text" class="mono" value="${esc(r.spec)}" onchange="setD('${base}/rows/${i}/spec', this.value)" style="width:80px"></td><td><input type="text" value="${esc(r.variant)}" onchange="setD('${base}/rows/${i}/variant', this.value)" style="width:110px"></td><td class="num"><input type="number" class="n" step="0.5" value="${r.rate}" onchange="numD('${base}/rows/${i}/rate', this.value)"></td><td><button class="btn ghost small danger" onclick="DRAFT.catalogs['${id}'].rows.splice(${i},1);render()">remove</button></td></tr>`).join('')}</tbody></table></div>
+      <div class="body note">A line whose exact size and variant is listed here gets this rate as its sell price. Anything else falls through to the formula.</div></div>
+    <div class="panel"><div class="head"><h2>Fallback formula</h2>${preview}</div><div class="body">
+      <textarea class="mono" rows="2" style="width:100%" onchange="setD('${base}/fallbackFormula', this.value)">${esc(B.fallbackFormula)}</textarea>
+      <div class="note">You can use <span class="mono">diameter_mm</span>, <span class="mono">quantity</span>, <span class="mono">spec</span> from the line, any <span class="mono">cost.*</span> input below, and <span class="mono">min / max / round</span>. No other code runs — the formula is checked before it can go live.</div>
+      <h3 class="label" style="margin:14px 0 8px">Cost inputs</h3>
+      <table><thead><tr><th>Input</th><th class="num">Value</th><th>Unit</th><th>Valid from</th><th>Source</th></tr></thead><tbody>${Object.entries(B.costInputs).map(([k, c]) => `<tr><td class="mono">cost.${k}</td><td class="num"><input type="number" class="n" step="0.01" value="${c.value}" onchange="numD('${base}/costInputs/${k}/value', this.value)"></td><td class="small">${esc(c.unit)}</td><td><input type="date" value="${c.validFrom}" onchange="setD('${base}/costInputs/${k}/validFrom', this.value)"></td><td class="small muted">${c.source.toLowerCase()}</td></tr>`).join('')}</tbody></table>
+      <div class="note">Cost inputs are effective-dated on their own: update a rate weekly without touching the formula or the catalog.</div></div></div>
+  </div>
+  <div class="panel"><div class="head"><h2>From cost to price (formula lines only)</h2><span class="small muted">catalog rates are already sell prices</span></div><div class="scroll"><table><thead><tr><th>Step</th><th>Condition</th><th class="num">Rate</th></tr></thead><tbody>
+    <tr><td>Freight</td><td>flat per unit</td><td class="num"><input type="number" class="n" value="${B.freight}" onchange="numD('${base}/freight', this.value)"> ${B.currency}</td></tr>
+    ${B.margin.map((m, i) => `<tr><td>Margin on landed cost</td><td>${esc(describeMatch(m.match))}</td><td class="num"><input type="number" class="n" step="0.5" value="${(m.value * 100).toFixed(1)}" onchange="pctD('${base}/margin/${i}/value', this.value)"> %</td></tr>`).join('')}
+    <tr><td>Margin floor</td><td>after discount · breach → needs approval</td><td class="num"><input type="number" class="n" step="0.5" value="${(B.floor * 100).toFixed(1)}" onchange="pctD('${base}/floor', this.value)"> %</td></tr>
+    ${B.discount.map((d, i) => `<tr><td>Customer discount</td><td>${esc(describeMatch(d.match))}</td><td class="num"><input type="number" class="n" step="0.5" value="${(d.value * 100).toFixed(1)}" onchange="pctD('${base}/discount/${i}/value', this.value)"> %</td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+
+function renderRouting() {
+  return `<div class="panel" style="margin-bottom:14px"><div class="head"><div><h2>Which pricing type applies</h2><div class="small muted">Checked top to bottom per line; the first rule that fits decides. Anything left over is cost plus for the customer's region.</div></div><button class="btn small" onclick="DRAFT.routing.push({when:{family:''},type:'PRICE_LIST',book:Object.keys(DRAFT.priceLists)[0]});render()">+ Add rule</button></div>
+  <div class="scroll"><table><thead><tr><th>#</th><th>When the part's family is</th><th>Price with</th><th>Book</th><th></th></tr></thead><tbody>
+    ${DRAFT.routing.map((r, i) => `<tr><td class="mono muted">${i + 1}</td><td><input type="text" value="${esc(r.when.family || '')}" onchange="setD('routing/${i}/when/family', this.value)"></td><td><select onchange="setD('routing/${i}/type', this.value)"><option value="PRICE_LIST" ${r.type === 'PRICE_LIST' ? 'selected' : ''}>Price list</option><option value="CATALOG_FORMULA" ${r.type === 'CATALOG_FORMULA' ? 'selected' : ''}>Catalog + formula</option></select></td><td><select onchange="setD('routing/${i}/book', this.value)">${Object.entries(r.type === 'PRICE_LIST' ? DRAFT.priceLists : DRAFT.catalogs).map(([k, b]) => `<option value="${k}" ${k === r.book ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></td><td><button class="btn ghost small danger" onclick="DRAFT.routing.splice(${i},1);render()">remove</button></td></tr>`).join('')}
+    <tr><td class="mono muted">${DRAFT.routing.length + 1}</td><td class="muted">everything else</td><td>${typeChip('COST_PLUS')}</td><td class="muted">the region's landed-cost rules</td><td></td></tr>
+  </tbody></table></div>
+  <div class="body note">A rep can still override the type on a line — that shows as “manual” in the trace. Each book also has its own “applies when” scope (region, family) that must fit, so a European price list never prices a China line by accident.</div></div>
+  <div class="panel"><div class="head"><h2>Customer → region</h2><span class="small muted">from the customer's data origin + sales org</span></div><div class="scroll"><table><thead><tr><th>Data origin</th><th>Region</th><th>Legal entity</th></tr></thead><tbody>${Object.entries(ROUTES).map(([k, r]) => `<tr><td class="mono">${k}</td><td>${r.region}</td><td>${r.entity}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function renderSuppliers() {
+  return `<div class="panel"><div class="head"><div><h2>Suppliers</h2><div class="small muted">Independent of region: a supplier ships to warehouses everywhere. Freight, duty and tariff are % on (base cost + markup) per destination warehouse; MOLV is supplier-wide.</div></div><button class="btn small">+ Supplier</button></div>
+  <div class="scroll"><table><thead><tr><th>Supplier</th><th>Country</th><th class="num">MOLV</th><th>Warehouse</th><th class="num">Freight %</th><th class="num">Duty %</th><th class="num">Tariff %</th></tr></thead><tbody>
+  ${Object.entries(DRAFT.suppliers).map(([s, S]) => { const whs = Object.entries(S.warehouses); const first = `<td rowspan="${Math.max(whs.length, 1)}" class="mono"><b>${s}</b></td><td rowspan="${Math.max(whs.length, 1)}">${S.country}</td><td rowspan="${Math.max(whs.length, 1)}" class="num"><input type="number" class="n" value="${S.molv ?? ''}" placeholder="—" onchange="numD('suppliers/${s}/molv', this.value)"></td>`; if (!whs.length) return `<tr>${first}<td colspan="4" class="muted small">no warehouse terms — part data is used</td></tr>`; return whs.map(([w, t], i) => `<tr>${i === 0 ? first : ''}<td class="mono">${w}</td>${['freight', 'duty', 'tariff'].map((f) => `<td class="num"><input type="number" class="n" step="0.5" value="${(t[f] * 100).toFixed(1)}" onchange="pctD('suppliers/${s}/warehouses/${w}/${f}', this.value)"></td>`).join('')}</tr>`).join(''); }).join('')}
+  </tbody></table></div></div>`;
+}
+
+/* ── go live & history ────────────────────────────────────────────────────── */
+function flat(o, p = '') { const out = {}; for (const [k, v] of Object.entries(o || {})) { const path = p ? `${p}.${k}` : k; if (v && typeof v === 'object') Object.assign(out, flat(v, path)); else out[path] = v; } return out; }
+function diffSummary() {
+  const a = flat(LIVE), b = flat(DRAFT); const keys = new Set([...Object.keys(a), ...Object.keys(b)]); const out = [];
+  for (const k of keys) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out.push({ path: k, from: a[k], to: b[k] });
+  return out.sort((x, y) => x.path.localeCompare(y.path));
+}
+function humanPath(p) { return p.replace(/^regions\.(\w+)\.buildUp\.(\d+)\.(\w+)/, (m, r, i, f) => `${r} · ${DRAFT.regions[r].buildUp[i]?.id || LIVE.regions[r].buildUp[i]?.id || 'step ' + i} · ${f}`).replace(/^regions\.(\w+)\.sellMargin/, '$1 · default margin').replace(/^priceLists\.(\w+)\.rows\.(\d+)\.tiers\.(\d+)\.value/, (m, b, i, j) => `${LIVE.priceLists[b].name} · ${(DRAFT.priceLists[b].rows[i] || {}).part} · tier ${j}`).replace(/^catalogs\.(\w+)\.costInputs\.(\w+)\.value/, '$1 · cost.$2').replace(/^suppliers\.(\w+)\.warehouses\.(\w+)\.(\w+)/, '$1 → $2 · $3').replace(/\./g, ' · '); }
+function fmtVal(v) { return v === undefined ? '—' : typeof v === 'number' && v < 1 && v > -1 && v !== 0 ? pct(v) : String(v); }
+
+function renderGoLive() {
+  const diff = diffSummary(); const dirty = diff.length > 0;
+  let sim = '';
+  if (dirty) {
+    const before = state.results || priceQuote(state.lines, ctxOf(), LIVE); const after = priceQuote(state.lines, ctxOf(), DRAFT);
+    const rows = state.lines.map((l, i) => { const b = before[i], a = after[i]; const bp = b.status === 'PRICED' ? b.unitPrice * b.quantity : null, ap = a.status === 'PRICED' ? a.unitPrice * a.quantity : null; const d = bp != null && ap != null ? ap - bp : null; return `<tr><td class="mono">${esc(l.part)}</td><td>${typeChip(a.type)}</td><td class="num mono">${bp == null ? '—' : fmt(bp)}</td><td class="num mono">${ap == null ? '—' : fmt(ap)}</td><td class="num mono delta ${d == null ? 'same' : d > 0.005 ? 'up' : d < -0.005 ? 'down' : 'same'}">${d == null ? (a.status !== b.status ? a.status : '—') : (d > 0 ? '+' : '') + fmt(d)}</td><td>${a.status === 'PRICED' && a.flags.some((f) => f.level === 'crit') ? '<span class="chip crit">floor</span>' : a.status === 'MISSING' ? '<span class="chip crit">missing</span>' : ''}</td></tr>`; }).join('');
+    const tb = before.filter((r) => r.status === 'PRICED').reduce((s, r) => s + r.unitPrice * r.quantity, 0), ta = after.filter((r) => r.status === 'PRICED').reduce((s, r) => s + r.unitPrice * r.quantity, 0);
+    sim = `<div class="panel" style="margin-bottom:14px"><div class="head"><div><h2>What would change</h2><div class="small muted">Your open quote repriced with the draft — before anyone else sees it.</div></div><span class="chip ${ta - tb > 0.005 ? 'warn' : ta - tb < -0.005 ? 'good' : 'neutral'}">${(ta - tb >= 0 ? '+' : '') + fmt(ta - tb)} on the quote total</span></div>
+      <div class="scroll"><table><thead><tr><th>Part</th><th>Type</th><th class="num">Live (v${LIVE.version})</th><th class="num">Draft</th><th class="num">Δ line total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="body note">In the product this replays the last 500 priced documents of the affected books, not just the open quote — revenue and margin deltas, affected customers, rows that never match, floor crossings.</div></div>`;
+  }
+  const changes = dirty ? `<div class="panel" style="margin-bottom:14px"><div class="head"><h2>Changes in this draft</h2><span class="chip warn">${diff.length}</span></div><div class="scroll"><table><thead><tr><th>What</th><th>Live</th><th>Draft</th></tr></thead><tbody>${diff.map((d) => `<tr><td>${esc(humanPath(d.path))}</td><td class="diff"><span class="rem">${esc(fmtVal(d.from))}</span></td><td class="diff"><span class="add">${esc(fmtVal(d.to))}</span></td></tr>`).join('')}</tbody></table></div>
+    <div class="body" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap"><label class="field" style="flex:1;min-width:240px"><span>Note for the history</span><input type="text" placeholder="e.g. Q4 freight increase from ACME" value="${esc(state.goLiveNote)}" onchange="state.goLiveNote=this.value"></label><label class="field"><span>Effective from</span><input type="date" id="golive-date" value="${state.priceDate}"></label><button class="btn" onclick="discard()">Discard</button><button class="btn primary" onclick="goLive()">Go live</button></div>
+    <div class="body small muted" style="padding-top:0">Go live creates version v${nextVersion()} and supersedes v${LIVE.version} from the effective date. Nothing is edited in place — any past quote reprices exactly as it did.</div></div>` : `<div class="empty" style="margin-bottom:14px">No unsaved changes. Edit any table under <a href="#" onclick="go('config');return false">Pricing rules</a> and it appears here as a draft.</div>`;
+  const hist = `<div class="panel" style="margin-bottom:14px"><div class="head"><h2>Version history</h2><label class="field" style="flex-direction:row;align-items:center;gap:8px"><span>Price as of</span><input type="date" value="${state.priceDate}" onchange="state.priceDate=this.value;reprice();render()"></label></div><div class="body">
+    ${[...VERSIONS].reverse().map((v) => `<div class="vers"><div><div class="mono"><b>v${v.version}</b></div><span class="chip ${v.status === 'ACTIVE' ? 'good' : 'neutral'}">${v.status.toLowerCase()}</span></div><div><div class="small muted">effective ${v.validFrom} · by ${v.by}</div><ul style="margin:4px 0 0;padding-left:18px">${v.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div><div><button class="btn small">Compare</button></div></div>`).join('')}
+    <div class="note">Effective dating is real: set the price date to before a version's effective date and the calculator prices with the version that was live then (in this prototype, the price-list row valid until 2026-12-31 demonstrates it).</div></div></div>`;
+  const ai = `<div class="panel"><div class="head"><div><h2>Ask for a rule change in plain language</h2><div class="small muted">Turns a sentence into a draft change you review — it never edits rules on its own.</div></div></div><div class="body">
+    <div style="display:flex;gap:8px"><input type="text" id="ai-input" style="flex:1" placeholder="e.g. Set EUROPE SCM markup to 5%   ·   Set ACME freight to 20% for EU01" onkeydown="if(event.key==='Enter')aiSuggest()"><button class="btn" onclick="aiSuggest()">Propose</button></div>
+    ${state.suggestions.map((s, i) => `<div class="callout ${s.ok ? 'info' : ''}" style="margin-top:10px"><div><b>“${esc(s.text)}”</b></div><div class="small" style="margin-top:4px">${esc(s.message)}</div>${s.ok && !s.done ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="btn primary small" onclick="aiApply(${i})">Add to draft</button><button class="btn small" onclick="state.suggestions.splice(${i},1);render()">Reject</button></div>` : s.done ? '<div class="small muted" style="margin-top:4px">added to the draft · pending go live · logged with model, prompt and approver</div>' : ''}</div>`).join('')}
+  </div></div>`;
+  return `<div class="page-head"><div><h1>Go live & history</h1><p>Review what changed, see what it would do to real prices, then publish a new version.</p></div></div>${sim}${changes}${hist}${ai}`;
+}
+function nextVersion() { const [y, m, n] = LIVE.version.split('.'); const now = state.priceDate.slice(0, 7).replace('-', '.'); return now === `${y}.${m}` ? `${y}.${m}.${Number(n) + 1}` : `${now}.1`; }
+function goLive() {
+  const diff = diffSummary(); if (!diff.length) return;
+  const eff = document.getElementById('golive-date')?.value || state.priceDate; const v = nextVersion();
+  VERSIONS.forEach((x) => { if (x.status === 'ACTIVE') x.status = 'SUPERSEDED'; });
+  VERSIONS.push({ version: v, validFrom: eff, status: 'ACTIVE', by: 'bob', changes: [state.goLiveNote || 'Rule change', ...diff.slice(0, 4).map((d) => `${humanPath(d.path)}: ${fmtVal(d.from)} → ${fmtVal(d.to)}`), ...(diff.length > 4 ? [`+${diff.length - 4} more`] : [])] });
+  LIVE = clone(DRAFT); LIVE.version = v; LIVE.validFrom = eff; DRAFT = clone(LIVE); state.goLiveNote = ''; state.suggestions.forEach((s) => { if (s.done) s.published = true; });
+  reprice(); render(); toast(`v${v} is live — ${diff.length} change${diff.length === 1 ? '' : 's'} now price every new line`);
+}
+function aiSuggest() {
+  const text = document.getElementById('ai-input').value.trim(); if (!text) return;
+  let m, s = { text, ok: false, message: 'I could not map that to a rule. Try “Set EUROPE SCM_MARKUP to 5%” or “Set ACME freight to 20% for EU01”.' };
+  if ((m = text.match(/set\s+(\w+)\s+([\w ]+?)\s+to\s+([\d.]+)\s*%/i)) && DRAFT.regions[m[1].toUpperCase()]) { const rg = m[1].toUpperCase(); const id = m[2].trim().toUpperCase().replace(/\s+/g, '_'); const idx = DRAFT.regions[rg].buildUp.findIndex((e) => e.id === id); if (idx >= 0 && DRAFT.regions[rg].buildUp[idx].rate !== undefined) s = { text, ok: true, message: `Change ${rg} · ${id} rate from ${pct(DRAFT.regions[rg].buildUp[idx].rate)} to ${m[3]}%. Basis stays ${DRAFT.regions[rg].buildUp[idx].basis.join(' + ')}.`, apply: () => { DRAFT.regions[rg].buildUp[idx].rate = Number(m[3]) / 100; } }; else s.message = `${rg} has no editable factor called ${id}.`; }
+  else if ((m = text.match(/set\s+([\w-]+)\s+(freight|duty|tariff)\s+to\s+([\d.]+)\s*%\s+for\s+(\w+)/i)) && DRAFT.suppliers[m[1].toUpperCase()]) { const sup = m[1].toUpperCase(), f = m[2].toLowerCase(), wh = m[4].toUpperCase(); const t = DRAFT.suppliers[sup].warehouses[wh]; if (t) s = { text, ok: true, message: `Change ${sup} → ${wh} ${f} from ${pct(t[f])} to ${m[3]}%.`, apply: () => { DRAFT.suppliers[sup].warehouses[wh][f] = Number(m[3]) / 100; } }; else s.message = `${sup} has no terms for warehouse ${wh}.`; }
+  state.suggestions.unshift(s); document.getElementById('ai-input').value = ''; render();
+}
+function aiApply(i) { const s = state.suggestions[i]; s.apply(); s.done = true; render(); toast('Added to the draft — review under “Changes in this draft”'); }
+
+reprice(); render();
+</script>

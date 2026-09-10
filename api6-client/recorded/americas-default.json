@@ -140,5 +140,22 @@
       "stockClassRaw": "MTO"
     }
   },
-  "fx": {}
+  "fx": {},
+  "items": {
+    "US-P001": {
+      "family": "Hydraulic seals"
+    },
+    "US-P002": {
+      "family": "Hydraulic seals"
+    },
+    "US-P003": {
+      "family": "Hydraulic seals"
+    },
+    "US-P004": {
+      "family": "Hydraulic seals"
+    },
+    "US-T100": {
+      "family": "Hydraulic seals"
+    }
+  }
 }

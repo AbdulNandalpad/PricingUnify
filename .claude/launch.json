@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "app-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=app", "--", "--port", "5173", "--strictPort"],
+      "port": 5173,
+      "env": { "VITE_API_MODE": "mock" }
+    },
+    {
+      "name": "app-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=app", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
+    }
+  ]
+}

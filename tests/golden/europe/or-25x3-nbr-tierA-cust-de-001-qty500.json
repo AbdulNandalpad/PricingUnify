@@ -1,0 +1,43 @@
+{
+  "name": "EUROPE price list OR-25X3-NBR qty 500, CUST-DE-001 (tier A): customer row 0.95, tier-A discount 3% = 0.92",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-DE-001",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "OR-25X3-NBR",
+        "quantity": 500
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "europe-default",
+  "config": {
+    "region": "EUROPE"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "OR-25X3-NBR",
+        "status": "PRICED",
+        "technique": "PRICE_LIST",
+        "book": "EU_SEALS",
+        "routedBy": "RULE:0",
+        "unitPrice": "0.92",
+        "landedCost": null,
+        "margin": null,
+        "currency": "EUR",
+        "flags": [
+          "ROW_EXPIRES"
+        ]
+      }
+    ]
+  }
+}

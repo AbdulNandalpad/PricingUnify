@@ -1,0 +1,50 @@
+{
+  "name": "INDIA IN-T100: local supplier 100 INR raw; overseas +40% = 140; sell / 0.72 = 138.89 / 194.44",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-IN-004",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "IN-T100",
+        "quantity": 1,
+        "supplierCountry": "IN"
+      },
+      {
+        "partNumber": "IN-T100",
+        "quantity": 1
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "india-default",
+  "config": {
+    "region": "INDIA"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "IN-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "138.89",
+        "landedCost": "100",
+        "margin": "0.28",
+        "currency": "INR"
+      },
+      {
+        "partNumber": "IN-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "194.44",
+        "landedCost": "140"
+      }
+    ]
+  }
+}

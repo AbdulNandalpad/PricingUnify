@@ -75,6 +75,24 @@
       },
       "additionalProperties": true
     },
+    "sell": {
+      "type": "object",
+      "description": "Cost plus sell price (ARCHITECTURE_V2 §2.2, owner decision 2026-09-10): unitPrice = landedCost / (1 - margin). `defaultMargin` applies to every cost-plus line unless the line carries its own marginOverride. Optional — a region without it prices unitPrice = landedCost, exactly as before v2.",
+      "required": ["defaultMargin"],
+      "properties": {
+        "defaultMargin": { "type": ["number", "string"], "description": "Fraction in [0, 1): 0.30 = 30% margin on the sell price." },
+        "rounding": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["HALF_UP", "HALF_EVEN", "UP", "DOWN", "CEIL", "FLOOR"] },
+            "decimalPlaces": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["mode", "decimalPlaces"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "provenance": { "$ref": "provenance.schema.json" }
   },
   "additionalProperties": false

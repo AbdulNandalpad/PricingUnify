@@ -4,14 +4,12 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // engine-core is a CommonJS workspace package linked via node_modules symlink;
-  // without this Vite resolves the real path outside node_modules and serves it
-  // as raw source instead of running it through CJS->ESM interop.
+  // Workspace packages are linked via node_modules symlinks; resolving through the symlink
+  // keeps them inside node_modules for Vite's dependency handling.
   resolve: { preserveSymlinks: true },
-  optimizeDeps: { include: ['@tss-pricing/engine-core'] },
   server: {
-    // Backend-orchestrated mode calls srv/ (CAP, default port 4004) — proxying avoids
-    // needing CORS-friendly absolute URLs or VITE_API_BASE_URL for local dev.
+    // The app calls srv/ (CAP, default port 4004) — proxying avoids CORS and VITE_API_BASE_URL
+    // for local dev. Set VITE_API_MODE=mock to run without a backend (see src/mockApi.js).
     proxy: { '/rest': 'http://localhost:4004' },
   },
 })

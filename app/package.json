@@ -2,7 +2,7 @@
   "name": "@tss-pricing/app",
   "private": true,
   "version": "0.1.0",
-  "description": "Standalone dev UI for engine-core — runs the pricing kernel client-side, no CAP/DB. Becomes the C4C mashup embed in Phase 3.",
+  "description": "PricingUnify UI (React + Vite) — the validated prototype's screens, calling srv/ over the §4.3 REST contract. Never prices in the browser; VITE_API_MODE=mock runs it on sample data without a backend.",
   "type": "module",
   "scripts": {
     "dev": "vite",

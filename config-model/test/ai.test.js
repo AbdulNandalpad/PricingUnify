@@ -64,7 +64,10 @@ test('suggestConfigChange rejects a currentConfig for the wrong salesOrg', async
   );
 });
 
-test('an approved suggestion becomes a new, valid, ACTIVE version that engine-core can price against', async () => {
+// v2 contract change (ARCHITECTURE_V2 §4.3, four-eyes): approving an AI suggestion produces a
+// DRAFT, not an ACTIVE version — someone still has to publish it. This test used to assert
+// ACTIVE directly after approval.
+test('an approved suggestion becomes a new, valid DRAFT; once published, engine-core prices against it', async () => {
   const store = new ConfigStore();
   const base = store.saveVersion(europeConfig());
   const aiClient = createFakeClient(tariffSurchargePatch());
@@ -74,10 +77,17 @@ test('an approved suggestion becomes a new, valid, ACTIVE version that engine-co
 
   const applied = applySuggestion(suggestion, { store, approvedBy: 'head-of-pricing@tss.example', newVersion: '2026.08.1' });
 
-  assert.equal(applied.status, 'ACTIVE');
+  assert.equal(applied.status, 'DRAFT');
   assert.equal(applied.provenance.source, 'AI_SUGGESTED');
   assert.equal(applied.provenance.approvedBy, 'head-of-pricing@tss.example');
   assert.equal(suggestion.status, 'APPLIED');
+  assert.equal(suggestion.resultingVersion, '2026.08.1');
+  assert.equal(store.getVersion('EUROPE', '*', '2026.08.0').status, 'ACTIVE', 'approval alone changes nothing live');
+  assert.equal(store.getEffectiveAsOf('EUROPE', '*', '2026-08-15').version, '2026.08.0');
+
+  await store.publish('region-config', 'EUROPE::*', '2026.08.1', { publishedBy: 'pricing-director@tss.example' });
+  assert.equal(applied.status, 'ACTIVE');
+  assert.equal(applied.provenance.publishedBy, 'pricing-director@tss.example');
   assert.equal(store.getVersion('EUROPE', '*', '2026.08.0').status, 'SUPERSEDED');
 
   const facts = {
@@ -144,6 +154,8 @@ test('an AI suggestion scoped to one sales org only patches that sales org\'s co
     }),
   );
   applySuggestion(suggestion, { store, approvedBy: 'head-of-pricing@tss.example', newVersion: 'DE01-2026.08.1' });
+  assert.equal(store.getEffectiveAsOf('EUROPE', 'DE01', '2026-08-15').version, 'DE01-2026.08.0', 'the approved DRAFT does not price yet');
+  await store.publish('region-config', 'EUROPE::DE01', 'DE01-2026.08.1', { publishedBy: 'pricing-director@tss.example' });
 
   assert.equal(store.getEffectiveAsOf('EUROPE', 'DE01', '2026-08-15').version, 'DE01-2026.08.1');
   assert.equal(store.getEffectiveAsOf('EUROPE', '*', '2026-08-15').version, '2026.08.0', 'region default is untouched');

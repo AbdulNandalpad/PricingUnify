@@ -228,5 +228,37 @@
       "stockClassRaw": "MTS"
     }
   },
-  "fx": {}
+  "fx": {},
+  "items": {
+    "CN-P001": {
+      "family": "Hydraulic seals"
+    },
+    "CN-P002": {
+      "family": "Hydraulic seals"
+    },
+    "CN-P003": {
+      "family": "Hydraulic seals"
+    },
+    "CN-P004": {
+      "family": "Hydraulic seals"
+    },
+    "CN-P005": {
+      "family": "Hydraulic seals"
+    },
+    "CN-P006": {
+      "family": "Hydraulic seals"
+    },
+    "CN-K001-A": {
+      "family": "Kits"
+    },
+    "CN-K001-B": {
+      "family": "Kits"
+    },
+    "CN-K002-BAD": {
+      "family": "Kits"
+    },
+    "CN-T100": {
+      "family": "Hydraulic seals"
+    }
+  }
 }

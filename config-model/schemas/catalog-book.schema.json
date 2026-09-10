@@ -1,0 +1,120 @@
+{
+  "$id": "catalog-book.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CatalogBook",
+  "description": "Catalog + formula book (ARCHITECTURE_V2 §2.7): a negotiated SELL rate where a row matches the part's `matchOn` attributes exactly; otherwise a COST built by `fallbackFormula` (formula DSL v1) from the line's attributes and the book's effective-dated cost inputs, then freight, margin (with a floor), and customer discount. A catalog rate never gets margin — it already is the sell price.",
+  "type": "object",
+  "required": ["id", "name", "version", "status", "validFrom", "currency", "dsl_version", "rows", "provenance"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "dsl_version": { "const": 1, "description": "Formula DSL grammar version the fallbackFormula is written in — engine-core refuses anything it does not know." },
+    "appliesWhen": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "matchOn": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Product attributes a catalog row must match exactly (default ['spec', 'variant'])."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["match", "rate"],
+        "properties": {
+          "match": { "type": "object", "minProperties": 1, "additionalProperties": { "type": ["string", "number", "boolean"] } },
+          "rate": { "type": ["string", "number"], "description": "The negotiated SELL price for this exact spec — no margin is applied on top." },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "fallbackFormula": {
+      "type": ["string", "null"],
+      "description": "Formula DSL v1 expression producing a COST for a spec with no row. May reference the part's numeric attributes (e.g. diameter_mm), `quantity`, and `cost.<name>` for every name in costInputs."
+    },
+    "costInputs": {
+      "type": "object",
+      "description": "Effective-dated inputs the fallback formula reads as cost.<name>. A name maps to one input or to a list of versions; the one in force on the price date is used.",
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/definitions/costInput" },
+          { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/costInput" } }
+        ]
+      }
+    },
+    "freight": { "type": ["string", "number", "null"], "description": "Absolute per-unit freight adder on formula lines and catalog lines alike (0 = skipped with a note in the trace)." },
+    "margin": {
+      "type": "array",
+      "description": "Margin rules for FORMULA lines, resolved most-specific-wins over `dimensions`. Skipped for catalog rows (the rate is already a sell price).",
+      "items": { "$ref": "#/definitions/percentRule" }
+    },
+    "floor": { "type": ["string", "number", "null"], "description": "Minimum realised margin on formula lines after discount — below it the line is flagged MARGIN_FLOOR (crit), never silently accepted." },
+    "discount": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/percentRule" }
+    },
+    "dimensions": {
+      "type": "array",
+      "description": "Dimensions margin/discount rules may match on (default: customer 100, tier 30, region 20).",
+      "items": {
+        "type": "object",
+        "required": ["attr", "weight"],
+        "properties": {
+          "attr": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "weight": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rounding": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["HALF_UP", "HALF_EVEN", "UP", "DOWN", "CEIL", "FLOOR"] },
+        "decimalPlaces": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["mode", "decimalPlaces"],
+      "additionalProperties": false
+    },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "percentRule": {
+      "type": "object",
+      "required": ["match", "value"],
+      "properties": {
+        "match": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "value": { "type": ["string", "number"] },
+        "validFrom": { "type": ["string", "null"], "format": "date" },
+        "validTo": { "type": ["string", "null"], "format": "date" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "costInput": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": { "type": ["string", "number"] },
+        "unit": { "type": "string" },
+        "validFrom": { "type": ["string", "null"], "format": "date" },
+        "validTo": { "type": ["string", "null"], "format": "date" },
+        "source": { "enum": ["MANUAL", "IMPORTED", "AI_DERIVED", "ESTIMATE", "HUMAN"], "description": "AI_DERIVED / ESTIMATE inputs are FALLBACK confidence — a BINDING request refuses to price on them (§2.8)." },
+        "confidence": { "enum": ["EXACT", "FALLBACK", "STALE"] },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

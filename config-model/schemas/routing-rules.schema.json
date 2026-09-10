@@ -1,0 +1,32 @@
+{
+  "$id": "routing-rules.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RoutingRules",
+  "description": "Which pricing technique prices a line (ARCHITECTURE_V2 §2.5). A single versioned document (key \"*\"): rules are tried top to bottom on the part's product attributes; the first whose `when` fits AND whose target book's own `appliesWhen` fits the line wins. No rule matching = cost plus with the region config. A user's explicit `pricingType` on a line always beats these rules.",
+  "type": "object",
+  "required": ["key", "version", "status", "validFrom", "rules", "provenance"],
+  "properties": {
+    "key": { "const": "*" },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["when", "type", "book"],
+        "properties": {
+          "when": { "type": "object", "minProperties": 1, "additionalProperties": { "type": ["string", "number", "boolean"] }, "description": "Attribute equality on the part's product attributes, e.g. { \"family\": \"O-Rings\" }." },
+          "type": { "enum": ["PRICE_LIST", "CATALOG_FORMULA"] },
+          "book": { "type": "string", "minLength": 1, "description": "Id of a price-list (type PRICE_LIST) or catalog-book (type CATALOG_FORMULA) document. Checked against the store when the rules are published." },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
+}

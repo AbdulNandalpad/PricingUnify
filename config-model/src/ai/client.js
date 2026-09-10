@@ -33,16 +33,19 @@ const PROPOSE_PATCH_TOOL = {
   },
 };
 
-const SYSTEM_PROMPT = `You are the AI shell for the TSS Pricing Engine's config-model. You propose changes to a region's pricing configuration from a natural-language instruction. You NEVER apply anything yourself — you only propose a JSON Patch (RFC 6902) that a human must review and approve.
+const SYSTEM_PROMPT = `You are the AI shell for the TSS Pricing Engine's config-model. You propose changes to ONE pricing configuration document — a region's landed-cost build-up (region-config), a price list, a catalog + formula book, the technique routing rules, a supplier or a customer record — from a natural-language instruction. You NEVER apply anything yourself — you only propose a JSON Patch (RFC 6902) that a human must review, approve (which produces a DRAFT) and then publish.
 
 Non-negotiables you must respect in every patch you propose:
-- Every FACTOR element must keep (or gain) a non-empty "basis" array naming earlier build-up step ids.
-- Never propose a bare number "hardcoded" outside the config document — everything numeric goes into a build-up element or constraint, as config.
-- Put numbers in "rate"/"amount"/"min"/"step" as JSON numbers or numeric strings — never as code.
-- New element/constraint ids must be unique across the whole document.
-- Prefer the smallest patch that satisfies the instruction — do not restructure unrelated parts of the config.
+- region-config: every FACTOR element must keep (or gain) a non-empty "basis" array naming earlier build-up step ids; a "sell.defaultMargin" is a fraction in [0, 1).
+- price-list: every row "match" key must be a declared dimension; tiers start at quantity 0 and strictly increase; never two rows for the same part with the same match and overlapping validity.
+- catalog-book: rows are unique on the book's matchOn attributes; "fallbackFormula" is formula DSL v1 (numbers, identifiers, + - * / ^, parentheses, min/max/round/abs) and every "cost.<name>" it uses must exist in "costInputs".
+- routing-rules: every rule points at an existing book of the stated type.
+- Never propose a bare number "hardcoded" outside the config document — everything numeric goes into the document, as config.
+- Put numbers as JSON numbers or numeric strings — never as code.
+- Never change the document's identity fields (region, salesOrg, supplier, ood, customerId, id, key) or its version/status/provenance — the store manages those.
+- Prefer the smallest patch that satisfies the instruction — do not restructure unrelated parts of the document.
 
-The current config document and the instruction will be given to you. Call propose_config_patch with your proposed patch, a short rationale, and a confidence between 0 and 1.`;
+The document kind, its key, the current document and the instruction will be given to you. Call propose_config_patch with your proposed patch, a short rationale, and a confidence between 0 and 1.`;
 
 function createAnthropicClient({ apiKey = process.env.ANTHROPIC_API_KEY, model = 'claude-sonnet-5' } = {}) {
   if (!apiKey) {
@@ -52,7 +55,8 @@ function createAnthropicClient({ apiKey = process.env.ANTHROPIC_API_KEY, model =
 
   return {
     model,
-    async proposeConfigChange({ instruction, currentConfig, region, salesOrg }) {
+    async proposeConfigChange({ instruction, currentConfig, kind = 'region-config', key, region, salesOrg }) {
+      const target = key || `${region}::${salesOrg}`;
       const response = await client.messages.create({
         model,
         max_tokens: 2048,
@@ -62,7 +66,7 @@ function createAnthropicClient({ apiKey = process.env.ANTHROPIC_API_KEY, model =
         messages: [
           {
             role: 'user',
-            content: `Region: ${region}\nSales org: ${salesOrg}\nInstruction: ${instruction}\n\nCurrent config:\n${JSON.stringify(currentConfig, null, 2)}`,
+            content: `Document kind: ${kind}\nDocument key: ${target}\nInstruction: ${instruction}\n\nCurrent document:\n${JSON.stringify(currentConfig, null, 2)}`,
           },
         ],
       });

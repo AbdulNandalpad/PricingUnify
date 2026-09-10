@@ -5,3 +5,7 @@ dist/
 .DS_Store
 mta_archives/
 gen/
+
+# local CAP persistence (srv, dev profile)
+db.sqlite
+*.sqlite

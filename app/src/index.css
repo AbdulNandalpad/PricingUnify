@@ -1,32 +1,72 @@
+/* PricingUnify — design tokens and base element styles, ported 1:1 from the validated
+   prototype (docs/prototype/pricingunify-prototype.html). Light theme only, by owner
+   decision: white + navy, never a dark or orange skin. */
 :root {
+  --bg: #f2f4f8;
+  --panel: #ffffff;
+  --panel-2: #f7f8fb;
+  --ink: #16192b;
+  --muted: #5d637a;
+  --faint: #8e94aa;
+  --border: #d8dce7;
+  --border-strong: #b9bfd0;
   --navy: #1e2761;
-  --navy-dark: #141b45;
-  --text: #1c1e26;
-  --text-muted: #5b5f6e;
-  --bg: #f5f6f9;
-  --panel-bg: #ffffff;
-  --border: #dde0e8;
-  --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --sans: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --navy-ink: #1e2761;
+  --navy-soft: #e8ebf7;
+  --on-navy: #ffffff;
+  /* pricing types */
+  --cp: #2f5f9e; --cp-soft: #e6eef9;   /* cost plus — steel blue */
+  --pl: #1f7a6a; --pl-soft: #e3f3ef;   /* price list — teal */
+  --cf: #a3661a; --cf-soft: #f8eedd;   /* catalog + formula — ochre */
+  /* status */
+  --good: #1f7a4a; --good-soft: #e3f3ea;
+  --warn: #b26a00; --warn-soft: #fbf0dc;
+  --crit: #b3261e; --crit-soft: #fbe5e3;
+  --shadow: 0 8px 30px rgba(22, 25, 43, 0.12);
+  --sans: 'IBM Plex Sans', 'Segoe UI', Roboto, Arial, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
   color-scheme: light;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
+html, body { margin: 0; }
 body {
-  margin: 0;
-  font-family: var(--sans);
-  color: var(--text);
   background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+}
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+a { color: var(--navy); }
+
+.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.num { text-align: right; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.small { font-size: 12px; }
+.label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
 }
 
-h1, h2, h3 {
-  margin: 0;
-  color: var(--text);
+input[type=text], input[type=number], input[type=date], input:not([type]), select, textarea {
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  border-radius: 5px;
+  padding: 6px 8px;
+  min-width: 0;
 }
+input[type=number] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+input:disabled, select:disabled, textarea:disabled { background: var(--panel-2); color: var(--muted); cursor: not-allowed; }
+input[type=range] { width: 100%; accent-color: var(--navy); }
+input[type=checkbox] { accent-color: var(--navy); width: 15px; height: 15px; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 
-button {
-  font-family: inherit;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

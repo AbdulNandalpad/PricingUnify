@@ -2,19 +2,25 @@
   "$id": "ai-suggestion.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AiSuggestion",
-  "description": "A natural-language pricing instruction, the AI's proposed config change (a JSON Patch against the current region config), and its full review trail. Nothing here ever touches a live config by itself — see design principle: 'AI suggests, interprets instructions, and explains — it never silently does arithmetic.' A suggestion becomes a new RegionPricingConfig version only via applySuggestion(), which re-validates against every non-negotiable (schema + FACTOR-basis rule) before it can go ACTIVE.",
+  "description": "A natural-language pricing instruction, the AI's proposed change (a JSON Patch against one specific config document of any kind — region config, price list, catalog book, routing rules, ...), and its full review trail. Nothing here ever touches a live config by itself — see design principle: 'AI suggests, interprets instructions, and explains — it never silently does arithmetic.' Approving a suggestion (applySuggestion) produces a DRAFT version that a human still has to publish (four-eyes). `targetKind`/`targetKey` identify the document; `region`/`salesOrg` remain for region-config suggestions written before v2 and are derived from targetKey when absent.",
   "type": "object",
-  "required": ["id", "region", "salesOrg", "baseVersion", "instruction", "proposedPatch", "status", "createdAt"],
+  "required": ["id", "baseVersion", "instruction", "proposedPatch", "status", "createdAt"],
+  "anyOf": [
+    { "required": ["targetKind", "targetKey"] },
+    { "required": ["region", "salesOrg"] }
+  ],
   "properties": {
     "id": { "type": "string" },
+    "targetKind": { "enum": ["region-config", "supplier-config", "region-route", "party-config", "price-list", "catalog-book", "routing-rules"] },
+    "targetKey": { "type": "string", "minLength": 1, "description": "The document key as ConfigStore stringifies it: region::salesOrg, supplier, ood::salesOrg, customerId, book id, or \"*\"." },
     "region": { "type": "string" },
-    "salesOrg": { "type": "string", "minLength": 1, "description": "Together with region + baseVersion, identifies the exact config document this patch is diffed against." },
-    "baseVersion": { "type": "string", "description": "The config version this patch is diffed against." },
+    "salesOrg": { "type": "string", "minLength": 1, "description": "Legacy (pre-v2) target for region-config suggestions; equivalent to targetKind region-config + targetKey region::salesOrg." },
+    "baseVersion": { "type": "string", "description": "The document version this patch is diffed against." },
     "instruction": { "type": "string", "description": "The natural-language instruction as given by the user, verbatim." },
     "requestedBy": { "type": "string" },
     "proposedPatch": {
       "type": "array",
-      "description": "RFC 6902 JSON Patch operations against the RegionPricingConfig document.",
+      "description": "RFC 6902 JSON Patch operations against the target document.",
       "items": {
         "type": "object",
         "required": ["op", "path"],
@@ -34,7 +40,7 @@
     "reviewedBy": { "type": "string" },
     "reviewedAt": { "type": "string", "format": "date-time" },
     "reviewNotes": { "type": "string" },
-    "resultingVersion": { "type": "string", "description": "Set once status=APPLIED." }
+    "resultingVersion": { "type": "string", "description": "Set once status=APPLIED — the DRAFT version the approval produced." }
   },
   "additionalProperties": false
 }

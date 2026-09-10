@@ -1,16 +1,14 @@
 {
   "name": "@tss-pricing/config-model",
-  "version": "0.1.0",
-  "description": "Region config schemas, validation, effective-dated versioning, and the AI-suggestion pipeline (natural-language instruction -> proposed patch -> human approval -> new version). Rules are data, not code.",
+  "version": "0.2.0",
+  "description": "Config document schemas (region config, suppliers, routes, parties, price lists, catalog + formula books, routing rules), validation, effective-dated versioning with DRAFT -> publish behind a pluggable StoreBackend, diff, and the AI-suggestion pipeline (natural-language instruction -> proposed patch -> human approval -> DRAFT -> publish). Rules are data, not code.",
   "main": "src/index.js",
   "scripts": { "test": "node --test" },
   "dependencies": {
     "ajv": "^8.12.0",
     "ajv-formats": "^3.0.1",
     "fast-json-patch": "^3.1.1",
-    "@anthropic-ai/sdk": "^0.120.0"
-  },
-  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@tss-pricing/engine-core": "^0.1.0"
   }
 }

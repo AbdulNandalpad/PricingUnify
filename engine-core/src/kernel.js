@@ -4,16 +4,8 @@
 const Decimal = require('decimal.js');
 const { resolveCandidate, resolveAccessSequence, purposeAllows, PURPOSE } = require('./cost');
 const { applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath } = require('./elements');
+const { roundTo } = require('./rounding');
 const trace = require('./trace');
-
-const ROUNDING_MODES = {
-  HALF_UP: Decimal.ROUND_HALF_UP,
-  HALF_EVEN: Decimal.ROUND_HALF_EVEN,
-  UP: Decimal.ROUND_UP,
-  DOWN: Decimal.ROUND_DOWN,
-  CEIL: Decimal.ROUND_CEIL,
-  FLOOR: Decimal.ROUND_FLOOR,
-};
 
 function parseLiteral(raw) {
   if (/^'.*'$/.test(raw) || /^".*"$/.test(raw)) return raw.slice(1, -1);
@@ -46,10 +38,21 @@ function evaluateWhen(expr, scope) {
   }
 }
 
-function roundTotal(total, rounding) {
-  if (!rounding || rounding.decimalPlaces === undefined) return total;
-  const mode = ROUNDING_MODES[rounding.mode] ?? Decimal.ROUND_HALF_UP;
-  return total.toDecimalPlaces(rounding.decimalPlaces, mode);
+/** Sell price on top of the landed cost (ARCHITECTURE_V2 §2.2, owner decision 2026-09-10):
+ *  unitPrice = landedCost / (1 - margin). The margin is the line's own override when the
+ *  rep set one, else the region's `sell.defaultMargin`. A region with no `sell` section
+ *  keeps unitPrice = landedCost (margin null) — every pre-v2 config prices unchanged. */
+function resolveSell(item, config, landedCost) {
+  const raw = item.marginOverride !== undefined && item.marginOverride !== null && item.marginOverride !== ''
+    ? item.marginOverride
+    : config.sell && config.sell.defaultMargin !== undefined && config.sell.defaultMargin !== null
+      ? config.sell.defaultMargin
+      : null;
+  if (raw === null) return { unitPrice: landedCost, margin: null, source: null };
+  const margin = new Decimal(raw);
+  if (margin.lt(0) || margin.gte(1)) return { error: { reason: 'MARGIN_INVALID', detail: `Margin ${margin.toString()} must be between 0 and 1 (exclusive).` } };
+  const unitPrice = roundTo(landedCost.div(new Decimal(1).minus(margin)), (config.sell && config.sell.rounding) || config.rounding);
+  return { unitPrice, margin, source: item.marginOverride !== undefined && item.marginOverride !== null && item.marginOverride !== '' ? 'LINE_OVERRIDE' : 'REGION_DEFAULT' };
 }
 
 function priceItem(item, request, facts, config) {
@@ -163,13 +166,38 @@ function priceItem(item, request, facts, config) {
     }
   }
 
-  running = roundTotal(running, config.rounding);
+  running = roundTo(running, config.rounding);
+
+  const sell = resolveSell(item, config, running);
+  if (sell.error) {
+    return {
+      partNumber: item.partNumber,
+      status: 'MISSING',
+      missing: sell.error,
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
+    };
+  }
 
   return {
     partNumber: item.partNumber,
     status: 'PRICED',
-    result: { unitPrice: running.toString(), currency: chosen.currency, quantity },
-    trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
+    result: {
+      unitPrice: sell.unitPrice.toString(),
+      landedCost: running.toString(),
+      margin: sell.margin ? sell.margin.toString() : null,
+      currency: chosen.currency,
+      quantity,
+    },
+    trace: trace.build({
+      region: config.region,
+      configVersion: config.version,
+      costCandidate: chosen,
+      selectedBy,
+      steps,
+      constraintPasses,
+      stockClass: item.stockClass,
+      sell: sell.margin ? { margin: sell.margin.toString(), source: sell.source, landedCost: running.toString() } : null,
+    }),
   };
 }
 

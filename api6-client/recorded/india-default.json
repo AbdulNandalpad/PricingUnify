@@ -59,5 +59,16 @@
     }
   },
   "elements": {},
-  "fx": {}
+  "fx": {},
+  "items": {
+    "IN-P001": {
+      "family": "Hydraulic seals"
+    },
+    "IN-P002": {
+      "family": "Hydraulic seals"
+    },
+    "IN-T100": {
+      "family": "Hydraulic seals"
+    }
+  }
 }

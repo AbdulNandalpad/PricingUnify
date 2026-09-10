@@ -1,0 +1,38 @@
+{
+  "name": "EUROPE P-10023 MTS qty 10: 100 + 4.7 + 21/10 = 106.8 landed; 152.57 sell",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-DE-001",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "P-10023",
+        "quantity": 10,
+        "stockClass": "MTS"
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "europe-default",
+  "config": {
+    "region": "EUROPE"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "P-10023",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "152.57",
+        "landedCost": "106.8",
+        "margin": "0.3"
+      }
+    ]
+  }
+}

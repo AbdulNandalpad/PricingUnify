@@ -1,0 +1,40 @@
+{
+  "name": "CHINA CN-T100 ood CN: JDE China cost already landed, 3.2% LCS = 103.2 CNY landed; / 0.75 = 137.6 sell",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-CN-003",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "CN-T100",
+        "quantity": 1,
+        "ood": "CN",
+        "stockClass": "MTS"
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "china-default",
+  "config": {
+    "region": "CHINA"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "CN-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "137.6",
+        "landedCost": "103.2",
+        "margin": "0.25",
+        "currency": "CNY"
+      }
+    ]
+  }
+}

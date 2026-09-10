@@ -28,14 +28,16 @@ function costCandidateEntry(cost, selectedBy) {
   };
 }
 
-function build({ region, configVersion, costCandidate, selectedBy, steps, constraintPasses, stockClass }) {
+function build({ region, configVersion, costCandidate, selectedBy, steps, constraintPasses, stockClass, sell }) {
   return {
+    technique: 'COST_PLUS',
     region,
     configVersion,
     costCandidate: costCandidateEntry(costCandidate, selectedBy),
     stockClass: stockClass || null,
     steps,
     constraintPasses: constraintPasses || [],
+    sell: sell || null,
   };
 }
 

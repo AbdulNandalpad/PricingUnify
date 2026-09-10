@@ -1,0 +1,52 @@
+{
+  "name": "AMERICAS US-T100 NonMTS qty 10: US supplier 100 + 6.7% + 10%/5%/8% on 106.7 + 34/10 = 134.64; overseas 10.5% LCA = 139.32; sell / 0.68 = 198 / 204.88",
+  "request": {
+    "context": {
+      "hostSystem": "API",
+      "hostObjectType": "QUOTE",
+      "purpose": "INDICATIVE"
+    },
+    "party": {
+      "customerId": "CUST-US-002",
+      "salesOrg": "*"
+    },
+    "items": [
+      {
+        "partNumber": "US-T100",
+        "quantity": 10,
+        "stockClass": "NonMTS",
+        "supplierCountry": "US"
+      },
+      {
+        "partNumber": "US-T100",
+        "quantity": 10,
+        "stockClass": "NonMTS"
+      }
+    ],
+    "priceDate": "2026-09-10"
+  },
+  "facts": "americas-default",
+  "config": {
+    "region": "AMERICAS"
+  },
+  "expected": {
+    "items": [
+      {
+        "partNumber": "US-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "198",
+        "landedCost": "134.64",
+        "margin": "0.32",
+        "currency": "USD"
+      },
+      {
+        "partNumber": "US-T100",
+        "status": "PRICED",
+        "technique": "COST_PLUS",
+        "unitPrice": "204.88",
+        "landedCost": "139.32"
+      }
+    ]
+  }
+}

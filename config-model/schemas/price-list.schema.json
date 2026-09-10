@@ -1,0 +1,100 @@
+{
+  "$id": "price-list.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PriceList",
+  "description": "A SELL price book (ARCHITECTURE_V2 §2.6): rows per part, resolved most-specific-wins across the declared dimensions (customer, tier, region, salesOrg, or any product attribute), tiered by quantity, then a customer discount and order-rule constraints. Deliberately distinct from TSS's supplier quantity-break table, which is a COST source inside cost plus. One book id = one versioned, effective-dated document; `appliesWhen` scopes the book to a region and/or product attributes so routing can only ever pick a book that fits the line.",
+  "type": "object",
+  "required": ["id", "name", "version", "status", "validFrom", "currency", "dimensions", "rows", "provenance"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+    "appliesWhen": {
+      "type": "object",
+      "description": "Scope of the book. `region`/`salesOrg` are compared against the pricing context, every other key against the part's product attributes (facts.items).",
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "dimensions": {
+      "type": "array",
+      "description": "Which context attributes a row may match on, and how much each one weighs when two rows both apply. Every row `match` key must be one of these.",
+      "items": {
+        "type": "object",
+        "required": ["attr", "weight"],
+        "properties": {
+          "attr": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "weight": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["part", "tiers"],
+        "properties": {
+          "part": { "type": "string", "minLength": 1 },
+          "match": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+          "tiers": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["from", "value"],
+              "properties": {
+                "from": { "type": "number", "minimum": 0 },
+                "value": { "type": ["string", "number"] }
+              },
+              "additionalProperties": false
+            }
+          },
+          "validFrom": { "type": ["string", "null"], "format": "date" },
+          "validTo": { "type": ["string", "null"], "format": "date" },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "discount": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/percentRule" }
+    },
+    "constraints": {
+      "type": "array",
+      "description": "Order rules reusing the cost-plus CONSTRAINT primitives with literal `min`/`step` (a book has no per-part facts to read a ref from).",
+      "items": { "$ref": "constraint.schema.json" }
+    },
+    "rounding": { "$ref": "#/definitions/rounding" },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "percentRule": {
+      "type": "object",
+      "required": ["match", "value"],
+      "properties": {
+        "match": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "value": { "type": ["string", "number"] },
+        "validFrom": { "type": ["string", "null"], "format": "date" },
+        "validTo": { "type": ["string", "null"], "format": "date" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "rounding": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["HALF_UP", "HALF_EVEN", "UP", "DOWN", "CEIL", "FLOOR"] },
+        "decimalPlaces": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["mode", "decimalPlaces"],
+      "additionalProperties": false
+    }
+  }
+}

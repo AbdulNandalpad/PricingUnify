@@ -12,11 +12,18 @@
   "engines": { "node": ">=20" },
   "cds": {
     "requires": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": { "url": "db.sqlite" },
+        "[test]": { "credentials": { "url": ":memory:" } },
+        "[production]": { "kind": "hana" }
+      },
       "auth": {
         "kind": "mocked",
         "users": {
           "alice": { "roles": ["PricingViewer"] },
-          "bob": { "roles": ["PricingAdmin", "PricingViewer"] }
+          "bob": { "roles": ["PricingAdmin", "PricingViewer"] },
+          "system": { "roles": ["system-user", "PricingAdmin", "PricingViewer"] }
         },
         "[production]": { "kind": "xsuaa" }
       }

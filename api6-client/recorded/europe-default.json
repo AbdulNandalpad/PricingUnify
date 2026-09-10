@@ -372,6 +372,18 @@
     },
     "EU-T100": {
       "stockClassRaw": "OMT"
+    },
+    "OR-25X3-NBR": {
+      "stockClassRaw": "MTS"
+    },
+    "OR-40X5-FKM": {
+      "stockClassRaw": "MTS"
+    },
+    "PTFE-BRG-120": {
+      "stockClassRaw": "MTO"
+    },
+    "PTFE-BRG-137": {
+      "stockClassRaw": "MTO"
     }
   },
   "qtyBreaks": {
@@ -421,5 +433,65 @@
     ]
   },
   "fx": {},
-  "itemAttributes": {}
+  "itemAttributes": {},
+  "items": {
+    "P-10023": {
+      "family": "Hydraulic seals"
+    },
+    "P-20045": {
+      "family": "Hydraulic seals"
+    },
+    "P-30078": {
+      "family": "Rotary seals"
+    },
+    "P-40012": {
+      "family": "Hydraulic seals"
+    },
+    "P-50099": {
+      "family": "Rotary seals"
+    },
+    "P-60150": {
+      "family": "Hydraulic seals"
+    },
+    "P-70200": {
+      "family": "Rotary seals"
+    },
+    "P-90400": {
+      "family": "Hydraulic seals"
+    },
+    "P-90500": {
+      "family": "Hydraulic seals"
+    },
+    "P-90600": {
+      "family": "Hydraulic seals"
+    },
+    "P-90700": {
+      "family": "Hydraulic seals"
+    },
+    "EU-T100": {
+      "family": "Hydraulic seals"
+    },
+    "OR-25X3-NBR": {
+      "family": "O-Rings",
+      "spec": "25x3",
+      "variant": "NBR70"
+    },
+    "OR-40X5-FKM": {
+      "family": "O-Rings",
+      "spec": "40x5",
+      "variant": "FKM75"
+    },
+    "PTFE-BRG-120": {
+      "family": "PTFE bearings",
+      "spec": "120",
+      "variant": "standard",
+      "diameter_mm": 120
+    },
+    "PTFE-BRG-137": {
+      "family": "PTFE bearings",
+      "spec": "137",
+      "variant": "custom",
+      "diameter_mm": 137
+    }
+  }
 }
