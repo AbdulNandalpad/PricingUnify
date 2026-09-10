@@ -49,8 +49,21 @@ function tokenPayload(user) {
   return null;
 }
 
-/** `srv.before('*', requireUserPrincipal)` on every service. */
+/** `srv.before('*', requireUserPrincipal)` on every service.
+ *
+ *  PRICING_REQUIRE_USER_PRINCIPAL=false is a deliberate, reversible operational escape
+ *  hatch (owner decision 2026-09-11) for standing the app up on CF before the approuter /
+ *  token-exchange flow (docs/ON_BEHALF_OF_USER.md §3) exists to mint real user tokens —
+ *  it is NOT the default and is not set anywhere in this repo; someone has to
+ *  `cf set-env tss-pricing-srv PRICING_REQUIRE_USER_PRINCIPAL false` on purpose. Endpoints
+ *  still require `authenticated-user` (a valid token — no credential is still 401); this
+ *  only lifts the extra "must be a named, non-technical user" rule, so a client-credentials
+ *  token can call through in the meantime. Every write still stamps whatever `req.user.id`
+ *  the token actually carries (a client-credentials token normally resolves to `id:
+ *  'system'`), so this is visible in the data, not silent. Turn it back off (unset the var,
+ *  or set it to anything other than the string "false") once real user tokens are available. */
 function requireUserPrincipal(req) {
+  if (process.env.PRICING_REQUIRE_USER_PRINCIPAL === 'false') return;
   const problem = principalProblem(req.user);
   if (!problem) return;
   req.reject({

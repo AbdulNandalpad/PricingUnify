@@ -106,6 +106,34 @@ test('a principal without a user behind it (client-credentials shape) is 403 NO_
   assert.equal(write.body.error.code, 'NO_USER_PRINCIPAL');
 });
 
+test('PRICING_REQUIRE_USER_PRINCIPAL=false lifts the check (opt-in, reversible) — everything else about auth is unchanged', async () => {
+  const port = PORT + 1;
+  const base = `http://127.0.0.1:${port}`;
+  const relaxed = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: { ...process.env, PORT: String(port), CDS_ENV: 'test', PRICING_REQUIRE_USER_PRINCIPAL: 'false' },
+    stdio: 'ignore',
+  });
+  try {
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      try { if ((await fetch(`${base}/health`)).ok) break; } catch { /* not up yet */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    // Still requires SOME valid token — no credential at all is still 401.
+    const noAuth = await fetch(`${base}/rest/pricing/whoami`);
+    assert.equal(noAuth.status, 401);
+    // The client-credentials-shaped mocked user now goes through instead of 403.
+    const system = await fetch(`${base}/rest/pricing/whoami`, { headers: { Authorization: basicAuthHeader('system') } });
+    assert.equal(system.status, 200);
+    assert.equal((await system.json()).id, 'system');
+    // A real named user is completely unaffected either way.
+    const bob = await fetch(`${base}/rest/pricing/whoami`, { headers: { Authorization: basicAuthHeader('bob') } });
+    assert.equal(bob.status, 200);
+  } finally {
+    relaxed.kill('SIGKILL');
+  }
+});
+
 test('whoami returns the token identity and roles', async () => {
   const alice = await get('/rest/pricing/whoami');
   assert.deepEqual(alice.body, { id: 'alice', roles: ['PricingViewer'] });

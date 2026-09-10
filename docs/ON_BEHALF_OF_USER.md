@@ -160,6 +160,18 @@ The MCP server takes `PRICING_USER=bob PRICING_PASSWORD=x` for this mode.
 Client-credentials tokens remain fine for infrastructure (health checks, a future
 `cds deploy` job) — none of which are business endpoints.
 
+## 4a. Temporary bring-up override (owner decision 2026-09-11)
+
+`PRICING_REQUIRE_USER_PRINCIPAL=false` (a `cf set-env` on `tss-pricing-srv`, not a
+repo default) lifts the "must be a named, non-technical user" rule so the app can be
+exercised on CF before the approuter / token-exchange flow above exists to mint real
+user tokens. Endpoints still require *some* valid token — no credential is still 401 —
+this only lets a client-credentials token (e.g. a quick XSUAA service-key token) through
+instead of 403 `NO_USER_PRINCIPAL`. Every write still stamps whatever `req.user.id` the
+token actually carries (`system` for a client-credentials grant), so it's visible in the
+data, not silent. **Unset this (or `cf unset-env`) once real user tokens are available —
+it exists to unblock bring-up, not as a standing posture.**
+
 ## 5. Open items / verify on first deploy
 
 - Approuter (`approuter/` + `xs-app.json`) so the React app and the token page exist.
