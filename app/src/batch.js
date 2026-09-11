@@ -31,15 +31,24 @@ export function newComponent(overrides = {}) {
   return { id: nextId(), partNumber: '', quantity: 1, ood: '', ...overrides };
 }
 
-/** The prototype's opening quote — real seeded parts, one per technique. */
+/** The opening quote — real seeded parts, spanning all three techniques. The four
+ *  OR.../BB... part numbers are real Trelleborg Product_IDs (from the C4C product export),
+ *  not placeholders: OR00007771N7022/OR1901250AN8I25/OR1900380-N9019/OR00005678NC001 are
+ *  real O-Rings (NBR, hardness 70/80/90/75 Shore) on the EU_SEALS price list, priced by
+ *  segment (switch "Customer" to see IND/AUT/AER pricing diverge); BBP80B324-PT004 and
+ *  BBP80B358-PT004 are real PTFE back-up rings with a negotiated catalog rate (1.52mm /
+ *  4.65mm cross-section); BBP80B242-PT008 (3.00mm) sits between them and has no rate on
+ *  file, so it prices through the fallback formula instead. */
 export const DEFAULT_ROWS = [
   newRow({ partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01' }),
-  newRow({ partNumber: 'P-10023', quantity: 50 }),
   newRow({ partNumber: 'P-70200', quantity: 10, supplier: 'INITECH', warehouse: 'EU01' }),
-  newRow({ partNumber: 'P-40012', quantity: 20 }),
-  newRow({ partNumber: 'OR-25X3-NBR', quantity: 500 }),
-  newRow({ partNumber: 'PTFE-BRG-120', quantity: 4 }),
-  newRow({ partNumber: 'PTFE-BRG-137', quantity: 2 }),
+  newRow({ partNumber: 'OR00007771N7022', quantity: 1500 }),
+  newRow({ partNumber: 'OR1901250AN8I25', quantity: 600 }),
+  newRow({ partNumber: 'OR1900380-N9019', quantity: 20 }),
+  newRow({ partNumber: 'OR00005678NC001', quantity: 3000 }),
+  newRow({ partNumber: 'BBP80B324-PT004', quantity: 50 }),
+  newRow({ partNumber: 'BBP80B242-PT008', quantity: 20 }),
+  newRow({ partNumber: 'BBP80B358-PT004', quantity: 10 }),
 ];
 
 export const BULK_COLUMNS = 'part, qty, supplier, warehouse, stock class, data origin, qty override';

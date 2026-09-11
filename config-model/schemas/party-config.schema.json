@@ -17,6 +17,7 @@
     "customerCurrency": { "type": ["string", "null"] },
     "customerOod": { "type": ["string", "null"], "description": "The customer's own Origin of Data — feeds region-route resolution when a pricing request omits `region` explicitly." },
     "tier": { "type": ["string", "null"], "description": "Commercial tier (e.g. \"A\", \"B\") — a price-list / catalog dimension: rows and discounts may match on it (ARCHITECTURE_V2 §2.6). srv copies it onto request.party.tier before pricing." },
+    "segment": { "type": ["string", "null"], "description": "Industry segment (e.g. \"IND\" industrial, \"AUT\" automotive, \"AER\" aerospace) — a second price-list / catalog dimension alongside tier, for rows that vary by the customer's industry rather than (or in addition to) their commercial tier. srv copies it onto request.party.segment before pricing." },
     "provenance": { "$ref": "provenance.schema.json" }
   },
   "additionalProperties": false

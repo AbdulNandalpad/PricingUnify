@@ -23,7 +23,7 @@ function missingLine(item, book, reason, detail, extra = {}) {
  *  request + party-config. `product` = the part's master-data attributes (facts.items). */
 function pricePriceListItem(item, product, book, ctx) {
   const quantity = Number(item.quantity);
-  const attrs = { ...product, customer: ctx.customerId, tier: ctx.tier, region: ctx.region, salesOrg: ctx.salesOrg };
+  const attrs = { ...product, customer: ctx.customerId, tier: ctx.tier, segment: ctx.segment, region: ctx.region, salesOrg: ctx.salesOrg };
   const partRows = (book.rows || []).filter((r) => r.part === item.partNumber);
   if (partRows.length === 0) {
     return missingLine(item, book, 'NO_LIST_PRICE', `${item.partNumber} has no row in price list "${book.name || book.id}".`);

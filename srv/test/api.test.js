@@ -528,7 +528,7 @@ test('getEffective accepts every key spelling callers use for a composite key', 
     assert.equal(body.sell.defaultMargin, 0.3);
   }
   const routing = await get('/rest/config/getEffective', { kind: 'routing-rules', key: '*' });
-  assert.equal(routing.body.rules.length, 2);
+  assert.equal(routing.body.rules.length, 3); // O-Rings, PTFE bearings, back-up rings
   const unknownKind = await get('/rest/config/getEffective', { kind: 'widgets', key: 'x' });
   assert.equal(unknownKind.status, 400);
   const none = await get('/rest/config/getEffective', { kind: 'price-list', key: 'NOPE' });
@@ -538,10 +538,14 @@ test('getEffective accepts every key spelling callers use for a composite key', 
 test('listBooks summarises price lists and catalogs; listVersions/getVersion read any kind', async () => {
   const lists = await get('/rest/config/listBooks', { kind: 'price-list' });
   assert.equal(lists.body.books[0].id, 'EU_SEALS');
-  assert.equal(lists.body.books[0].rows, 4);
+  assert.equal(lists.body.books[0].rows, 11); // 4 original + 7 real O-Ring rows (2026-09-11 data pass)
   const catalogs = await get('/rest/config/listBooks', { kind: 'catalog-book' });
-  assert.equal(catalogs.body.books[0].id, 'PTFE_BEARINGS');
-  assert.deepEqual(catalogs.body.books[0].costInputs, ['ptfe_rate_per_mm', 'machining_setup']);
+  assert.equal(catalogs.body.books.length, 2); // PTFE_BEARINGS + BACKUP_RINGS_PTFE
+  const ptfe = catalogs.body.books.find((b) => b.id === 'PTFE_BEARINGS');
+  assert.deepEqual(ptfe.costInputs, ['ptfe_rate_per_mm', 'machining_setup']);
+  const backupRings = catalogs.body.books.find((b) => b.id === 'BACKUP_RINGS_PTFE');
+  assert.deepEqual(backupRings.costInputs, ['ptfe_rate_per_mm_cs', 'machining_setup']);
+  assert.equal(backupRings.rows, 2);
   const versions = await get('/rest/config/listVersions', { kind: 'catalog-book', key: 'PTFE_BEARINGS' });
   assert.equal(versions.body.versions.length, 1);
   const version = await get('/rest/config/getVersion', { kind: 'catalog-book', key: 'PTFE_BEARINGS', version: '2026.09.1' });

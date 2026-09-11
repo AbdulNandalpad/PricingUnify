@@ -25,6 +25,7 @@ function seedDocuments() {
     ...partyConfigs().map((doc) => ({ kind: 'party-config', doc })),
     { kind: 'price-list', doc: euSealsPriceList() },
     { kind: 'catalog-book', doc: ptfeBearingsCatalog() },
+    { kind: 'catalog-book', doc: backupRingsCatalog() },
     { kind: 'routing-rules', doc: routingRules() },
   ];
 }
@@ -340,21 +341,48 @@ function regionRoutes() {
  * item-level ood/supplierCountry point elsewhere. v2 adds `tier`, the price-list / catalog
  * dimension (A = key account, B = standard), plus three more customers so every region has a
  * customer to demo price lists against.
+ *
+ * `segment` (owner request 2026-09-11, real TSS product data pass): the customer's industry —
+ * IND (industrial), AUT (automotive), AER (aerospace) — a second price-list / catalog
+ * dimension used by the real O-Ring rows (euSealsPriceList) and the back-up-ring catalog
+ * (backupRingsCatalog). No real customer names needed; segment differentiates the demo
+ * instead of a region or a named account. CUST-US-006 is added purely to have an aerospace
+ * example — the segment aerospace pricing needs to demo against.
  */
 function partyConfigs() {
   const base = { version: '2026.08.0', status: 'ACTIVE', validFrom: '2026-08-01', validTo: null, provenance: HUMAN_PROVENANCE };
   return [
-    { ...base, customerId: 'CUST-DE-001', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'A' },
-    { ...base, customerId: 'CUST-US-002', territory: 'US-INDUSTRIAL', customerCountry: 'US', customerCurrency: 'USD', customerOod: 'SMA', tier: 'B' },
-    { ...base, customerId: 'CUST-DE-007', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'B' },
-    { ...base, customerId: 'CUST-CN-003', territory: 'CN-CONSTRUCTION', customerCountry: 'CN', customerCurrency: 'CNY', customerOod: 'CN', tier: 'A' },
-    { ...base, customerId: 'CUST-IN-004', territory: 'IN-CONSTRUCTION', customerCountry: 'IN', customerCurrency: 'INR', customerOod: 'IN', tier: 'B' },
+    { ...base, customerId: 'CUST-DE-001', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'A', segment: 'IND' },
+    { ...base, customerId: 'CUST-US-002', territory: 'US-INDUSTRIAL', customerCountry: 'US', customerCurrency: 'USD', customerOod: 'SMA', tier: 'B', segment: 'AUT' },
+    { ...base, customerId: 'CUST-DE-007', territory: 'DACH', customerCountry: 'DE', customerCurrency: 'EUR', customerOod: 'SAP', tier: 'B', segment: 'IND' },
+    { ...base, customerId: 'CUST-CN-003', territory: 'CN-CONSTRUCTION', customerCountry: 'CN', customerCurrency: 'CNY', customerOod: 'CN', tier: 'A', segment: 'IND' },
+    { ...base, customerId: 'CUST-IN-004', territory: 'IN-CONSTRUCTION', customerCountry: 'IN', customerCurrency: 'INR', customerOod: 'IN', tier: 'B', segment: 'IND' },
+    { ...base, customerId: 'CUST-US-006', territory: 'US-AEROSPACE', customerCountry: 'US', customerCurrency: 'USD', customerOod: 'SMA', tier: 'A', segment: 'AER' },
   ];
 }
 
-/** EU standard seals price list — a SELL price book (ARCHITECTURE_V2 §2.6), exactly the book
- *  engine-core/test/techniques.test.js pins: customer row beats tier row beats default row,
- *  quantity tiers, tier-A discount, MOLV 100 as an order rule. */
+/**
+ * EU standard seals price list — a SELL price book (ARCHITECTURE_V2 §2.6). The original four
+ * rows (OR-25X3-NBR, OR-40X5-FKM) are exactly what engine-core/test/techniques.test.js pins —
+ * customer row beats tier row beats default row, quantity tiers, tier-A discount, MOLV 100 —
+ * left untouched below.
+ *
+ * Real TSS product data pass (owner, 2026-09-11): four real O-Ring Product_IDs from the
+ * attached C4C product export (category "OR", material NBR, real hardness grades), added as
+ * NEW rows with a NEW `segment` dimension (IND/AUT/AER — see partyConfigs) alongside the
+ * existing customer/tier/region ones — additive, so nothing above changes price. The four
+ * tell a real pricing story, not just four numbers:
+ *  - OR00007771N7022 (NBR70, the most common hardness in the export — 399 of 1169 O-Ring
+ *    SKUs): general-purpose, IND gets the volume discount that high-turnover industrial
+ *    accounts negotiate.
+ *  - OR1901250AN8I25 (NBR80, higher durometer for dynamic/vibration duty): AUT gets its own
+ *    tiers — automotive buys in volume but at a tighter margin than industrial.
+ *  - OR1900380-N9019 (NBR90, the hardest/most demanding grade in the export): AER is priced
+ *    HIGHER than the default row, not lower — aerospace pays a premium for full material
+ *    traceability and certification, small lots, no volume break.
+ *  - OR00005678NC001 (NBR75): deliberately has no segment-specific row at all, to show the
+ *    plain case — everyone gets the same tiered list price.
+ */
 function euSealsPriceList() {
   return {
     id: 'EU_SEALS',
@@ -368,6 +396,7 @@ function euSealsPriceList() {
     appliesWhen: { region: 'EUROPE', family: 'O-Rings' },
     dimensions: [
       { attr: 'customer', label: 'Customer', weight: 100 },
+      { attr: 'segment', label: 'Segment', weight: 40 },
       { attr: 'tier', label: 'Tier', weight: 30 },
       { attr: 'region', label: 'Region', weight: 20 },
     ],
@@ -376,9 +405,71 @@ function euSealsPriceList() {
       { part: 'OR-25X3-NBR', match: { tier: 'A' }, tiers: [{ from: 0, value: '1.08' }, { from: 500, value: '0.99' }], validFrom: '2026-01-01' },
       { part: 'OR-25X3-NBR', match: { customer: 'CUST-DE-001' }, tiers: [{ from: 0, value: '0.95' }], validFrom: '2026-07-01', validTo: '2026-12-31' },
       { part: 'OR-40X5-FKM', match: {}, tiers: [{ from: 0, value: '3.40' }, { from: 250, value: '3.10' }, { from: 1000, value: '2.85' }], validFrom: '2026-01-01' },
+      // Real O-Ring #1 — NBR70, general purpose. Industrial volume discount.
+      { part: 'OR00007771N7022', match: {}, tiers: [{ from: 0, value: '0.85' }, { from: 1000, value: '0.75' }, { from: 5000, value: '0.62' }], validFrom: '2026-01-01' },
+      { part: 'OR00007771N7022', match: { segment: 'IND' }, tiers: [{ from: 0, value: '0.78' }, { from: 1000, value: '0.68' }, { from: 5000, value: '0.55' }], validFrom: '2026-01-01' },
+      // Real O-Ring #2 — NBR80, dynamic duty. Automotive volume tiers, tighter than default.
+      { part: 'OR1901250AN8I25', match: {}, tiers: [{ from: 0, value: '1.35' }, { from: 500, value: '1.18' }], validFrom: '2026-01-01' },
+      { part: 'OR1901250AN8I25', match: { segment: 'AUT' }, tiers: [{ from: 0, value: '1.22' }, { from: 500, value: '1.05' }, { from: 2000, value: '0.94' }], validFrom: '2026-01-01' },
+      // Real O-Ring #3 — NBR90, hardest grade. Aerospace pays MORE — traceability/cert premium.
+      { part: 'OR1900380-N9019', match: {}, tiers: [{ from: 0, value: '3.60' }], validFrom: '2026-01-01' },
+      { part: 'OR1900380-N9019', match: { segment: 'AER' }, tiers: [{ from: 0, value: '4.95' }], validFrom: '2026-01-01' },
+      // Real O-Ring #4 — NBR75. No segment row: everyone gets the same tiered list price.
+      { part: 'OR00005678NC001', match: {}, tiers: [{ from: 0, value: '0.60' }, { from: 2000, value: '0.50' }], validFrom: '2026-01-01' },
     ],
     discount: [{ match: { tier: 'A' }, value: '0.03' }, { match: {}, value: 0 }],
     constraints: [{ id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', min: 100, mode: 'PRICE', provenance: HUMAN_PROVENANCE }],
+    provenance: HUMAN_PROVENANCE,
+  };
+}
+
+/**
+ * PTFE back-up rings — a SEPARATE catalog + formula book from PTFE_BEARINGS (owner, 2026-09-11:
+ * real TSS product data pass). Kept as its own book rather than folded into PTFE_BEARINGS
+ * because engine-core's `matchOn` is uniform across a whole book (every row is checked against
+ * every key in `matchOn`) — adding `cross_section_mm` to PTFE_BEARINGS' matchOn would break its
+ * existing spec/variant rows (they'd fail the new key's presence check). A back-up ring isn't
+ * the same product family as a PTFE slide bearing anyway.
+ *
+ * Real Product_IDs from the attached C4C export (category "BB", material PTFE), by real
+ * cross-section (the export's `Width` field): 1.52mm and 4.65mm get negotiated catalog rates;
+ * 3.00mm (BBP80B242-PT008) has no row — genuinely "in between" the two catalog sizes — so it
+ * falls to the fallback formula, exactly the demo the owner asked for. Cost inputs are example
+ * figures (material rate per mm of cross-section + a per-order machining/tooling setup), not
+ * finance-verified, same convention as every other cost input in this file.
+ */
+function backupRingsCatalog() {
+  return {
+    id: 'BACKUP_RINGS_PTFE',
+    name: 'PTFE back-up rings',
+    version: '2026.09.1',
+    status: 'ACTIVE',
+    supersedes: null,
+    validFrom: '2026-09-01',
+    validTo: null,
+    currency: 'EUR',
+    dsl_version: 1,
+    appliesWhen: { family: 'Back-up rings' },
+    matchOn: ['cross_section_mm'],
+    dimensions: [
+      { attr: 'segment', label: 'Segment', weight: 40 },
+      { attr: 'tier', label: 'Tier', weight: 30 },
+    ],
+    rows: [
+      { match: { cross_section_mm: '1.52' }, rate: '2.40' }, // BBP80B324-PT004
+      { match: { cross_section_mm: '4.65' }, rate: '6.80' }, // BBP80B358-PT004
+    ],
+    fallbackFormula: 'cross_section_mm * cost.ptfe_rate_per_mm_cs + cost.machining_setup / quantity',
+    costInputs: {
+      ptfe_rate_per_mm_cs: { value: '1.35', unit: 'EUR / mm cross-section', validFrom: '2026-08-01', source: 'MANUAL' },
+      machining_setup: { value: '12.00', unit: 'EUR / order', validFrom: '2026-08-01', source: 'MANUAL' },
+    },
+    freight: 0,
+    // Aerospace back-up rings carry the same traceability premium as the aerospace O-Ring row
+    // above; automotive gets the tighter volume-driven margin.
+    margin: [{ match: { segment: 'AER' }, value: '0.28' }, { match: { segment: 'AUT' }, value: '0.16' }, { match: {}, value: '0.20' }],
+    floor: '0.12',
+    discount: [{ match: { tier: 'A' }, value: '0.02' }, { match: {}, value: 0 }],
     provenance: HUMAN_PROVENANCE,
   };
 }
@@ -420,7 +511,8 @@ function ptfeBearingsCatalog() {
 }
 
 /** Which technique prices a line (ARCHITECTURE_V2 §2.5): O-Rings → the EU price list, PTFE
- *  bearings → the catalog; everything else defaults to cost plus with the region config. */
+ *  bearings → the catalog, back-up rings → their own catalog; everything else defaults to
+ *  cost plus with the region config. */
 function routingRules() {
   return {
     key: '*',
@@ -432,6 +524,7 @@ function routingRules() {
     rules: [
       { when: { family: 'O-Rings' }, type: 'PRICE_LIST', book: 'EU_SEALS' },
       { when: { family: 'PTFE bearings' }, type: 'CATALOG_FORMULA', book: 'PTFE_BEARINGS' },
+      { when: { family: 'Back-up rings' }, type: 'CATALOG_FORMULA', book: 'BACKUP_RINGS_PTFE' },
     ],
     provenance: HUMAN_PROVENANCE,
   };

@@ -384,6 +384,27 @@
     },
     "PTFE-BRG-137": {
       "stockClassRaw": "MTO"
+    },
+    "OR00007771N7022": {
+      "stockClassRaw": "MTS"
+    },
+    "OR1901250AN8I25": {
+      "stockClassRaw": "MTS"
+    },
+    "OR1900380-N9019": {
+      "stockClassRaw": "MTO"
+    },
+    "OR00005678NC001": {
+      "stockClassRaw": "MTS"
+    },
+    "BBP80B324-PT004": {
+      "stockClassRaw": "MTO"
+    },
+    "BBP80B242-PT008": {
+      "stockClassRaw": "MTO"
+    },
+    "BBP80B358-PT004": {
+      "stockClassRaw": "MTO"
     }
   },
   "qtyBreaks": {
@@ -492,6 +513,41 @@
       "spec": "137",
       "variant": "custom",
       "diameter_mm": 137
+    },
+    "OR00007771N7022": {
+      "family": "O-Rings",
+      "hardness_shore": "70",
+      "material": "NBR"
+    },
+    "OR1901250AN8I25": {
+      "family": "O-Rings",
+      "hardness_shore": "80",
+      "material": "NBR"
+    },
+    "OR1900380-N9019": {
+      "family": "O-Rings",
+      "hardness_shore": "90",
+      "material": "NBR"
+    },
+    "OR00005678NC001": {
+      "family": "O-Rings",
+      "hardness_shore": "75",
+      "material": "NBR"
+    },
+    "BBP80B324-PT004": {
+      "family": "Back-up rings",
+      "cross_section_mm": "1.52",
+      "material": "PTFE"
+    },
+    "BBP80B242-PT008": {
+      "family": "Back-up rings",
+      "cross_section_mm": "3.00",
+      "material": "PTFE"
+    },
+    "BBP80B358-PT004": {
+      "family": "Back-up rings",
+      "cross_section_mm": "4.65",
+      "material": "PTFE"
     }
   }
 }

@@ -6,6 +6,8 @@ dist/
 mta_archives/
 gen/
 
-# local CAP persistence (srv, dev profile)
+# local CAP persistence (srv, dev profile) — better-sqlite3 WAL mode also writes -shm/-wal
 db.sqlite
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal

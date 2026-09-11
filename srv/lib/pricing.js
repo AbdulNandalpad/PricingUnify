@@ -326,6 +326,7 @@ function neutralRequest(scope, items) {
       region: scope.region,
       ood: scope.customerOod,
       tier: pc ? pc.tier || null : null,
+      segment: pc ? pc.segment || null : null,
       territory: pc ? pc.territory : null,
       country: pc ? pc.customerCountry : null,
       currency: pc ? pc.customerCurrency : null,

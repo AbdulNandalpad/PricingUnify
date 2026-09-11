@@ -50,6 +50,7 @@ function contextOf(request, config) {
     salesOrg: party.salesOrg || (config.region && config.region.salesOrg) || '*',
     customerId: party.customerId || null,
     tier: party.tier || null,
+    segment: party.segment || null,
     priceDate: request.priceDate,
     purpose: (request.context && request.context.purpose) || 'INDICATIVE',
   };

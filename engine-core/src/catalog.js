@@ -44,7 +44,7 @@ function costInputsInForce(costInputs, date) {
 
 function priceCatalogItem(item, product, book, ctx) {
   const quantity = Number(item.quantity);
-  const attrs = { ...product, customer: ctx.customerId, tier: ctx.tier, region: ctx.region, salesOrg: ctx.salesOrg };
+  const attrs = { ...product, customer: ctx.customerId, tier: ctx.tier, segment: ctx.segment, region: ctx.region, salesOrg: ctx.salesOrg };
   const dimensions = book.dimensions || DEFAULT_DIMENSIONS;
   const matchOn = book.matchOn || DEFAULT_MATCH_ON;
   const rounding = book.rounding || DEFAULT_ROUNDING;
