@@ -14,6 +14,14 @@
   --navy-ink: #1e2761;
   --navy-soft: #e8ebf7;
   --on-navy: #ffffff;
+  /* nav chrome (topbar + sidebar): a glossier, deeper navy than the --navy accent used on
+     content (buttons, links) — still the same two-colour family, just a richer register
+     for the two bars that carry the brand. */
+  --navy-chrome-top: #29337a;
+  --navy-chrome-bot: #131a42;
+  --navy-chrome-line: rgba(255, 255, 255, 0.14);
+  --on-navy-chrome: #f3f4ff;
+  --on-navy-chrome-muted: #aab1e6;
   /* pricing types */
   --cp: #2f5f9e; --cp-soft: #e6eef9;   /* cost plus — steel blue */
   --pl: #1f7a6a; --pl-soft: #e3f3ef;   /* price list — teal */

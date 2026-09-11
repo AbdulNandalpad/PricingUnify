@@ -3,24 +3,42 @@
 
 /* ── shell ─────────────────────────────────────────────────────────────── */
 .shell { display: grid; grid-template-columns: 208px 1fr; grid-template-rows: 52px 1fr; min-height: 100vh; }
-.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 6; }
+.topbar {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 0 20px;
+  position: relative; z-index: 6;
+  background: linear-gradient(180deg, var(--navy-chrome-top) 0%, var(--navy-chrome-bot) 100%);
+  box-shadow: 0 1px 0 var(--navy-chrome-line) inset, 0 6px 16px -8px rgba(10, 14, 40, 0.55);
+}
 .brand { display: flex; align-items: baseline; gap: 10px; }
-.brand .name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--navy-ink); }
-.brand .tag { font-size: 12px; color: var(--muted); }
-.context { display: flex; gap: 14px; align-items: center; margin-left: auto; font-size: 13px; color: var(--muted); }
-.context .live { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.brand .name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: #fff; }
+.brand .tag { font-size: 12px; color: var(--on-navy-chrome-muted); }
+.context { display: flex; gap: 14px; align-items: center; margin-left: auto; font-size: 13px; color: var(--on-navy-chrome-muted); }
+.context .live { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--on-navy-chrome); }
 .context .signed { display: inline-flex; align-items: center; gap: 6px; }
 .context select { padding: 3px 6px; font-size: 13px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; flex: none; }
-.dot.warn { background: var(--warn); }
-.dot.crit { background: var(--crit); }
-nav.side { background: var(--panel); border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
-nav.side .group { margin-top: 14px; padding: 0 10px 6px; }
-nav.side button { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 8px 10px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--ink); }
-nav.side button:hover { background: var(--panel-2); }
-nav.side button.active { background: var(--navy-soft); color: var(--navy-ink); font-weight: 600; }
+.context .faint { color: var(--on-navy-chrome-muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; flex: none; box-shadow: 0 0 0 3px rgba(31, 122, 74, 0.25); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 3px rgba(178, 106, 0, 0.25); }
+.dot.crit { background: var(--crit); box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.25); }
+nav.side {
+  padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; position: relative; z-index: 5;
+  background: linear-gradient(180deg, var(--navy-chrome-top) 0%, var(--navy-chrome-bot) 100%);
+  box-shadow: -1px 0 0 var(--navy-chrome-line) inset, 4px 0 16px -12px rgba(10, 14, 40, 0.5);
+}
+nav.side .group { margin-top: 14px; padding: 0 10px 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-navy-chrome-muted); font-weight: 600; }
+nav.side button {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left;
+  padding: 9px 12px; border: 0; background: transparent; border-radius: 7px; cursor: pointer;
+  color: var(--on-navy-chrome-muted); font-weight: 500; transition: background-color 0.12s ease, color 0.12s ease;
+}
+nav.side button:hover { background: rgba(255, 255, 255, 0.08); color: var(--on-navy-chrome); }
+nav.side button.active {
+  background: #fff; color: var(--navy-ink); font-weight: 700;
+  box-shadow: 0 2px 8px -2px rgba(10, 14, 40, 0.4);
+}
 nav.side .count { font-size: 11px; background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 1px 7px; font-weight: 600; }
 nav.side .mode { margin-top: auto; padding: 10px; }
+nav.side .mode, nav.side .mode * { color: var(--on-navy-chrome-muted); }
 main { padding: 22px 26px 60px; min-width: 0; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head h1 { font-size: 20px; font-weight: 600; }
