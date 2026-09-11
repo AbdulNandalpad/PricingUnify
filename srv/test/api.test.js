@@ -190,13 +190,13 @@ test('EUROPE Non-MTS cost resolves via CCD (PIR data) first, per the stock-class
 });
 
 test('fetchItemAttributes resolves stock class and product attributes up front -- supplier/warehouse stay user input until C4C is wired', async () => {
-  const { status, body } = await post('/rest/pricing/fetchItemAttributes', { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'EU-T100' }, { partNumber: 'P-10023' }, { partNumber: 'PTFE-BRG-137' }] });
+  const { status, body } = await post('/rest/pricing/fetchItemAttributes', { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'EU-T100' }, { partNumber: 'P-10023' }, { partNumber: 'BBP80B242-PT008' }] });
   assert.equal(status, 200);
   assert.deepEqual(body.attributes['EU-T100'], {
     supplier: null, supplierCountry: null, warehouse: null, stockClass: 'NonMTS', stockClassError: null, product: { family: 'Hydraulic seals' },
   });
   assert.equal(body.attributes['P-10023'].stockClass, 'MTS');
-  assert.deepEqual(body.attributes['PTFE-BRG-137'].product, { family: 'PTFE bearings', spec: '137', variant: 'custom', diameter_mm: 137 });
+  assert.deepEqual(body.attributes['BBP80B242-PT008'].product, { family: 'Back-up rings', cross_section_mm: '3.00', material: 'PTFE' });
 });
 
 test('fetchItemAttributes never prices -- a caller-supplied supplier passes through and resolves its country from supplier master data', async () => {
@@ -295,10 +295,10 @@ test('topic 8: a kit with an unresolvable component comes back MISSING, not sile
 });
 
 test('topic 8 (v2): a component routed to a non-cost-plus technique makes the kit KIT_COMPONENT_UNRESOLVED', async () => {
-  const line = await priceChina({ partNumber: 'CN-K003', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' }, { partNumber: 'OR-25X3-NBR', quantity: 10, pricingType: 'PRICE_LIST', book: 'EU_SEALS' }] });
+  const line = await priceChina({ partNumber: 'CN-K003', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' }, { partNumber: 'OR00007771N7022', quantity: 10, pricingType: 'PRICE_LIST', book: 'EU_SEALS' }] });
   assert.equal(line.status, 'MISSING');
   assert.equal(line.missing.reason, 'KIT_COMPONENT_UNRESOLVED');
-  assert.equal(line.missing.componentPartNumber, 'OR-25X3-NBR');
+  assert.equal(line.missing.componentPartNumber, 'OR00007771N7022');
   assert.equal(line.missing.componentIssue.reason, 'KIT_COMPONENT_NOT_COST_PLUS');
 });
 
@@ -440,51 +440,51 @@ test('same part, same warehouse, three suppliers -- three landed costs, driven b
 
 // ---- price list and catalog through the API --------------------------------------------------------
 
-test('price list: an O-Ring routes to EU_SEALS by family; the customer row beats the tier row, discount applies', async () => {
-  const { body } = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
+test('price list: an O-Ring routes to EU_SEALS by family; the segment row beats the default row, discount applies', async () => {
+  const { body } = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
   const [line] = body.items;
   assert.equal(line.status, 'PRICED');
   assert.equal(line.technique, 'PRICE_LIST');
   assert.equal(line.book, 'EU_SEALS');
   assert.equal(line.routedBy, 'RULE:0');
-  assert.equal(line.result.unitPrice, '0.92'); // 0.95 * 0.97
+  assert.equal(line.result.unitPrice, '0.76'); // IND tier (qty<1000, 0.78) * 0.97 tier-A discount
   assert.equal(line.result.landedCost, null);
   assert.equal(body.party.tier, 'A'); // enriched from party-config, never from the payload
-  assert.ok(line.flags.some((f) => f.code === 'ROW_EXPIRES'));
+  assert.equal(body.party.segment, 'IND');
 });
 
-test('price list: a tier-B customer gets the default row and the quantity tier; MOLV raises a small order', async () => {
-  const big = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-007', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 600 }] })).body.items[0];
-  assert.equal(big.result.unitPrice, '1.1');
-  const small = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-007', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 10 }] })).body.items[0];
-  assert.equal(small.result.unitPrice, '10'); // 1.20 * 10 = 12 < MOLV 100 -> 100 / 10
+test('price list: a customer whose segment has no override on this part gets the default row; MOLV raises a small order', async () => {
+  const big = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-007', priceDate: '2026-09-10', items: [{ partNumber: 'OR00005678NC001', quantity: 600 }] })).body.items[0];
+  assert.equal(big.result.unitPrice, '0.6'); // tier B -> 0% discount, qty600 < 2000 tier
+  const small = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-007', priceDate: '2026-09-10', items: [{ partNumber: 'OR00005678NC001', quantity: 10 }] })).body.items[0];
+  assert.equal(small.result.unitPrice, '10'); // 0.60 * 10 = 6 < MOLV 100 -> 100 / 10
   assert.ok(small.flags.some((f) => f.code === 'MOLV_APPLIED'));
 });
 
 test('price list: the book is scoped to EUROPE -- the same O-Ring in CHINA falls back to cost plus and is MISSING without a cost', async () => {
-  const line = (await priceRaw({ region: 'CHINA', customerId: 'CUST-CN-003', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] })).body.items[0];
+  const line = (await priceRaw({ region: 'CHINA', customerId: 'CUST-CN-003', priceDate: '2026-09-10', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] })).body.items[0];
   assert.equal(line.technique, 'COST_PLUS');
   assert.equal(line.routedBy, 'DEFAULT');
   assert.equal(line.status, 'MISSING');
 });
 
-test('catalog: an exact spec match is a sell price (margin skipped); a custom size is priced by the formula with margin, discount and floor check', async () => {
-  const { body } = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'PTFE-BRG-120', quantity: 4 }, { partNumber: 'PTFE-BRG-137', quantity: 2 }] });
+test('catalog: an exact cross-section match is a sell price (margin skipped); an in-between size is priced by the formula with margin, discount and floor check', async () => {
+  const { body } = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'BBP80B324-PT004', quantity: 4 }, { partNumber: 'BBP80B242-PT008', quantity: 2 }] });
   const [catalog, formula] = body.items;
   assert.equal(catalog.technique, 'CATALOG_FORMULA');
-  assert.equal(catalog.book, 'PTFE_BEARINGS');
+  assert.equal(catalog.book, 'BACKUP_RINGS_PTFE');
   assert.equal(catalog.trace.source, 'CATALOG');
-  assert.equal(catalog.result.unitPrice, '82.32'); // 84 * 0.98
+  assert.equal(catalog.result.unitPrice, '2.35'); // 2.40 * 0.98 tier-A discount
   assert.equal(catalog.result.landedCost, null);
   assert.equal(formula.trace.source, 'FORMULA');
-  assert.equal(formula.result.landedCost, '174.94'); // 137 * 0.62 + 180 / 2
-  assert.equal(formula.result.unitPrice, '202.3'); // * 1.18 * 0.98
-  assert.equal(formula.trace.costInputs['cost.machining_setup'].value, '180');
+  assert.equal(formula.result.landedCost, '10.05'); // 3.00 * 1.35 + 12.00 / 2
+  assert.equal(formula.result.unitPrice, '11.82'); // * 1.20 default margin (segment IND has none) * 0.98 discount
+  assert.equal(formula.trace.costInputs['cost.machining_setup'].value, '12.00');
   assert.ok(formula.flags.some((f) => f.code === 'PRICED_BY_FORMULA'));
 });
 
 test('routing: a user can force the technique per line (routedBy USER)', async () => {
-  const line = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', items: [{ partNumber: 'PTFE-BRG-120', quantity: 4, pricingType: 'COST_PLUS' }] })).body.items[0];
+  const line = (await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', items: [{ partNumber: 'BBP80B324-PT004', quantity: 4, pricingType: 'COST_PLUS' }] })).body.items[0];
   assert.equal(line.technique, 'COST_PLUS');
   assert.equal(line.routedBy, 'USER');
   assert.equal(line.status, 'MISSING'); // the catalog part has no ERP cost in the recorded facts -- typed, not zero
@@ -528,7 +528,7 @@ test('getEffective accepts every key spelling callers use for a composite key', 
     assert.equal(body.sell.defaultMargin, 0.3);
   }
   const routing = await get('/rest/config/getEffective', { kind: 'routing-rules', key: '*' });
-  assert.equal(routing.body.rules.length, 3); // O-Rings, PTFE bearings, back-up rings
+  assert.equal(routing.body.rules.length, 2); // O-Rings, back-up rings
   const unknownKind = await get('/rest/config/getEffective', { kind: 'widgets', key: 'x' });
   assert.equal(unknownKind.status, 400);
   const none = await get('/rest/config/getEffective', { kind: 'price-list', key: 'NOPE' });
@@ -538,25 +538,23 @@ test('getEffective accepts every key spelling callers use for a composite key', 
 test('listBooks summarises price lists and catalogs; listVersions/getVersion read any kind', async () => {
   const lists = await get('/rest/config/listBooks', { kind: 'price-list' });
   assert.equal(lists.body.books[0].id, 'EU_SEALS');
-  assert.equal(lists.body.books[0].rows, 11); // 4 original + 7 real O-Ring rows (2026-09-11 data pass)
+  assert.equal(lists.body.books[0].rows, 7); // 7 real O-Ring rows (2026-09-11 data pass; placeholder rows removed)
   const catalogs = await get('/rest/config/listBooks', { kind: 'catalog-book' });
-  assert.equal(catalogs.body.books.length, 2); // PTFE_BEARINGS + BACKUP_RINGS_PTFE
-  const ptfe = catalogs.body.books.find((b) => b.id === 'PTFE_BEARINGS');
-  assert.deepEqual(ptfe.costInputs, ['ptfe_rate_per_mm', 'machining_setup']);
+  assert.equal(catalogs.body.books.length, 1); // BACKUP_RINGS_PTFE (the placeholder PTFE_BEARINGS was removed 2026-09-11)
   const backupRings = catalogs.body.books.find((b) => b.id === 'BACKUP_RINGS_PTFE');
   assert.deepEqual(backupRings.costInputs, ['ptfe_rate_per_mm_cs', 'machining_setup']);
   assert.equal(backupRings.rows, 2);
-  const versions = await get('/rest/config/listVersions', { kind: 'catalog-book', key: 'PTFE_BEARINGS' });
+  const versions = await get('/rest/config/listVersions', { kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE' });
   assert.equal(versions.body.versions.length, 1);
-  const version = await get('/rest/config/getVersion', { kind: 'catalog-book', key: 'PTFE_BEARINGS', version: '2026.09.1' });
-  assert.equal(version.body.fallbackFormula, 'diameter_mm * cost.ptfe_rate_per_mm + cost.machining_setup / quantity');
+  const version = await get('/rest/config/getVersion', { kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE', version: '2026.09.1' });
+  assert.equal(version.body.fallbackFormula, 'cross_section_mm * cost.ptfe_rate_per_mm_cs + cost.machining_setup / quantity');
 });
 
 test('validateFormula checks syntax and, against a book, that every cost.* exists in its costInputs', async () => {
-  const ok = await get('/rest/config/validateFormula', { formula: 'diameter_mm * cost.ptfe_rate_per_mm', kind: 'catalog-book', key: 'PTFE_BEARINGS' });
+  const ok = await get('/rest/config/validateFormula', { formula: 'cross_section_mm * cost.ptfe_rate_per_mm_cs', kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE' });
   assert.equal(ok.body.ok, true);
   assert.deepEqual(ok.body.unknown, []);
-  const unknown = await get('/rest/config/validateFormula', { formula: 'diameter_mm * cost.nope', kind: 'catalog-book', key: 'PTFE_BEARINGS' });
+  const unknown = await get('/rest/config/validateFormula', { formula: 'cross_section_mm * cost.nope', kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE' });
   assert.equal(unknown.body.ok, false);
   assert.deepEqual(unknown.body.unknown, ['cost.nope']);
   const broken = await get('/rest/config/validateFormula', { formula: 'diameter_mm * (' });
@@ -606,10 +604,10 @@ test('C4C payload review: region derives from customerId via party-config; an ex
 });
 
 test('the MCP client\'s neutral payload shape (context/party) is accepted alongside the flat fields', async () => {
-  const { status, body } = await priceRaw({ context: { hostSystem: 'MCP', hostObjectType: 'OPPORTUNITY', purpose: 'INDICATIVE' }, party: { customerId: 'CUST-DE-001', salesOrg: '*' }, priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
+  const { status, body } = await priceRaw({ context: { hostSystem: 'MCP', hostObjectType: 'OPPORTUNITY', purpose: 'INDICATIVE' }, party: { customerId: 'CUST-DE-001', salesOrg: '*' }, priceDate: '2026-09-10', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
   assert.equal(status, 200);
   assert.equal(body.region.derivedBy, 'ROUTE:SAP');
-  assert.equal(body.items[0].result.unitPrice, '0.92');
+  assert.equal(body.items[0].result.unitPrice, '0.76');
   const doc = await get('/rest/pricing/getPricingDocument', { id: body.documentId });
   assert.equal(doc.body.hostSystem, 'MCP');
   assert.equal(doc.body.hostObjectType, 'OPPORTUNITY');
@@ -746,65 +744,65 @@ test('price list draft: diff shows exactly the changed cell; simulate prices LIV
   const live = (await get('/rest/config/getEffective', { kind: 'price-list', key: 'EU_SEALS' })).body;
   const { version, status: _s, supersedes, provenance, ...content } = live;
   const rows = content.rows.map((r) => ({ ...r }));
-  const customerRow = rows.findIndex((r) => r.match && r.match.customer === 'CUST-DE-001');
-  rows[customerRow] = { ...rows[customerRow], tiers: [{ from: 0, value: '0.90' }] };
+  const segmentRow = rows.findIndex((r) => r.part === 'OR00007771N7022' && r.match && r.match.segment === 'IND');
+  rows[segmentRow] = { ...rows[segmentRow], tiers: [{ from: 0, value: '0.70' }, { from: 1000, value: '0.68' }, { from: 5000, value: '0.55' }] };
   const saved = await callConfigAction('saveDraft', 'bob', { kind: 'price-list', doc: { ...content, rows } });
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   const draftVersion = saved.body.version;
 
   const diff = await get('/rest/config/diff', { kind: 'price-list', key: 'EU_SEALS', a: '2026.09.1', b: draftVersion });
   assert.equal(diff.status, 200);
-  assert.deepEqual(diff.body.changes, [{ path: `/rows/${customerRow}/tiers/0/value`, from: '0.95', to: '0.90' }]);
+  assert.deepEqual(diff.body.changes, [{ path: `/rows/${segmentRow}/tiers/0/value`, from: '0.78', to: '0.70' }]);
 
-  const priced = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', hostObjectId: 'Q-SIM-1', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
+  const priced = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', hostObjectId: 'Q-SIM-1', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
   const sim = await post('/rest/pricing/simulate', {
     draft: { kind: 'price-list', key: 'EU_SEALS', version: draftVersion },
     region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10',
-    items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }, { partNumber: 'EU-T100', quantity: 10 }],
+    items: [{ partNumber: 'OR00007771N7022', quantity: 500 }, { partNumber: 'EU-T100', quantity: 10 }],
     documentIds: [priced.body.documentId],
   });
   assert.equal(sim.status, 200, JSON.stringify(sim.body));
   assert.equal(sim.body.draft.version, draftVersion);
   assert.equal(sim.body.items.length, 3);
   const [orLine, euLine, docLine] = sim.body.items;
-  assert.equal(orLine.before.unitPrice, '0.92');
-  assert.equal(orLine.after.unitPrice, '0.87'); // 0.90 * 0.97 = 0.873
-  assert.equal(orLine.delta, '-0.05');
+  assert.equal(orLine.before.unitPrice, '0.76'); // 0.78 * 0.97
+  assert.equal(orLine.after.unitPrice, '0.68'); // 0.70 * 0.97 = 0.679
+  assert.equal(orLine.delta, '-0.08');
   assert.equal(orLine.changed, true);
   assert.equal(euLine.before.unitPrice, euLine.after.unitPrice, 'a cost-plus line is unaffected by a price list draft');
   assert.equal(euLine.changed, false);
   assert.equal(docLine.source, priced.body.documentId);
-  assert.equal(docLine.after.unitPrice, '0.87');
+  assert.equal(docLine.after.unitPrice, '0.68');
   assert.equal(sim.body.summary.changed, 2);
-  assert.ok(sim.body.deadRows.some((r) => r.part === 'OR-40X5-FKM'), 'rows nothing hit are reported as dead');
+  assert.ok(sim.body.deadRows.some((r) => r.part === 'OR00005678NC001'), 'a part untouched by this simulation is reported dead');
 
-  const stillLive = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
-  assert.equal(stillLive.body.items[0].result.unitPrice, '0.92', 'simulate publishes nothing');
+  const stillLive = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
+  assert.equal(stillLive.body.items[0].result.unitPrice, '0.76', 'simulate publishes nothing');
 
   const published = await callConfigAction('publish', 'bob', { kind: 'price-list', key: 'EU_SEALS', version: draftVersion, effectiveFrom: '2026-09-05' });
   assert.equal(published.status, 200, JSON.stringify(published.body));
-  const now = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
-  assert.equal(now.body.items[0].result.unitPrice, '0.87');
+  const now = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-10', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
+  assert.equal(now.body.items[0].result.unitPrice, '0.68');
   assert.equal(now.body.config.books.EU_SEALS.version, draftVersion);
-  const past = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-03', items: [{ partNumber: 'OR-25X3-NBR', quantity: 500 }] });
-  assert.equal(past.body.items[0].result.unitPrice, '0.92', 'the superseded version still prices its own window');
+  const past = await priceRaw({ region: 'EUROPE', customerId: 'CUST-DE-001', priceDate: '2026-09-03', items: [{ partNumber: 'OR00007771N7022', quantity: 500 }] });
+  assert.equal(past.body.items[0].result.unitPrice, '0.76', 'the superseded version still prices its own window');
 });
 
 test('simulate: a catalog draft that lowers the margin reports the floor crossing', async () => {
-  const live = (await get('/rest/config/getEffective', { kind: 'catalog-book', key: 'PTFE_BEARINGS' })).body;
+  const live = (await get('/rest/config/getEffective', { kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE' })).body;
   const { version, status: _s, supersedes, provenance, ...content } = live;
-  const saved = await callConfigAction('saveDraft', 'bob', { kind: 'catalog-book', doc: { ...content, margin: [{ match: {}, value: '0.10' }], discount: [{ match: {}, value: '0.05' }] } });
+  const saved = await callConfigAction('saveDraft', 'bob', { kind: 'catalog-book', doc: { ...content, margin: [{ match: {}, value: '0.05' }], discount: [{ match: {}, value: '0.05' }] } });
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   const sim = await post('/rest/pricing/simulate', {
-    draft: { kind: 'catalog-book', key: 'PTFE_BEARINGS', version: saved.body.version },
+    draft: { kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE', version: saved.body.version },
     region: 'EUROPE', customerId: 'CUST-DE-007', priceDate: '2026-09-10',
-    items: [{ partNumber: 'PTFE-BRG-137', quantity: 2 }],
+    items: [{ partNumber: 'BBP80B242-PT008', quantity: 2 }],
   });
   assert.equal(sim.status, 200);
   assert.equal(sim.body.floorCrossings.length, 1);
   assert.equal(sim.body.floorCrossings[0].direction, 'BELOW_FLOOR');
   assert.ok(sim.body.items[0].flagsAdded.includes('MARGIN_FLOOR'));
-  const bad = await post('/rest/pricing/simulate', { draft: { kind: 'catalog-book', key: 'PTFE_BEARINGS', version: 'nope' }, items: [{ partNumber: 'X', quantity: 1 }] });
+  const bad = await post('/rest/pricing/simulate', { draft: { kind: 'catalog-book', key: 'BACKUP_RINGS_PTFE', version: 'nope' }, items: [{ partNumber: 'X', quantity: 1 }] });
   assert.equal(bad.status, 404);
 });
 

@@ -13,9 +13,10 @@ const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'seed@tss.example', auth
  * finance-verified rates exist.
  *
  * v2 (owner decisions 2026-09-10): every region gets a `sell.defaultMargin` — cost plus
- * unitPrice = landedCost / (1 - margin) — parties get a `tier`, and the EU_SEALS price list,
- * PTFE_BEARINGS catalog + routing rules from engine-core/test/techniques.test.js are seeded
- * ACTIVE from 2026-09-01.
+ * unitPrice = landedCost / (1 - margin) — parties get a `tier` (+ `segment`, 2026-09-11), and
+ * the EU_SEALS price list, BACKUP_RINGS_PTFE catalog + routing rules are seeded ACTIVE from
+ * 2026-09-01, real Product_IDs throughout (2026-09-11 data pass — see euSealsPriceList and
+ * backupRingsCatalog).
  */
 function seedDocuments() {
   return [
@@ -24,7 +25,6 @@ function seedDocuments() {
     ...regionRoutes().map((doc) => ({ kind: 'region-route', doc })),
     ...partyConfigs().map((doc) => ({ kind: 'party-config', doc })),
     { kind: 'price-list', doc: euSealsPriceList() },
-    { kind: 'catalog-book', doc: ptfeBearingsCatalog() },
     { kind: 'catalog-book', doc: backupRingsCatalog() },
     { kind: 'routing-rules', doc: routingRules() },
   ];
@@ -362,16 +362,16 @@ function partyConfigs() {
 }
 
 /**
- * EU standard seals price list — a SELL price book (ARCHITECTURE_V2 §2.6). The original four
- * rows (OR-25X3-NBR, OR-40X5-FKM) are exactly what engine-core/test/techniques.test.js pins —
- * customer row beats tier row beats default row, quantity tiers, tier-A discount, MOLV 100 —
- * left untouched below.
+ * EU standard seals price list — a SELL price book (ARCHITECTURE_V2 §2.6). Rows are real
+ * O-Ring Product_IDs from the attached C4C product export (category "OR", material NBR, real
+ * hardness grades) — the original placeholder rows (OR-25X3-NBR, OR-40X5-FKM) were removed
+ * 2026-09-11 once real data existed for the same category (owner: "remove the other seed data
+ * which is not of tss"). engine-core/test/techniques.test.js pins its own self-contained
+ * EU_SEALS fixture for unit-testing the kernel — it does not read this file, so it is
+ * unaffected by what this function returns.
  *
- * Real TSS product data pass (owner, 2026-09-11): four real O-Ring Product_IDs from the
- * attached C4C product export (category "OR", material NBR, real hardness grades), added as
- * NEW rows with a NEW `segment` dimension (IND/AUT/AER — see partyConfigs) alongside the
- * existing customer/tier/region ones — additive, so nothing above changes price. The four
- * tell a real pricing story, not just four numbers:
+ * A `segment` dimension (IND/AUT/AER — see partyConfigs) sits alongside customer/tier/region.
+ * The four real parts tell a pricing story, not just four numbers:
  *  - OR00007771N7022 (NBR70, the most common hardness in the export — 399 of 1169 O-Ring
  *    SKUs): general-purpose, IND gets the volume discount that high-turnover industrial
  *    accounts negotiate.
@@ -395,16 +395,10 @@ function euSealsPriceList() {
     currency: 'EUR',
     appliesWhen: { region: 'EUROPE', family: 'O-Rings' },
     dimensions: [
-      { attr: 'customer', label: 'Customer', weight: 100 },
       { attr: 'segment', label: 'Segment', weight: 40 },
       { attr: 'tier', label: 'Tier', weight: 30 },
-      { attr: 'region', label: 'Region', weight: 20 },
     ],
     rows: [
-      { part: 'OR-25X3-NBR', match: {}, tiers: [{ from: 0, value: '1.20' }, { from: 500, value: '1.10' }, { from: 2000, value: '0.98' }], validFrom: '2026-01-01' },
-      { part: 'OR-25X3-NBR', match: { tier: 'A' }, tiers: [{ from: 0, value: '1.08' }, { from: 500, value: '0.99' }], validFrom: '2026-01-01' },
-      { part: 'OR-25X3-NBR', match: { customer: 'CUST-DE-001' }, tiers: [{ from: 0, value: '0.95' }], validFrom: '2026-07-01', validTo: '2026-12-31' },
-      { part: 'OR-40X5-FKM', match: {}, tiers: [{ from: 0, value: '3.40' }, { from: 250, value: '3.10' }, { from: 1000, value: '2.85' }], validFrom: '2026-01-01' },
       // Real O-Ring #1 — NBR70, general purpose. Industrial volume discount.
       { part: 'OR00007771N7022', match: {}, tiers: [{ from: 0, value: '0.85' }, { from: 1000, value: '0.75' }, { from: 5000, value: '0.62' }], validFrom: '2026-01-01' },
       { part: 'OR00007771N7022', match: { segment: 'IND' }, tiers: [{ from: 0, value: '0.78' }, { from: 1000, value: '0.68' }, { from: 5000, value: '0.55' }], validFrom: '2026-01-01' },
@@ -424,12 +418,13 @@ function euSealsPriceList() {
 }
 
 /**
- * PTFE back-up rings — a SEPARATE catalog + formula book from PTFE_BEARINGS (owner, 2026-09-11:
- * real TSS product data pass). Kept as its own book rather than folded into PTFE_BEARINGS
- * because engine-core's `matchOn` is uniform across a whole book (every row is checked against
- * every key in `matchOn`) — adding `cross_section_mm` to PTFE_BEARINGS' matchOn would break its
- * existing spec/variant rows (they'd fail the new key's presence check). A back-up ring isn't
- * the same product family as a PTFE slide bearing anyway.
+ * PTFE back-up rings — the sole catalog + formula book now seeded (owner, 2026-09-11: real
+ * TSS product data pass). It was built as its own book rather than folded into the original
+ * placeholder PTFE_BEARINGS book because engine-core's `matchOn` is uniform across a whole
+ * book (every row is checked against every key in `matchOn`) — adding `cross_section_mm` to
+ * PTFE_BEARINGS' matchOn would have broken its spec/variant rows (they'd fail the new key's
+ * presence check). PTFE_BEARINGS (fake Product_IDs, spec 120/160) was removed once this real
+ * book existed — a back-up ring isn't the same product family as a PTFE slide bearing anyway.
  *
  * Real Product_IDs from the attached C4C export (category "BB", material PTFE), by real
  * cross-section (the export's `Width` field): 1.52mm and 4.65mm get negotiated catalog rates;
@@ -474,45 +469,12 @@ function backupRingsCatalog() {
   };
 }
 
-/** PTFE slide bearings catalog + formula book (ARCHITECTURE_V2 §2.7), exactly as pinned by
- *  engine-core/test/techniques.test.js: negotiated rates for the standard sizes, a fallback
- *  formula for custom diameters over effective-dated cost inputs, tiered margin, 12% floor. */
-function ptfeBearingsCatalog() {
-  return {
-    id: 'PTFE_BEARINGS',
-    name: 'PTFE slide bearings',
-    version: '2026.09.1',
-    status: 'ACTIVE',
-    supersedes: null,
-    validFrom: '2026-09-01',
-    validTo: null,
-    currency: 'EUR',
-    dsl_version: 1,
-    appliesWhen: { family: 'PTFE bearings' },
-    matchOn: ['spec', 'variant'],
-    rows: [
-      { match: { spec: '120', variant: 'standard' }, rate: '84.00' },
-      { match: { spec: '160', variant: 'standard' }, rate: '112.00' },
-    ],
-    fallbackFormula: 'diameter_mm * cost.ptfe_rate_per_mm + cost.machining_setup / quantity',
-    costInputs: {
-      ptfe_rate_per_mm: { value: '0.62', unit: 'EUR / mm', validFrom: '2026-08-01', source: 'MANUAL' },
-      machining_setup: [
-        { value: '150', validFrom: '2026-01-01', validTo: '2026-06-01', source: 'MANUAL' },
-        { value: '180', validFrom: '2026-06-01', source: 'MANUAL' },
-      ],
-    },
-    freight: 0,
-    margin: [{ match: { tier: 'A' }, value: '0.18' }, { match: {}, value: '0.22' }],
-    floor: '0.12',
-    discount: [{ match: { tier: 'A' }, value: '0.02' }, { match: {}, value: 0 }],
-    provenance: HUMAN_PROVENANCE,
-  };
-}
-
-/** Which technique prices a line (ARCHITECTURE_V2 §2.5): O-Rings → the EU price list, PTFE
- *  bearings → the catalog, back-up rings → their own catalog; everything else defaults to
- *  cost plus with the region config. */
+/** Which technique prices a line (ARCHITECTURE_V2 §2.5): O-Rings → the EU price list,
+ *  back-up rings → their own catalog; everything else defaults to cost plus with the region
+ *  config. The placeholder PTFE_BEARINGS book (spec 120/160, fake Product_IDs) was removed
+ *  2026-09-11 — real data (BACKUP_RINGS_PTFE) fully replaces it; PTFE_BEARINGS lives on only
+ *  as engine-core/test/techniques.test.js's own self-contained fixture, which reads none of
+ *  this file. */
 function routingRules() {
   return {
     key: '*',
@@ -523,7 +485,6 @@ function routingRules() {
     validTo: null,
     rules: [
       { when: { family: 'O-Rings' }, type: 'PRICE_LIST', book: 'EU_SEALS' },
-      { when: { family: 'PTFE bearings' }, type: 'CATALOG_FORMULA', book: 'PTFE_BEARINGS' },
       { when: { family: 'Back-up rings' }, type: 'CATALOG_FORMULA', book: 'BACKUP_RINGS_PTFE' },
     ],
     provenance: HUMAN_PROVENANCE,

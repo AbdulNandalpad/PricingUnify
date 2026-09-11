@@ -1,5 +1,5 @@
 {
-  "name": "EUROPE catalog PTFE-BRG-120 qty 4, tier A: negotiated rate 84.00 is a sell price, 2% discount = 82.32",
+  "name": "EUROPE price list OR00007771N7022 (real NBR70 O-Ring) qty 500, CUST-DE-001 (segment IND, tier A): IND row 0.78, tier-A discount 3% = 0.76",
   "request": {
     "context": {
       "hostSystem": "API",
@@ -12,8 +12,8 @@
     },
     "items": [
       {
-        "partNumber": "PTFE-BRG-120",
-        "quantity": 4
+        "partNumber": "OR00007771N7022",
+        "quantity": 500
       }
     ],
     "priceDate": "2026-09-10"
@@ -25,14 +25,15 @@
   "expected": {
     "items": [
       {
-        "partNumber": "PTFE-BRG-120",
+        "partNumber": "OR00007771N7022",
         "status": "PRICED",
-        "technique": "CATALOG_FORMULA",
-        "book": "PTFE_BEARINGS",
-        "routedBy": "RULE:1",
-        "unitPrice": "82.32",
+        "technique": "PRICE_LIST",
+        "book": "EU_SEALS",
+        "routedBy": "RULE:0",
+        "unitPrice": "0.76",
         "landedCost": null,
-        "margin": null
+        "margin": null,
+        "currency": "EUR"
       }
     ]
   }

@@ -1,11 +1,12 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { BULK_COLUMNS, parseBulkText } from '../batch.js';
 import { TYPES, fmt2, lineTotal, num, pct, statusChip } from '../format.js';
 import { Chip, ErrorBox, Field } from '../components/ui.jsx';
 
 const TYPE_OPTIONS = Object.entries(TYPES);
 
-function typeCode(technique) { return TYPES[technique]?.code || 'cp'; }
+// No line yet (not priced this session) -> neutral, not colour-coded as any one technique.
+function typeCode(technique) { return technique ? TYPES[technique]?.code || '' : ''; }
 
 /** Summary tiles — display-only arithmetic on server strings (unit price × quantity). */
 function Summary({ quote }) {
@@ -34,24 +35,36 @@ function Summary({ quote }) {
   );
 }
 
-function BulkAdd({ onAdd }) {
+function BulkAdd({ onAdd, onClose }) {
   const [text, setText] = useState('');
-  const add = () => { const rows = parseBulkText(text); if (rows.length) { onAdd(rows); setText(''); } };
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const add = () => { const rows = parseBulkText(text); if (rows.length) { onAdd(rows); onClose(); } };
   const upload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => { const rows = parseBulkText(String(reader.result)); if (rows.length) onAdd(rows); };
+    reader.onload = () => { const rows = parseBulkText(String(reader.result)); if (rows.length) { onAdd(rows); onClose(); } };
     reader.readAsText(file);
     e.target.value = '';
   };
   return (
-    <div className="bulk-add">
-      <div className="small muted">One line per part — <span className="mono">{BULK_COLUMNS}</span>; everything after the part is optional. A header row is skipped.</div>
-      <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={'P-10023, 10\nP-70200, 30, ACME, EU01\nOR-25X3-NBR, 500'} aria-label="Paste lines" style={{ marginTop: 8 }} />
-      <div className="actions">
-        <button type="button" className="btn small" onClick={add} disabled={!text.trim()}>Add these lines</button>
-        <label className="file-upload btn small">Upload .csv<input type="file" accept=".csv,.txt" onChange={upload} hidden /></label>
+    <div className="modal-wrap">
+      <button type="button" className="scrim" aria-label="Close" onClick={onClose} />
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Paste or upload lines">
+        <div className="modal-head">
+          <h3>Paste or upload lines</h3>
+          <button type="button" className="btn ghost small" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="small muted">One line per part — <span className="mono">{BULK_COLUMNS}</span>; everything after the part is optional. A header row is skipped.</div>
+        <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={'P-10023, 10\nP-70200, 30, ACME, EU01\nOR00007771N7022, 1500'} aria-label="Paste lines" autoFocus style={{ marginTop: 8 }} />
+        <div className="actions" style={{ marginTop: 10 }}>
+          <button type="button" className="btn primary small" onClick={add} disabled={!text.trim()}>Add these lines</button>
+          <label className="file-upload btn small">Upload .csv<input type="file" accept=".csv,.txt" onChange={upload} hidden /></label>
+        </div>
       </div>
     </div>
   );
@@ -60,6 +73,7 @@ function BulkAdd({ onAdd }) {
 export default function PriceCalculator({ quote, onWhy, selectedRowId }) {
   const [showMore, setShowMore] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const { rows, suppliers, regionConfig } = quote;
   const additionalCostMap = regionConfig?.additionalCostMap || null;
   const warehouses = useMemo(() => [...new Set(suppliers.flatMap((s) => Object.keys(s.warehouses || {})))].sort(), [suppliers]);
@@ -72,33 +86,43 @@ export default function PriceCalculator({ quote, onWhy, selectedRowId }) {
         <div><h1>Price calculator</h1><p>Add the parts, the engine picks the pricing type per line from your rules, prices it, and explains every number.</p></div>
         <div className="actions">
           <button type="button" className="btn" onClick={quote.addRow}>+ Add line</button>
-          <button type="button" className="btn" onClick={() => setShowBulk((s) => !s)}>{showBulk ? 'Hide paste' : 'Paste / upload'}</button>
+          <button type="button" className="btn" onClick={() => setShowBulk(true)}>Paste / upload</button>
           <button type="button" className="btn" onClick={() => setShowMore((s) => !s)}>{showMore ? 'Fewer columns' : 'More columns'}</button>
           <button type="button" className="btn" onClick={quote.fetchAttributes} disabled={quote.fetching}>{quote.fetching ? 'Fetching…' : 'Fetch item attributes'}</button>
           <button type="button" className="btn primary" onClick={() => quote.priceAll()} disabled={quote.pricing}>{quote.pricing ? 'Pricing…' : 'Price all lines'}</button>
         </div>
       </div>
 
-      <div className="controls">
-        <Field label="Customer">
-          <select value={quote.customerId} onChange={(e) => quote.selectCustomer(e.target.value)}>
-            {Object.keys(quote.customers).length === 0 && <option value={quote.customerId}>{quote.customerId}</option>}
-            {Object.keys(quote.customers).map((id) => <option key={id} value={id}>{customerLabel(id)}</option>)}
-          </select>
-        </Field>
-        <Field label="Region" hint={quote.party?.customerOod ? `(from customer's data origin ${quote.party.customerOod})` : ''}>
-          <select value={quote.region} onChange={(e) => quote.selectRegion(e.target.value)}>
-            {quote.regions.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </Field>
-        <Field label="Price date"><input type="date" value={quote.priceDate} onChange={(e) => quote.setPriceDate(e.target.value)} /></Field>
-        <Field label="Quote"><span className="mono" style={{ padding: '6px 0' }}>{quote.quoteId}{quote.party?.territory ? ` · ${quote.party.territory}` : ''}{quote.results?.documentId ? <span className="muted small"> · last priced as {quote.results.documentId}</span> : null}</span></Field>
+      <div className="quote-details">
+        <button type="button" className="collapse-toggle" onClick={() => setDetailsOpen((o) => !o)} aria-expanded={detailsOpen}>
+          <span className={`chevron ${detailsOpen ? 'open' : ''}`} aria-hidden="true">▸</span>
+          Quote details
+          {!detailsOpen && <span className="small faint">{quote.customerId} · {quote.region}</span>}
+        </button>
+        {detailsOpen && (
+          <>
+            <div className="controls">
+              <Field label="Customer">
+                <select value={quote.customerId} onChange={(e) => quote.selectCustomer(e.target.value)}>
+                  {Object.keys(quote.customers).length === 0 && <option value={quote.customerId}>{quote.customerId}</option>}
+                  {Object.keys(quote.customers).map((id) => <option key={id} value={id}>{customerLabel(id)}</option>)}
+                </select>
+              </Field>
+              <Field label="Region" hint={quote.party?.customerOod ? `(from customer's data origin ${quote.party.customerOod})` : ''}>
+                <select value={quote.region} onChange={(e) => quote.selectRegion(e.target.value)}>
+                  {quote.regions.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Field>
+              <Field label="Price date"><input type="date" value={quote.priceDate} onChange={(e) => quote.setPriceDate(e.target.value)} /></Field>
+              <Field label="Quote"><span className="mono" style={{ padding: '6px 0' }}>{quote.quoteId}{quote.party?.territory ? ` · ${quote.party.territory}` : ''}{quote.results?.documentId ? <span className="muted small"> · last priced as {quote.results.documentId}</span> : null}</span></Field>
+            </div>
+            <Summary quote={quote} />
+          </>
+        )}
       </div>
 
       <ErrorBox error={quote.error} />
       {quote.note && <div className="callout good mb">{quote.note}</div>}
-
-      <Summary quote={quote} />
 
       <div className={`panel line-grid ${showMore ? 'more' : ''}`}>
         <div className="scroll">
@@ -114,8 +138,8 @@ export default function PriceCalculator({ quote, onWhy, selectedRowId }) {
               {rows.map((row) => {
                 const line = quote.lineFor(row);
                 const stale = quote.isStale(row);
-                const technique = row.pricingType || line?.technique || 'COST_PLUS';
-                const isCostPlus = technique === 'COST_PLUS';
+                const technique = row.pricingType || line?.technique || null;
+                const isCostPlus = technique ? technique === 'COST_PLUS' : true; // not priced yet — leave cost-plus-only fields editable rather than guessing
                 const chip = statusChip(line);
                 const total = lineTotal(line);
                 const knownSupplier = suppliers.some((s) => s.supplier === row.supplier);
@@ -207,10 +231,10 @@ export default function PriceCalculator({ quote, onWhy, selectedRowId }) {
             </tbody>
           </table>
         </div>
-        {showBulk && <BulkAdd onAdd={quote.addRows} />}
         <div className="body small muted">Cost plus lines land the cost from the region's rules and add the region's default margin (adjust per line in <b>why?</b>). Price list and catalog lines are sell prices — no cost is shown unless a formula built it. Lines marked <b>re-price</b> changed after they were priced.</div>
       </div>
       <datalist id="parts">{Object.entries(quote.knownParts).map(([p, d]) => <option key={p} value={p}>{d}</option>)}</datalist>
+      {showBulk && <BulkAdd onAdd={quote.addRows} onClose={() => setShowBulk(false)} />}
     </>
   );
 }

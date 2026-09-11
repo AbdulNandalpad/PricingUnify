@@ -1,5 +1,5 @@
 {
-  "name": "EUROPE price list OR-25X3-NBR qty 500, CUST-DE-001 (tier A): customer row 0.95, tier-A discount 3% = 0.92",
+  "name": "EUROPE catalog BBP80B324-PT004 (real 1.52mm PTFE back-up ring) qty 50, tier A: negotiated rate 2.40 is a sell price, 2% discount = 2.35",
   "request": {
     "context": {
       "hostSystem": "API",
@@ -12,8 +12,8 @@
     },
     "items": [
       {
-        "partNumber": "OR-25X3-NBR",
-        "quantity": 500
+        "partNumber": "BBP80B324-PT004",
+        "quantity": 50
       }
     ],
     "priceDate": "2026-09-10"
@@ -25,18 +25,14 @@
   "expected": {
     "items": [
       {
-        "partNumber": "OR-25X3-NBR",
+        "partNumber": "BBP80B324-PT004",
         "status": "PRICED",
-        "technique": "PRICE_LIST",
-        "book": "EU_SEALS",
-        "routedBy": "RULE:0",
-        "unitPrice": "0.92",
+        "technique": "CATALOG_FORMULA",
+        "book": "BACKUP_RINGS_PTFE",
+        "routedBy": "RULE:1",
+        "unitPrice": "2.35",
         "landedCost": null,
-        "margin": null,
-        "currency": "EUR",
-        "flags": [
-          "ROW_EXPIRES"
-        ]
+        "margin": null
       }
     ]
   }
