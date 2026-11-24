@@ -98,7 +98,7 @@
           </OverflowToolbar>
         </headerToolbar>
         <content>
-          <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}"
+          <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
             visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36" alternateRowColors="true"
             rowSelectionChange=".onSelectionChange" cellClick=".onCellClick" noData="{i18n>noItems}">
             <t:columns>

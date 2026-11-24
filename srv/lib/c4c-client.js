@@ -79,6 +79,11 @@ const DEFAULT_FIELD_MAP = {
     productId: 'ID',
     productDescription: 'Description',
     productUom: 'UnitOfMeasureCode',
+    // Per-sales-org product data (navigation ProductSales; its properties per the tenant's
+    // $metadata): the raw ERP stock class lives here, NOT on the quote item.
+    productSalesNav: 'ProductSales',
+    productSalesOrg: 'SalesOrganisationID',
+    productStockClass: 'StockClass',
   },
 };
 
@@ -372,21 +377,28 @@ function createC4cClient({
     const productPath = r.productServicePath || servicePath;
     const root = destination.url.replace(/\/$/, '') + productPath;
     const filter = parts.map((p) => `${r.productId} eq '${encodeURIComponent(p)}'`).join(' or ');
+    const base = `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`;
+    const get = (url) => fetchImpl(url, { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } });
+    const str = (v) => (v !== undefined && v !== null ? String(v) : '');
     try {
-      const res = await fetchImpl(
-        `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`,
-        { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
-      );
+      // With the sales navigation first (raw stock class per sales org); if the tenant
+      // rejects the $expand, retry without it so description/UoM still fill in.
+      let res = await get(`${base}&$expand=${r.productSalesNav}`);
+      let expanded = res.ok;
+      if (!res.ok) { res = await get(base); }
       if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status} on ${productPath}/${r.productCollection}).` }; }
       const body = await res.json();
       const rows = (body.d && body.d.results) || [];
       const products = {};
       for (const row of rows) {
-        const id = row[r.productId] !== undefined && row[r.productId] !== null ? String(row[r.productId]) : '';
+        const id = str(row[r.productId]);
         if (!id) continue;
+        const nav = expanded ? row[r.productSalesNav] : null;
+        const salesRows = Array.isArray(nav) ? nav : ((nav && nav.results) || []);
         products[id] = {
-          description: row[r.productDescription] !== undefined && row[r.productDescription] !== null ? String(row[r.productDescription]) : '',
-          uom: row[r.productUom] !== undefined && row[r.productUom] !== null ? String(row[r.productUom]) : '',
+          description: str(row[r.productDescription]),
+          uom: str(row[r.productUom]),
+          sales: salesRows.map((sr) => ({ salesOrg: str(sr[r.productSalesOrg]), stockClassRaw: str(sr[r.productStockClass]) })),
         };
       }
       return { status: 'OK', products };

@@ -226,9 +226,10 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   const res = await client.fetchProductDetails({ partNumbers: ['ORAR00125-N7H07', 'EU-T100', 'ORAR00125-N7H07', '  '] });
   assert.equal(res.status, 'OK');
   assert.deepEqual(res.products, {
-    'ORAR00125-N7H07': { description: 'O-Rings', uom: 'EA' },
-    'EU-T100': { description: 'Verification part', uom: '' },
+    'ORAR00125-N7H07': { description: 'O-Rings', uom: 'EA', sales: [] },
+    'EU-T100': { description: 'Verification part', uom: '', sales: [] },
   });
+  assert.match(calls[0], /&\$expand=ProductSales/);
   // One call, duplicates/blanks dropped, or-joined filter against the material collection.
   assert.equal(calls.length, 1);
   assert.match(calls[0], /ProductCollection\?\$filter=ID eq 'ORAR00125-N7H07' or ID eq 'EU-T100'/);
@@ -237,4 +238,34 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   assert.deepEqual(await client.fetchProductDetails({ partNumbers: [] }), { status: 'OK', products: {} });
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.fetchProductDetails({ partNumbers: ['X'] })).status, 'C4C_NOT_CONFIGURED');
+});
+
+test('fetchProductDetails returns the raw stock class per sales org from the ProductSales expand, and retries without $expand if the tenant rejects it', async () => {
+  const urls = [];
+  const withSales = async (url) => {
+    urls.push(url);
+    return jsonRes({ d: { results: [{
+      ID: 'ORAR00125-N7H07', Description: 'O-Rings', UnitOfMeasureCode: 'EA',
+      ProductSales: { results: [
+        { SalesOrganisationID: 'SO1', StockClass: 'MTS' },
+        { SalesOrganisationID: 'SO2', StockClass: 'OMT' },
+      ] },
+    }] } });
+  };
+  const ok = await createC4cClient({ resolveDestination: () => DEST, fetchImpl: withSales }).fetchProductDetails({ partNumbers: ['ORAR00125-N7H07'] });
+  assert.deepEqual(ok.products['ORAR00125-N7H07'].sales, [
+    { salesOrg: 'SO1', stockClassRaw: 'MTS' },
+    { salesOrg: 'SO2', stockClassRaw: 'OMT' },
+  ]);
+
+  const retry = [];
+  const rejectsExpand = async (url) => {
+    retry.push(url);
+    if (url.includes('$expand')) return { ok: false, status: 400, json: async () => ({}) };
+    return jsonRes({ d: { results: [{ ID: 'X', Description: 'Plain', UnitOfMeasureCode: 'PC' }] } });
+  };
+  const fallback = await createC4cClient({ resolveDestination: () => DEST, fetchImpl: rejectsExpand }).fetchProductDetails({ partNumbers: ['X'] });
+  assert.equal(fallback.status, 'OK');
+  assert.equal(retry.length, 2); // expand attempt, then plain
+  assert.deepEqual(fallback.products.X, { description: 'Plain', uom: 'PC', sales: [] });
 });

@@ -1,3 +1,4 @@
+const { resolveProductStockClass } = require('./lib/product-stock-class');
 const Decimal = require('decimal.js');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
@@ -608,8 +609,23 @@ module.exports = (srv) => {
   });
 
   srv.on('fetchC4cProductDetails', async (req) => {
-    const { partNumbers } = req.data.payload || {};
-    return currentC4c().fetchProductDetails({ partNumbers: Array.isArray(partNumbers) ? partNumbers : [] });
+    const { partNumbers, region, salesOrg } = req.data.payload || {};
+    const res = await currentC4c().fetchProductDetails({ partNumbers: Array.isArray(partNumbers) ? partNumbers : [] });
+    if (res.status !== 'OK') return res;
+
+    // Raw ERP stock class (ProductSales.StockClass, per sales org) -> canonical MTS/NonMTS
+    // through the region's OWN stockClassMap — config, never a guess. Anything that can't be
+    // resolved is said so (stockClassNote), never silently defaulted.
+    let map = null;
+    try { map = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso()) || {}).stockClassMap || null; } catch (e) { map = null; }
+    for (const product of Object.values(res.products)) {
+      const resolved = resolveProductStockClass(product.sales, { salesOrg, map });
+      delete product.sales;
+      if (resolved.stockClassRaw) product.stockClassRaw = resolved.stockClassRaw;
+      if (resolved.stockClass) product.stockClass = resolved.stockClass;
+      if (resolved.note) product.stockClassNote = resolved.note;
+    }
+    return res;
   });
 
   srv.on('fetchC4cObject', async (req) => {

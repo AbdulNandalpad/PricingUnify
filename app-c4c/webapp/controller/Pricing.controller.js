@@ -93,7 +93,7 @@ sap.ui.define([
       this._vm().setProperty("/addItem", {
         partNumber: "", description: "", quantity: "1",
         withBreaks: false, breakQtys: "10, 25, 50",
-        suggestions: [], sourceNote: ""
+        suggestions: [], sourceNote: "", searching: false
       });
       if (!this._addItemDialogPromise) {
         this._addItemDialogPromise = Fragment.load({
@@ -117,6 +117,7 @@ sap.ui.define([
       if (this._suggestTimer) { clearTimeout(this._suggestTimer); }
       if (value.length < 2) { this._vm().setProperty("/addItem/suggestions", []); return; }
       this._suggestTimer = setTimeout(function () {
+        that._vm().setProperty("/addItem/searching", true);
         that.callRest("/rest/pricing/searchC4cProducts", {
           body: { payload: { query: value, region: that.getSession().getProperty("/region") } }
         })
@@ -139,7 +140,8 @@ sap.ui.define([
               setTimeout(function () { input.showItems(function () { return true; }); }, 0);
             }
           })
-          .catch(function () { /* suggestions are a convenience — typing stays possible */ });
+          .catch(function () { /* suggestions are a convenience — typing stays possible */ })
+          .finally(function () { that._vm().setProperty("/addItem/searching", false); });
       }, 300);
     },
 
@@ -223,30 +225,50 @@ sap.ui.define([
       this._message(bundle.getText("removedLines", [removed]), "Success");
     },
 
-    /** Fill blank Description/UoM from the C4C product master — a convenience pass after a
-     *  quote load or an import. Typed non-OK outcomes (C4C not connected, lookup error) just
-     *  skip it silently; it only ever fills blanks, never overwrites a value already there. */
+    /** Fill blank Description / UoM / Stock class from the C4C product master — a convenience
+     *  pass after a quote load or an import. Only ever fills blanks (never overwrites a value
+     *  already there). Stock class arrives as a raw ERP code resolved by srv through the
+     *  region's own stock-class map; anything unresolved is reported, never guessed. A typed
+     *  non-OK outcome (C4C not connected, lookup error) just skips it. Returns a promise so a
+     *  caller keeps the grid busy until it's done. */
     _enrichFromProductMaster: function () {
       var that = this;
       var vm = this._vm();
       var parts = vm.getProperty("/items")
-        .filter(function (r) { return (r.partNumber || "").trim() && (!(r.description || "").trim() || !(r.uom || "").trim()); })
+        .filter(function (r) {
+          return (r.partNumber || "").trim() &&
+            (!(r.description || "").trim() || !(r.uom || "").trim() || !r.stockClassSel);
+        })
         .map(function (r) { return r.partNumber.trim(); });
-      if (parts.length === 0) { return; }
-      this.callRest("/rest/pricing/fetchC4cProductDetails", { body: { payload: { partNumbers: parts } } })
+      if (parts.length === 0) { return Promise.resolve(); }
+      var session = this.getSession();
+      vm.setProperty("/busy", true);
+      return this.callRest("/rest/pricing/fetchC4cProductDetails", {
+        body: { payload: { partNumbers: parts, region: session.getProperty("/region"), salesOrg: session.getProperty("/salesOrg") } }
+      })
         .then(function (res) {
           if (res.status !== "OK") { return; }
           var items = vm.getProperty("/items");
-          var changed = false;
+          var notes = {};
           items.forEach(function (r) {
             var p = res.products[(r.partNumber || "").trim()];
             if (!p) { return; }
-            if (!(r.description || "").trim() && p.description) { r.description = p.description; changed = true; }
-            if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; changed = true; }
+            if (!(r.description || "").trim() && p.description) { r.description = p.description; }
+            if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; }
+            if (!r.stockClassSel) {
+              if (p.stockClass) { r.stockClassSel = p.stockClass; }
+              else if (p.stockClassNote && p.stockClassNote !== "NO_STOCK_CLASS_IN_C4C") { notes[p.stockClassNote] = true; }
+            }
           });
-          if (changed) { vm.setProperty("/items", items); }
+          vm.setProperty("/items", items);
+          var keys = Object.keys(notes);
+          if (keys.length > 0) {
+            var bundle = that.getView().getModel("i18n").getResourceBundle();
+            that._message(bundle.getText("stockClassUnresolved", [keys.join(", ")]), "Warning");
+          }
         })
-        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ });
+        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
+        .finally(function () { vm.setProperty("/busy", false); });
     },
 
     _message: function (text, type) {
@@ -481,7 +503,7 @@ sap.ui.define([
             if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
             that._message(bundle.getText("c4cLoaded", [res.items.length, value]) +
               (res.region && res.region.value ? " " + bundle.getText("c4cRegionSet", [res.region.value]) : ""), "Success");
-            that._enrichFromProductMaster();
+            return that._enrichFromProductMaster();
           } else if (res.status === "C4C_NOT_CONFIGURED" || res.status === "C4C_CREDENTIALS_MISSING") {
             that._message(res.message, "Warning");
           } else {

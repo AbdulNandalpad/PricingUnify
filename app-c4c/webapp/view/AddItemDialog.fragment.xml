@@ -13,6 +13,7 @@
             <core:ListItem key="{vm>id}" text="{vm>id}" additionalText="{vm>description}"/>
           </suggestionItems>
         </Input>
+        <BusyIndicator size="1rem" visible="{vm>/addItem/searching}" class="sapUiTinyMarginBottom"/>
         <Text text="{vm>/addItem/sourceNote}" class="traceNote sapUiTinyMarginBottom" visible="{= !!${vm>/addItem/sourceNote} }"/>
 
         <Label text="{i18n>addItemDescription}" class="sapUiTinyMarginTop"/>
