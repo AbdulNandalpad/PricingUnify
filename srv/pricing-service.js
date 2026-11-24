@@ -1,6 +1,7 @@
 const { resolveProductStockClass } = require('./lib/product-stock-class');
 const { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod, warehouseFromPicked, defaultWarehouseForOod } = require('./lib/origin-of-data');
 const Decimal = require('decimal.js');
+const { buildBiBody, applyBiCandidates } = require('./lib/bi-cost');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
@@ -389,7 +390,7 @@ async function applySequenceRouting(facts, items, config, { region, salesOrg }) 
  * stock class, quantity-break cost) and a single price() call cover components exactly the
  * same way they cover any other line — no separate code path for "component pricing."
  */
-async function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) {
+async function priceWithKits({ region, salesOrg, priceDate, facts, config, request, biContext }) {
   const items = request.items;
   const kitIndices = [];
   items.forEach((it, i) => {
@@ -419,13 +420,27 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   applyHostProvidedCosts(facts, flatItems);
   await applyPriceListCosts(facts, flatItems, { region, salesOrg, priceDate });
   applyQuantityBreakCost(facts, flatItems);
-  const routingByPart = await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
+
+  // Live mode: costs come from the API6 BI price endpoint (TEMPORARY cost source — see
+  // lib/bi-cost.js) for every COST_PLUS line that has no explicitly chosen cost. The per-source
+  // /costs/* endpoints don't exist on the gateway yet, so the sequence walk is skipped in live
+  // mode; in recorded mode nothing changes.
+  const biRouting = new Map();
+  if (api6.mode === 'live') {
+    const forBi = flatItems.filter((it) => !it.selectedCostId && it.pricingType !== 'PRICE_LIST'
+      && !it.stockClassError && !it.pricingTypeError && !it.additionalCostError);
+    if (forBi.length) {
+      const bi = await api6.fetchBiCosts(buildBiBody({ items: forBi, ...biContext }));
+      for (const [item, routing] of applyBiCandidates(facts, forBi, bi)) biRouting.set(item, routing);
+    }
+  }
+  const routingByPart = api6.mode === 'live' ? {} : await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
 
   const flatResult = flatItems.length ? price({ request: { ...request, items: flatItems }, facts, config }) : { items: [] };
-  for (const line of flatResult.items) {
-    const walks = routingByPart[line.partNumber];
+  flatResult.items.forEach((line, i) => {
+    const walks = biRouting.get(flatItems[i]) || routingByPart[line.partNumber];
     if (walks && line.trace) line.trace.costRouting = walks.length === 1 ? walks[0] : walks;
-  }
+  });
   const nonKitLines = flatResult.items.slice(0, nonKitItems.length);
   const componentLines = flatResult.items.slice(nonKitItems.length);
 
@@ -534,7 +549,12 @@ async function runPricing({ payload, userId }) {
   // right), so fetch for every part number that will actually be priced, not just the
   // top-level request items.
   const allPartNumbers = items.flatMap((it) => (Array.isArray(it.components) ? it.components : [it]));
-  const facts = await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
+  // Live mode has no /pricing-facts endpoint: costs come from the BI price endpoint (see
+  // priceWithKits) and charge amounts from the supplier terms / region config, so the facts
+  // start empty instead of failing the whole run.
+  const facts = api6.mode === 'live'
+    ? { costs: {}, elements: {}, classification: {}, qtyBreaks: {}, fx: {} }
+    : await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
 
   const request = {
     context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
@@ -555,7 +575,10 @@ async function runPricing({ payload, userId }) {
     instructions,
   };
 
-  const result = await priceWithKits({ region, salesOrg, priceDate, facts, config, request });
+  const result = await priceWithKits({
+    region, salesOrg, priceDate, facts, config, request,
+    biContext: { customerId, customerOod: resolvedCustomerOod, customer, hostObjectId, userId },
+  });
 
   // An OPPORTUNITY is cost-only (owner spec 2026-11-24): the build-up result is returned as
   // landedCost and no price or margin field ever appears — nor will one ever be written back
