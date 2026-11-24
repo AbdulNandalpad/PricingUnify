@@ -22,7 +22,35 @@
           "additionalProperties": { "type": "string", "minLength": 1 },
           "description": "Cost source system -> endpoint path (e.g. CCD -> /costs/ccd). The ORDER they are called in stays pricing config (region-config.costAccessSequence)."
         },
-        "priceListEndpoint": { "type": ["string", "null"] }
+        "priceListEndpoint": { "type": ["string", "null"] },
+        "biPriceListEndpoint": { "type": ["string", "null"], "description": "API6's BI price endpoint path (e.g. /core/price/rest/v1/getPriceList) — called directly, no CPI in between." },
+        "requestMapping": {
+          "type": ["object", "null"],
+          "description": "The rules the former CPI Groovy step applied to the request before API6 (unit/uom mapping, currency default, supplier clearing, stock-class override, leading-zero strip). Data, not code; omit to use the built-in defaults that mirror that script.",
+          "properties": {
+            "unitCodeMap": { "type": "object", "additionalProperties": { "type": "string" } },
+            "uomMap": { "type": "object", "additionalProperties": { "type": "string" } },
+            "defaultCostCurrencyFromCustomer": { "type": "boolean" },
+            "stockClassOverrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["customerCountry", "warehouseCode", "supplierMainGroupCode", "stockClassGroupCode"],
+                "additionalProperties": false,
+                "properties": {
+                  "customerCountry": { "type": "string" },
+                  "warehouseCode": { "type": "string" },
+                  "supplierMainGroupCode": { "type": "string" },
+                  "stockClassGroupCode": { "type": "string" }
+                }
+              }
+            },
+            "clearSupplierWithoutItemTypeOrOpportunity": { "type": "boolean" },
+            "zeroCostPlusFlagForOpportunity": { "type": "boolean" },
+            "stripLeadingZerosFrom": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

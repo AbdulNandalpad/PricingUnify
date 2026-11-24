@@ -107,6 +107,8 @@ sap.ui.define([
           baseUrl: (conn.api6.baseUrl || "").trim() || null,
           costSourceEndpoints: costSourceEndpoints,
           priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
+          biPriceListEndpoint: (conn.api6.biPriceListEndpoint || "").trim() || null,
+          requestMapping: conn.api6.requestMapping || null, // not edited in this form — passed through so a save never drops it
         },
         c4c: {
           url: (conn.c4c.url || "").trim() || null,

@@ -27,3 +27,16 @@ test('defaultWarehouse is an optional non-empty string on region-config', () => 
   assert.equal(validateRegionConfig(europeConfig({ defaultWarehouse: '1020' })), true);
   assert.throws(() => validateRegionConfig(europeConfig({ defaultWarehouse: '' })));
 });
+
+test('connection-config accepts the BI endpoint and the request-mapping rules, and rejects an unknown rule or a secret-shaped field', () => {
+  const { validateConnectionConfig } = require('../src/validate');
+  const base = (api6) => ({
+    name: 'GLOBAL', version: '2026.11.0', status: 'ACTIVE', validFrom: '2026-11-01', validTo: null,
+    api6, c4c: {}, provenance: { source: 'HUMAN', authoredBy: 't@tss.example', authoredAt: '2026-11-24T00:00:00Z' },
+  });
+  const good = base({ mode: 'live', baseUrl: 'https://apimqua.tss.trelleborg.com', biPriceListEndpoint: '/core/price/rest/v1/getPriceList',
+    requestMapping: { unitCodeMap: { CMT: 'CM' }, stockClassOverrides: [{ customerCountry: 'US', warehouseCode: '1020', supplierMainGroupCode: 'L_LCE', stockClassGroupCode: 'MTS' }] } });
+  assert.equal(validateConnectionConfig(good), true);
+  assert.throws(() => validateConnectionConfig(base({ requestMapping: { notARule: true } })));
+  assert.throws(() => validateConnectionConfig(base({ apiKey: 'secret' })));
+});

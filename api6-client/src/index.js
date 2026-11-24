@@ -22,6 +22,8 @@ const DEFAULT_COST_SOURCE_ENDPOINTS = {
   CCD: '/costs/ccd',
   CCP: '/costs/ccp',
 };
+const { buildBiPriceRequest, parseBiPriceResponse } = require('./bi-price-request');
+const DEFAULT_BI_PRICE_LIST_ENDPOINT = '/core/price/rest/v1/getPriceList';
 const DEFAULT_PRICE_LIST_ENDPOINT = '/costs/price-list';
 
 function createApi6Client({
@@ -31,8 +33,11 @@ function createApi6Client({
   recordedDir = path.join(__dirname, '..', 'recorded'),
   costSourceEndpoints = {},
   priceListEndpoint = DEFAULT_PRICE_LIST_ENDPOINT,
+  biPriceListEndpoint = DEFAULT_BI_PRICE_LIST_ENDPOINT,
+  requestMapping = null,
+  fetchImpl,
 } = {}) {
-  const connector = createConnector({ mode, baseUrl, authStrategy: auth, recordedDir });
+  const connector = createConnector({ mode, baseUrl, authStrategy: auth, recordedDir, ...(fetchImpl ? { fetchImpl } : {}) });
   const endpoints = { ...DEFAULT_COST_SOURCE_ENDPOINTS, ...costSourceEndpoints };
   const endpointFor = (system) => endpoints[system] || `/costs/${String(system).toLowerCase()}`;
 
@@ -42,6 +47,71 @@ function createApi6Client({
     // Exposed for the admin "Connections" view — which endpoint each cost source routes to.
     costSourceEndpoints: endpoints,
     priceListEndpoint,
+    biPriceListEndpoint,
+
+    /**
+     * The BI price endpoint (e.g. https://apimqua.tss.trelleborg.com/core/price/rest/v1/getPriceList):
+     * takes the C4C-shaped body (`customer{}` + `item[]`) and answers `calculatedPriceList[]`. The
+     * CPI step that used to sit in front of it is replaced by `buildBiPriceRequest` (its rules are
+     * the configurable `requestMapping`). Live mode = one authenticated POST; recorded mode makes
+     * no outbound call and says so (`RECORDED_MODE`, with the request that WOULD have been sent).
+     * Never throws on an API6 fault: a non-SUCCESS answer is `{status:'FAILED', message}`.
+     */
+    async fetchBiPriceList(c4cBody) {
+      const { body, context } = buildBiPriceRequest(c4cBody, requestMapping);
+      if (connector.mode === 'recorded') {
+        return { status: 'RECORDED_MODE', endpoint: biPriceListEndpoint, request: body, context, lines: [] };
+      }
+      try {
+        const res = await connector.call(null, { method: 'POST', path: biPriceListEndpoint, body });
+        return { endpoint: biPriceListEndpoint, context, ...parseBiPriceResponse(res) };
+      } catch (err) {
+        return { status: 'FAILED', endpoint: biPriceListEndpoint, context, message: err.message, lines: [] };
+      }
+    },
+
+    /**
+     * TEMPORARY cost source (owner: "we use it temporarily, later API6 creates endpoints just to
+     * fetch costs — right now it does the calculation"). The BI endpoint calculates a landed cost
+     * itself; our engine does that calculation, so taking its landed cost would mark the cost up
+     * twice. This asks for the COST ONLY: every line is sent with Additional Cost flag "0" and
+     * zero picks, which in the real sample means "hand the cost back 1:1" (no markup, no landed
+     * factor, no pick). One cost candidate per lineId comes back; its source is C4C when the BI
+     * says the cost was handed over from C4C, CCD for message code M1 (the C4C script's own
+     * convention), otherwise the neutral BI_PRICE_LIST so the trace never claims a system it
+     * cannot prove. ASSUMPTION still to be verified live with a flag-0 call: costPlusUnitAmt
+     * equals the raw cost found. Goes away when the cost-only endpoints exist.
+     */
+    async fetchBiCosts(c4cBody) {
+      const forced = JSON.parse(JSON.stringify(c4cBody || {}));
+      const arr = Array.isArray(forced.item) ? forced.item : (forced.item ? [forced.item] : []);
+      for (const it of arr) { it.useCostPlusFlag = '0'; it.c4cPickCount = 0; }
+      forced.item = arr;
+      const res = await this.fetchBiPriceList(forced);
+      if (res.status !== 'OK') return { status: res.status, endpoint: res.endpoint, message: res.message, request: res.request, candidates: {} };
+      const candidates = {};
+      for (const l of res.lines) {
+        const value = Number(l.costPlusUnitAmt);
+        if (!Number.isFinite(value) || value <= 0) {
+          candidates[l.lineId] = { found: false, note: l.ccpMessage || l.explainCost || 'no cost returned', costAvailableFromQty: l.costAvailableFromQty };
+          continue;
+        }
+        const fromC4c = /c4c/i.test(l.costFetchedFrom);
+        const ccd = l.messageCode === 'M1';
+        candidates[l.lineId] = {
+          found: true,
+          value: l.costPlusUnitAmt,
+          currency: l.costCurrencyCode,
+          basis: fromC4c ? 'MANUAL' : 'SUPPLIER_CATALOG',
+          source: { system: fromC4c ? 'C4C' : (ccd ? 'CCD' : 'BI_PRICE_LIST'), table: 'getPriceList', field: 'costPlusUnitAmt', key: `BI_${l.lineId}` },
+          confidence: 'EXACT',
+          fetchedFrom: l.costFetchedFrom,
+          fromQty: l.fromQty,
+          costAvailableFromQty: l.costAvailableFromQty,
+        };
+      }
+      return { status: 'OK', endpoint: res.endpoint, candidates };
+    },
 
     /** Returns { costs, elements, fx } shaped exactly like engine-core's `facts` — quantity
      *  breaks are the engine's problem (requirements §8), so `items` here is only used to
@@ -134,4 +204,4 @@ function createApi6Client({
   };
 }
 
-module.exports = { createApi6Client, createConnector, ...authStrategies };
+module.exports = { createApi6Client, createConnector, buildBiPriceRequest, parseBiPriceResponse, ...authStrategies };

@@ -255,6 +255,10 @@
                     <Label text="{i18n>connPriceListEndpoint}" class="sapUiTinyMarginEnd"/>
                     <Input value="{vm>/connections/api6/priceListEndpoint}" width="18rem"/>
                   </HBox>
+                  <HBox alignItems="Center" class="sapUiTinyMarginTop">
+                    <Label text="{i18n>connBiPriceEndpoint}" class="sapUiTinyMarginEnd"/>
+                    <Input value="{vm>/connections/api6/biPriceListEndpoint}" width="24rem" placeholder="/core/price/rest/v1/getPriceList"/>
+                  </HBox>
                   <Text text="{i18n>maintainedVia}: {vm>/connections/api6/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
                 </VBox>
               </Panel>

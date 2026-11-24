@@ -27,6 +27,8 @@ function current() {
         baseUrl: (a.baseUrl && String(a.baseUrl).trim()) || process.env.API6_BASE_URL,
         costSourceEndpoints: a.costSourceEndpoints || {},
         ...(a.priceListEndpoint ? { priceListEndpoint: a.priceListEndpoint } : {}),
+        ...(a.biPriceListEndpoint ? { biPriceListEndpoint: a.biPriceListEndpoint } : {}),
+        ...(a.requestMapping ? { requestMapping: a.requestMapping } : {}),
       }),
     };
   }
@@ -38,9 +40,12 @@ const api6 = {
   get authType() { return current().authType; },
   get costSourceEndpoints() { return current().costSourceEndpoints; },
   get priceListEndpoint() { return current().priceListEndpoint; },
+  get biPriceListEndpoint() { return current().biPriceListEndpoint; },
   getPricingFacts: (args) => current().getPricingFacts(args),
   fetchCostsBySequence: (args) => current().fetchCostsBySequence(args),
   fetchPriceListCost: (args) => current().fetchPriceListCost(args),
+  fetchBiPriceList: (body) => current().fetchBiPriceList(body),
+  fetchBiCosts: (body) => current().fetchBiCosts(body),
 };
 
 module.exports = { api6 };
