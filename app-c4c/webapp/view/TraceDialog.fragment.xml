@@ -43,8 +43,8 @@
                 <cells>
                   <Text text="{trace>id}"/>
                   <Text text="{trace>type}"/>
-                  <Text text="{path: 'trace>delta', formatter: '.formatter.fmt2'}"/>
-                  <Text text="{path: 'trace>running', formatter: '.formatter.fmt2'}"/>
+                  <Text text="{trace>delta}"/>
+                  <Text text="{trace>running}"/>
                   <Text text="{trace>note}" class="traceNote"/>
                 </cells>
               </ColumnListItem>
