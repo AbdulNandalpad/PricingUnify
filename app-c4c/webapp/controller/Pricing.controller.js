@@ -34,9 +34,10 @@ sap.ui.define([
 
     _newRow: function () {
       return {
-        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "PC",
+        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "",
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
-        customerPartNumber: "", ood: "", warehouse: "", picks: "", leadTime: "", additionalCost: "",
+        customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
+
         priceBreak: false, alternativeToLine: "",
         supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
@@ -269,7 +270,11 @@ sap.ui.define([
         body: { payload: { items: lines, region: session.getProperty("/region"), salesOrg: session.getProperty("/salesOrg") } }
       })
         .then(function (res) {
-          if (res.status !== "OK") { return; }
+          if (res.status !== "OK") {
+            // Say why nothing was filled in, instead of leaving empty cells unexplained.
+            that._message((res.message || res.status) + " — supplier, stock type and origin could not be looked up.", "Warning");
+            return;
+          }
           var items = vm.getProperty("/items");
           var notes = {};
           res.results.forEach(function (o, k) {
@@ -281,7 +286,9 @@ sap.ui.define([
               if (!(r.supplier || "").trim()) { r.supplier = o.supplier.id || ""; }
               if (!(r.supplierExternalId || "").trim()) { r.supplierExternalId = o.supplier.externalId || ""; }
               if (!(r.supplierName || "").trim()) { r.supplierName = o.supplier.name || ""; }
-            } else if (o.supplierNote && o.supplierNote !== "NO_SUPPLIER_IN_C4C") {
+            } else if (o.supplierNote === "NO_SUPPLIER_IN_C4C") {
+              notes[r.partNumber + ": no supplier record in C4C for origin " + (o.ood || "—") + " (right region / Origin of data?)"] = true;
+            } else if (o.supplierNote) {
               notes[r.partNumber + ": " + o.supplierNote] = true;
             }
             if (!r.stockClassSel) {
@@ -315,7 +322,7 @@ sap.ui.define([
       var parts = vm.getProperty("/items")
         .filter(function (r) {
           return (r.partNumber || "").trim() &&
-            (!(r.description || "").trim() || !(r.uom || "").trim());
+            (!(r.description || "").trim() || !(r.uom || "").trim() || !(r.productCategory || "").trim());
         })
         .map(function (r) { return r.partNumber.trim(); });
       if (parts.length === 0) { return Promise.resolve(); }
@@ -332,6 +339,7 @@ sap.ui.define([
             if (!p) { return; }
             if (!(r.description || "").trim() && p.description) { r.description = p.description; }
             if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; }
+            if (!(r.productCategory || "").trim() && p.productCategory) { r.productCategory = p.productCategory; }
           });
           vm.setProperty("/items", items);
         })
@@ -567,7 +575,7 @@ sap.ui.define([
               row.warehouse = (it.warehouse || "").trim();
               row.picks = Number.isFinite(Number(it.picks)) && it.picks !== "" ? String(Number(it.picks)) : (it.picks || "");
               row.leadTime = (it.leadTime || "").trim();
-              row.additionalCost = (it.additionalCost || "").trim();
+              row.additionalCost = (it.additionalCost || "").trim() || row.additionalCost; // blank in C4C = its default (1)
               row.supplier = (it.supplier || "").trim();
               row.productCategory = (it.productCategory || "").trim();
               row.priceBreak = !!it.priceBreak;

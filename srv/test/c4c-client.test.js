@@ -235,8 +235,8 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   const res = await client.fetchProductDetails({ partNumbers: ['ORAR00125-N7H07', 'EU-T100', 'ORAR00125-N7H07', '  '] });
   assert.equal(res.status, 'OK');
   assert.deepEqual(res.products, {
-    'ORAR00125-N7H07': { description: 'O-Rings', uom: 'EA', sales: [] },
-    'EU-T100': { description: 'Verification part', uom: '', sales: [] },
+    'ORAR00125-N7H07': { description: 'O-Rings', uom: 'EA', categories: [], sales: [] },
+    'EU-T100': { description: 'Verification part', uom: '', categories: [], sales: [] },
   });
   assert.match(calls[0], /&\$expand=ProductSales/);
   // One call, duplicates/blanks dropped, or-joined filter against the material collection.
@@ -255,6 +255,7 @@ test('fetchProductDetails returns the raw stock class per sales org from the Pro
     urls.push(url);
     return jsonRes({ d: { results: [{
       ID: 'ORAR00125-N7H07', Description: 'O-Rings', UnitOfMeasureCode: 'EA',
+      ProductCategoryAssignment: { results: [{ ProductCategoryID: 'OR' }, { ProductCategoryID: 'OR' }] },
       ProductSales: { results: [
         { SalesOrganisationID: 'SO1', StockClass: 'MTS' },
         { SalesOrganisationID: 'SO2', StockClass: 'OMT' },
@@ -262,6 +263,7 @@ test('fetchProductDetails returns the raw stock class per sales org from the Pro
     }] } });
   };
   const ok = await createC4cClient({ resolveDestination: () => DEST, fetchImpl: withSales }).fetchProductDetails({ partNumbers: ['ORAR00125-N7H07'] });
+  assert.deepEqual(ok.products['ORAR00125-N7H07'].categories, ['OR']); // duplicates collapsed
   assert.deepEqual(ok.products['ORAR00125-N7H07'].sales, [
     { salesOrg: 'SO1', stockClassRaw: 'MTS' },
     { salesOrg: 'SO2', stockClassRaw: 'OMT' },
@@ -276,7 +278,7 @@ test('fetchProductDetails returns the raw stock class per sales org from the Pro
   const fallback = await createC4cClient({ resolveDestination: () => DEST, fetchImpl: rejectsExpand }).fetchProductDetails({ partNumbers: ['X'] });
   assert.equal(fallback.status, 'OK');
   assert.equal(retry.length, 2); // expand attempt, then plain
-  assert.deepEqual(fallback.products.X, { description: 'Plain', uom: 'PC', sales: [] });
+  assert.deepEqual(fallback.products.X, { description: 'Plain', uom: 'PC', categories: [], sales: [] });
 });
 
 test('fetchOriginOfDataRows reads the OriginOfData service (supplier + warehouse) and maps the real row shape', async () => {

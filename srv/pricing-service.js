@@ -653,6 +653,8 @@ module.exports = (srv) => {
     let map = null;
     try { map = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso()) || {}).stockClassMap || null; } catch (e) { map = null; }
     for (const product of Object.values(res.products)) {
+      product.productCategory = (product.categories || []).length === 1 ? product.categories[0] : ''; // several categories = not guessed
+      delete product.categories;
       const resolved = resolveProductStockClass(product.sales, { salesOrg, map });
       delete product.sales;
       if (resolved.stockClassRaw) product.stockClassRaw = resolved.stockClassRaw;

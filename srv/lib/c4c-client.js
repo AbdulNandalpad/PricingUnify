@@ -102,6 +102,10 @@ const DEFAULT_FIELD_MAP = {
     // $metadata): the raw ERP stock class lives here, NOT on the quote item.
     productSalesNav: 'ProductSales',
     productSalesOrg: 'SalesOrganisationID',
+    // The product's category (navigation ProductCategoryAssignment, field ProductCategoryID —
+    // names from the tenant $metadata).
+    productCategoryNav: 'ProductCategoryAssignment',
+    productCategoryId: 'ProductCategoryID',
     productStockClass: 'StockClass',
     // Custom OriginOfData BO (its own OData service; names confirmed from the tenant $metadata
     // and a real row): per material + Origin of Data, a Supplier node and a Warehouse node.
@@ -470,7 +474,7 @@ function createC4cClient({
     try {
       // With the sales navigation first (raw stock class per sales org); if the tenant
       // rejects the $expand, retry without it so description/UoM still fill in.
-      let res = await get(`${base}&$expand=${r.productSalesNav}`);
+      let res = await get(`${base}&$expand=${r.productSalesNav},${r.productCategoryNav}`);
       let expanded = res.ok;
       if (!res.ok) { res = await get(base); }
       if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status} on ${productPath}/${r.productCollection}).` }; }
@@ -482,9 +486,12 @@ function createC4cClient({
         if (!id) continue;
         const nav = expanded ? row[r.productSalesNav] : null;
         const salesRows = Array.isArray(nav) ? nav : ((nav && nav.results) || []);
+        const catNav = expanded ? row[r.productCategoryNav] : null;
+        const catRows = Array.isArray(catNav) ? catNav : ((catNav && catNav.results) || []);
         products[id] = {
           description: str(row[r.productDescription]),
           uom: str(row[r.productUom]),
+          categories: [...new Set(catRows.map((cr) => str(cr[r.productCategoryId])).filter(Boolean))],
           sales: salesRows.map((sr) => ({ salesOrg: str(sr[r.productSalesOrg]), stockClassRaw: str(sr[r.productStockClass]) })),
         };
       }
