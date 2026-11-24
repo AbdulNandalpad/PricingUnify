@@ -85,7 +85,7 @@
             <ToolbarSpacer/>
             <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
             <Button id="importBtn" icon="sap-icon://excel-attachment" text="{i18n>importItems}" press=".onOpenImport" type="Transparent"/>
-            <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onAddRow" type="Transparent"/>
+            <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onOpenAddItem" type="Transparent"/>
             <Button id="fetchCostsBtn" text="{i18n>fetchCosts}" type="Emphasized" icon="sap-icon://money-bills"
               press=".onFetchCosts" enabled="{= !${vm>/busy} }"/>
             <Button id="calcPricesBtn" text="{i18n>calcPrices}" type="Emphasized" icon="sap-icon://simulate"
@@ -137,6 +137,14 @@
               <t:Column width="7rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colCategory}"/>
                 <t:template><Input value="{vm>productCategory}" placeholder="SEALS"/></t:template>
+              </t:Column>
+              <t:Column width="5.5rem" visible="{vm>/showAdvanced}" hAlign="Center">
+                <Label text="{i18n>colPriceBreak}"/>
+                <t:template><Text text="{= ${vm>priceBreak} ? '✓' : '' }"/></t:template>
+              </t:Column>
+              <t:Column width="5rem" visible="{vm>/showAdvanced}" hAlign="Center">
+                <Label text="{i18n>colAltLine}"/>
+                <t:template><Text text="{vm>alternativeToLine}"/></t:template>
               </t:Column>
               <t:Column width="8.5rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colCustPart}"/>

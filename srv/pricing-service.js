@@ -583,6 +583,29 @@ module.exports = (srv) => {
     return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
   });
 
+  srv.on('searchC4cProducts', async (req) => {
+    const { query, region } = req.data.payload || {};
+    const q = String(query || '').trim();
+    if (q.length < 2) return { status: 'OK', source: 'NONE', products: [] };
+
+    const fromC4c = await currentC4c().searchProducts({ query: q });
+    if (fromC4c.status === 'OK' || fromC4c.status === 'C4C_ERROR') return fromC4c;
+
+    // C4C not connected yet -> search the region's local recorded catalog instead, and say so.
+    try {
+      const facts = await api6.getPricingFacts({ region: region || 'EUROPE', salesOrg: '*', items: [] });
+      const upper = q.toUpperCase();
+      const products = Object.keys(facts.costs || {})
+        .filter((part) => part.toUpperCase().includes(upper))
+        .sort()
+        .slice(0, 10)
+        .map((part) => ({ id: part, description: '' }));
+      return { status: 'OK', source: 'LOCAL_CATALOG', note: fromC4c.message, products };
+    } catch {
+      return { status: 'OK', source: 'LOCAL_CATALOG', note: fromC4c.message, products: [] };
+    }
+  });
+
   srv.on('fetchC4cObject', async (req) => {
     const payload = req.data.payload || {};
     return currentC4c().fetchObjectItems({

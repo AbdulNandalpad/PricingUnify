@@ -28,6 +28,12 @@ service PricingService {
   @requires: 'PricingViewer'
   action getPricePoints(requestorId: String, originOfData: String, priceTypeCode: String, supplierMainCde: String, itemLongNumber: String, unitCode: String, currencyCode: String) returns Map;
 
+  // Product type-ahead for the Add-item dialog: live C4C material search when a connection
+  // exists, else the local recorded catalog for the region — the response's `source` says
+  // which answered (C4C | LOCAL_CATALOG), never silently.
+  @requires: 'PricingViewer'
+  action searchC4cProducts(payload: Map) returns Map;
+
   // READ a C4C quote/opportunity header + items into the pricing grid (the "replace the
   // Products tab" direction). Typed outcomes: OK | C4C_NOT_CONFIGURED |
   // C4C_CREDENTIALS_MISSING | C4C_ERROR — never a faked item list.

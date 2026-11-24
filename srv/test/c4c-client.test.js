@@ -185,3 +185,26 @@ test('fetchObjectItems distinguishes "no URL" from "URL set but credentials miss
   assert.equal(res.status, 'C4C_CREDENTIALS_MISSING');
   assert.match(res.message, /C4C_USERNAME/);
 });
+
+test('searchProducts queries the material collection and maps id/description; typed when unconfigured', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push(url);
+    return jsonRes({ d: { results: [
+      { InternalID: 'EU-T100', Description: 'Verification part' },
+      { InternalID: 'EU-T200', Description: null },
+    ] } });
+  };
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl });
+  const res = await client.searchProducts({ query: 'EU-T' });
+  assert.equal(res.status, 'OK');
+  assert.equal(res.source, 'C4C');
+  assert.deepEqual(res.products, [
+    { id: 'EU-T100', description: 'Verification part' },
+    { id: 'EU-T200', description: '' },
+  ]);
+  assert.match(calls[0], /MaterialCollection\?\$filter=startswith\(InternalID,'EU-T'\)/);
+
+  const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
+  assert.equal((await offline.searchProducts({ query: 'EU-T' })).status, 'C4C_NOT_CONFIGURED');
+});

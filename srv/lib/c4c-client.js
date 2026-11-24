@@ -64,6 +64,10 @@ const DEFAULT_FIELD_MAP = {
     leadTime: 'ZLeadTime',
     additionalCost: 'ZAddCost',
     supplier: 'SupplierID',
+    // Product master search (the Add-item type-ahead):
+    productCollection: 'MaterialCollection',
+    productId: 'InternalID',
+    productDescription: 'Description',
   },
 };
 
@@ -303,6 +307,40 @@ function createC4cClient({
     }
   }
 
+  /**
+   * Product-master type-ahead for the Add-item dialog: searches C4C materials by the typed
+   * prefix. Same typed outcomes as every other C4C call; the caller decides what to do when
+   * C4C isn't connected (srv falls back to the local recorded catalog, honestly labeled).
+   */
+  async function searchProducts({ query }) {
+    const q = String(query || '').trim();
+    const gated = await gate(q); // reuses the URL/credentials gate; q doubles as the non-empty check
+    if (gated.error) return gated.error;
+    const destination = gated.destination;
+
+    const root = destination.url.replace(/\/$/, '') + servicePath;
+    const r = fields.read;
+    try {
+      const res = await fetchImpl(
+        `${root}/${r.productCollection}?$filter=startswith(${r.productId},'${encodeURIComponent(q)}')&$top=10&$select=${r.productId},${r.productDescription}`,
+        { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
+      );
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status}).` }; }
+      const body = await res.json();
+      const rows = (body.d && body.d.results) || [];
+      return {
+        status: 'OK',
+        source: 'C4C',
+        products: rows.map((row) => ({
+          id: row[r.productId] !== undefined && row[r.productId] !== null ? String(row[r.productId]) : '',
+          description: row[r.productDescription] !== undefined && row[r.productDescription] !== null ? String(row[r.productDescription]) : '',
+        })),
+      };
+    } catch (err) {
+      return { status: 'C4C_ERROR', message: `C4C call failed: ${err.message}` };
+    }
+  }
+
   /** For the admin "Connections" view: what this adapter would talk to, and whether a
    *  destination is actually configured — never the credentials themselves. */
   async function describe() {
@@ -318,7 +356,7 @@ function createC4cClient({
     };
   }
 
-  return { writeBack, fetchObjectItems, describe, fields };
+  return { writeBack, fetchObjectItems, searchProducts, describe, fields };
 }
 
 module.exports = { createC4cClient, DEFAULT_FIELD_MAP, DEFAULT_SERVICE_PATH };

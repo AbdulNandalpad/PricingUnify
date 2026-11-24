@@ -35,6 +35,7 @@ sap.ui.define([
         itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "PC",
         stockClassSel: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "", leadTime: "", additionalCost: "",
+        priceBreak: false, alternativeToLine: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         status: "", confidence: "", line: null
       };
@@ -55,6 +56,100 @@ sap.ui.define([
     },
 
     onAddRow: function () { this._addRow(); },
+
+    // ---- Add-item dialog: type-ahead against C4C's product master (local recorded catalog
+    // until a C4C connection exists — the dialog says which answered), optional quantity
+    // breaks generating extra lines with Price break + Alternative line set by default,
+    // mirroring how the C4C Products tab models them. ----
+
+    onOpenAddItem: function () {
+      var that = this;
+      var view = this.getView();
+      this._vm().setProperty("/addItem", {
+        partNumber: "", description: "", quantity: "1",
+        withBreaks: false, breakQtys: "10, 25, 50",
+        suggestions: [], sourceNote: ""
+      });
+      if (!this._addItemDialogPromise) {
+        this._addItemDialogPromise = Fragment.load({
+          id: view.getId(), name: "com.tss.pricing.c4c.view.AddItemDialog", controller: this
+        }).then(function (dialog) { view.addDependent(dialog); return dialog; });
+      }
+      this._addItemDialogPromise.then(function (dialog) { that._addItemDialog = dialog; dialog.open(); });
+    },
+
+    onCloseAddItem: function () {
+      if (this._addItemDialog) { this._addItemDialog.close(); }
+    },
+
+    onAddItemSuggest: function (oEvent) {
+      var that = this;
+      var value = (oEvent.getParameter("suggestValue") || "").trim();
+      if (this._suggestTimer) { clearTimeout(this._suggestTimer); }
+      if (value.length < 2) { this._vm().setProperty("/addItem/suggestions", []); return; }
+      this._suggestTimer = setTimeout(function () {
+        that.callRest("/rest/pricing/searchC4cProducts", {
+          body: { payload: { query: value, region: that.getSession().getProperty("/region") } }
+        })
+          .then(function (res) {
+            if (res.status !== "OK") { return; }
+            that._vm().setProperty("/addItem/suggestions", res.products || []);
+            var bundle = that.getView().getModel("i18n").getResourceBundle();
+            that._vm().setProperty("/addItem/sourceNote",
+              res.source === "C4C" ? bundle.getText("addItemSourceC4c")
+                : res.source === "LOCAL_CATALOG" ? bundle.getText("addItemSourceLocal") : "");
+          })
+          .catch(function () { /* suggestions are a convenience — typing stays possible */ });
+      }, 300);
+    },
+
+    onAddItemSuggestionPicked: function (oEvent) {
+      var item = oEvent.getParameter("selectedItem");
+      if (!item) { return; }
+      this._vm().setProperty("/addItem/partNumber", item.getKey());
+      if (item.getAdditionalText()) { this._vm().setProperty("/addItem/description", item.getAdditionalText()); }
+    },
+
+    onConfirmAddItem: function () {
+      var vm = this._vm();
+      var add = vm.getProperty("/addItem");
+      var part = (add.partNumber || "").trim();
+      if (!part) { return; }
+
+      var items = vm.getProperty("/items").filter(function (row) { return (row.partNumber || "").trim() !== "" || row.line; });
+      var main = this._newRow();
+      main.partNumber = part;
+      main.description = add.description || "";
+      main.quantity = String(Number(add.quantity) || 1);
+      items.push(main);
+      var mainLineNo = items.length; // after renumber this is the main row's item number
+
+      var breakCount = 0;
+      if (add.withBreaks) {
+        var mainQty = Number(main.quantity);
+        String(add.breakQtys || "").split(",")
+          .map(function (s) { return Number(s.trim()); })
+          .filter(function (n) { return Number.isFinite(n) && n > 0 && n !== mainQty; })
+          .forEach(function (qty) {
+            var breakRow = Object.assign({}, main);
+            breakRow.quantity = String(qty);
+            // C4C's own modeling of a quantity break: an extra line flagged Price break,
+            // pointing back at the main line — both set by default, per the owner.
+            breakRow.priceBreak = true;
+            breakRow.alternativeToLine = String(mainLineNo);
+            breakRow.line = null;
+            items.push(breakRow);
+            breakCount++;
+          });
+      }
+
+      vm.setProperty("/items", this._renumber(items));
+      vm.setProperty("/hasResults", false);
+      vm.setProperty("/orderTotal", "");
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      this._message(breakCount > 0 ? bundle.getText("addItemDoneBreaks", [part, breakCount]) : bundle.getText("addItemDone", [part]), "Success");
+      this.onCloseAddItem();
+    },
 
     onRemoveRow: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");
@@ -237,7 +332,7 @@ sap.ui.define([
       })
         .then(function (res) {
           var bundle = that.getView().getModel("i18n").getResourceBundle();
-          if (res && res.status === "C4C_NOT_CONFIGURED") {
+          if (res && (res.status === "C4C_NOT_CONFIGURED" || res.status === "C4C_CREDENTIALS_MISSING")) {
             that._message(res.message, "Warning");
           } else if (res && res.status === "C4C_CONFLICT") {
             that._message(bundle.getText("writeBackConflict"), "Error");
@@ -375,7 +470,8 @@ sap.ui.define([
         "supplier country": "supplierCountry",
         "product category": "productCategory", "category": "productCategory",
         "stock class": "stockClassSel", "mts/mtc": "stockClassSel",
-        "pricing type": "pricingType"
+        "pricing type": "pricingType",
+        "price break": "priceBreak", "alternative to line": "alternativeToLine", "alternative line": "alternativeToLine"
       };
       var firstCells = parseLine(lines[0]).map(function (h) { return HEADER_MAP[h.toLowerCase().replace(/:$/, "").trim()]; });
       var hasHeader = firstCells.some(Boolean);
@@ -392,6 +488,7 @@ sap.ui.define([
             if (!value) { return; } // raw ERP codes stay auto — the backend normalizes via config
           }
           if (field === "pricingType") { value = /price.?list/i.test(value) ? "PRICE_LIST" : "COST_PLUS"; }
+          if (field === "priceBreak") { value = /^(x|true|yes|✓|1)$/i.test(String(value).trim()); }
           row[field] = value;
         });
         if ((row.partNumber || "").trim()) { rows.push(row); }

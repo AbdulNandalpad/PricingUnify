@@ -949,7 +949,7 @@ test('lookupPriceList is a read-only browser over the WSO2 price-list lookup, Pr
 
 // --- Phase 5: C4C write-back endpoint ---
 
-test('writeBackToC4C is a Viewer capability and answers typed C4C_NOT_CONFIGURED in dev (no destination)', async () => {
+test('writeBackToC4C is a Viewer capability; dev (tenant+user defaulted, no password) answers typed C4C_CREDENTIALS_MISSING', async () => {
   const res = await fetch(`${BASE}/rest/pricing/writeBackToC4C`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
@@ -957,7 +957,7 @@ test('writeBackToC4C is a Viewer capability and answers typed C4C_NOT_CONFIGURED
   });
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.status, 'C4C_NOT_CONFIGURED'); // typed, never a faked success
+  assert.equal(body.status, 'C4C_CREDENTIALS_MISSING'); // typed, never a faked success (URL+user default to the QUA tenant; password is env-only)
 
   const noRole = await fetch(`${BASE}/rest/pricing/writeBackToC4C`, {
     method: 'POST',
@@ -1104,19 +1104,45 @@ test('saveConnections refuses live mode without a base URL (422, store untouched
   assert.equal(asViewer.status, 403);
 });
 
-test('fetchC4cObject answers typed C4C_NOT_CONFIGURED in dev and is a Viewer capability', async () => {
+test('fetchC4cObject answers typed C4C_CREDENTIALS_MISSING in dev and is a Viewer capability', async () => {
   const res = await fetch(`${BASE}/rest/pricing/fetchC4cObject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
     body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-140981' } }),
   });
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).status, 'C4C_NOT_CONFIGURED');
+  assert.equal((await res.json()).status, 'C4C_CREDENTIALS_MISSING');
 
   const noRole = await fetch(`${BASE}/rest/pricing/fetchC4cObject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
     body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-1' } }),
+  });
+  assert.equal(noRole.status, 403);
+});
+
+test('searchC4cProducts falls back to the local recorded catalog in dev, honestly labeled', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/searchC4cProducts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { query: 'EU-T', region: 'EUROPE' } }),
+  });
+  const body = await res.json();
+  assert.equal(body.status, 'OK');
+  assert.equal(body.source, 'LOCAL_CATALOG'); // never pretends to be C4C
+  assert.ok(body.products.some((p) => p.id === 'EU-T100'));
+
+  const short = await fetch(`${BASE}/rest/pricing/searchC4cProducts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { query: 'E' } }),
+  }).then((r) => r.json());
+  assert.equal(short.source, 'NONE'); // too short to search
+
+  const noRole = await fetch(`${BASE}/rest/pricing/searchC4cProducts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { query: 'EU-T' } }),
   });
   assert.equal(noRole.status, 403);
 });

@@ -11,6 +11,13 @@ function todayIso() {
  * URL + technical user — stays in the BTP destination / environment, never in config.
  * Built per call (cheap): a save in the admin UI applies immediately.
  */
+// Owner-requested defaults (2026-11-24): the QUA tenant and the integration user are fixed
+// facts of this project, so they are the fallback when neither a destination nor the
+// Connections tab provides them. The PASSWORD is deliberately NOT here and never will be —
+// it comes only from the C4C_PASSWORD environment variable or a BTP destination.
+const DEFAULT_C4C_URL = 'https://my352500.crm.ondemand.com';
+const DEFAULT_C4C_USERNAME = 'Tss.integration';
+
 function envDestinations(name) {
   try {
     const all = JSON.parse(process.env.destinations || '[]');
@@ -30,13 +37,12 @@ function currentC4c() {
   const resolveDestination = (name) => {
     const fromEnv = envDestinations(name);
     if (fromEnv) return fromEnv;
-    const url = c.url && String(c.url).trim();
-    if (!url) return null;
+    const url = (c.url && String(c.url).trim()) || process.env.C4C_URL || DEFAULT_C4C_URL;
     return {
       name,
       url,
-      username: process.env.C4C_USERNAME || null,
-      password: process.env.C4C_PASSWORD || null,
+      username: process.env.C4C_USERNAME || DEFAULT_C4C_USERNAME,
+      password: process.env.C4C_PASSWORD || null, // never defaulted, never stored in config
     };
   };
 

@@ -1,0 +1,39 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+  <Dialog title="{i18n>addItemTitle}" contentWidth="34rem" draggable="true">
+    <content>
+      <VBox class="sapUiSmallMargin">
+        <Label text="{i18n>colProduct}" required="true"/>
+        <Input id="addItemProduct" value="{vm>/addItem/partNumber}" width="100%"
+          placeholder="{i18n>addItemSearchPlaceholder}"
+          showSuggestion="true" suggest=".onAddItemSuggest" suggestionItemSelected=".onAddItemSuggestionPicked"
+          suggestionItems="{vm>/addItem/suggestions}">
+          <suggestionItems>
+            <core:ListItem key="{vm>id}" text="{vm>id}" additionalText="{vm>description}"/>
+          </suggestionItems>
+        </Input>
+        <Text text="{vm>/addItem/sourceNote}" class="traceNote sapUiTinyMarginBottom" visible="{= !!${vm>/addItem/sourceNote} }"/>
+
+        <Label text="{i18n>addItemDescription}" class="sapUiTinyMarginTop"/>
+        <Input value="{vm>/addItem/description}" width="100%"/>
+
+        <Label text="{i18n>colQty}" class="sapUiTinyMarginTop"/>
+        <Input value="{vm>/addItem/quantity}" type="Number" width="8rem"/>
+
+        <CheckBox text="{i18n>addItemWithBreaks}" selected="{vm>/addItem/withBreaks}" class="sapUiTinyMarginTop"/>
+        <VBox visible="{vm>/addItem/withBreaks}" class="sapUiTinyMarginBegin">
+          <Label text="{i18n>addItemBreakQtys}"/>
+          <Input value="{vm>/addItem/breakQtys}" width="16rem" placeholder="10, 25, 50"/>
+          <Text text="{i18n>addItemBreaksHint}" class="traceNote"/>
+        </VBox>
+      </VBox>
+    </content>
+    <beginButton>
+      <Button text="{i18n>addItemConfirm}" type="Emphasized" press=".onConfirmAddItem"/>
+    </beginButton>
+    <endButton>
+      <Button text="{i18n>close}" press=".onCloseAddItem"/>
+    </endButton>
+  </Dialog>
+</core:FragmentDefinition>
