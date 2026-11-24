@@ -22,6 +22,7 @@ sap.ui.define([
         hasResults: false,
         showAdvanced: false,
         itemCount: 0,
+        selectedCount: 0,
         orderTotal: "",
         message: "",
         messageType: "Information"
@@ -60,7 +61,17 @@ sap.ui.define([
         }
       });
       this._vm().setProperty("/itemCount", items.length);
+      // Any change to the line list invalidates index-based row selection — reset it so
+      // "Remove selected" never acts on lines the user didn't tick.
+      var table = this.byId("itemTable");
+      if (table) { table.clearSelection(); }
+      this._vm().setProperty("/selectedCount", 0);
       return items;
+    },
+
+    /** Row selectors / the header checkbox -> drives the visibility of "Remove selected". */
+    onSelectionChange: function () {
+      this._vm().setProperty("/selectedCount", this.byId("itemTable").getSelectedIndices().length);
     },
 
     _addRow: function () {
@@ -198,7 +209,7 @@ sap.ui.define([
       var table = this.byId("itemTable");
       var selected = table.getSelectedIndices();
       var bundle = this.getView().getModel("i18n").getResourceBundle();
-      if (selected.length === 0) { this._message(bundle.getText("removeSelectedNone"), "Warning"); return; }
+      if (selected.length === 0) { return; }
       var items = this._vm().getProperty("/items");
       selected.slice().sort(function (a, b) { return b - a; }).forEach(function (i) {
         if (i >= 0 && i < items.length) { items.splice(i, 1); }
