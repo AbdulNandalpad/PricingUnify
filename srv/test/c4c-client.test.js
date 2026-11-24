@@ -30,8 +30,8 @@ function fakeC4c({ patchStatus = 204 } = {}) {
     }
     if (init.method === 'GET' && (url.includes('SalesQuoteItemCollection') || url.includes('OpportunityItemCollection'))) {
       return jsonRes({ d: { results: [
-        { ObjectID: 'ITM-1', ProductID: 'EU-T100', __metadata: { etag: 'W/"itm-1"' } },
-        { ObjectID: 'ITM-2', ProductID: 'P-10023', __metadata: { etag: 'W/"itm-2"' } },
+        { ObjectID: 'ITM-1', ProductInternalID: 'EU-T100', __metadata: { etag: 'W/"itm-1"' } },
+        { ObjectID: 'ITM-2', ProductInternalID: 'P-10023', __metadata: { etag: 'W/"itm-2"' } },
       ] } });
     }
     if (init.method === 'PATCH') {
@@ -143,13 +143,14 @@ function fakeC4cRead() {
   const fetchImpl = async (url, init) => {
     calls.push({ url, method: init.method });
     if (url.includes('SalesQuoteCollection?')) {
-      return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', AccountName: 'Boston Scientific', CurrencyCode: 'EUR' }] } });
+      return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', BuyerPartyName: 'Boston Scientific', CurrencyCode: 'EUR' }] } });
     }
     if (url.includes('SalesQuoteItemCollection?')) {
       return jsonRes({ d: { results: [
-        { ObjectID: 'ITM-1', ItemID: '10', ProductID: 'EU-T100', Description: 'Seal kit', Quantity: '10', QuantityUnitCode: 'EA',
-          ZProductBuyerID: 'CUST-4711', OriginOfDataID: 'SAP', WarehouseID: 'EU01', ZNumberOfPicks: '2', ZLeadTime: '6', ZAddCost: '1', SupplierID: 'ACME' },
-        { ObjectID: 'ITM-2', ItemID: '20', ProductID: 'P-10023', Quantity: '5' },
+        { ObjectID: 'ITM-1', ItemID: '10', ProductInternalID: 'EU-T100', PROD_DESC: 'Seal kit', Quantity: '10.00000000000000', QuantityMeasureUnitCode: 'EA',
+          ZProductBuyerID: 'CUST-4711', OriginOfDataID: 'SAP', WarehouseID: 'EU01', ZNumberOfPicks: '2', ZLeadTime: '6', ZAddCost_KUT: '1',
+          ProductCategoryID: 'OR', PriceBreakIndicator_KUT: false, AlternativeToItemID: '' },
+        { ObjectID: 'ITM-2', ItemID: '20', ProductInternalID: 'P-10023', Quantity: '5' },
       ] } });
     }
     throw new Error('unexpected: ' + url);
@@ -165,9 +166,10 @@ test('fetchObjectItems returns the header context and every grid column the Prod
   assert.deepEqual(res.header, { account: 'Boston Scientific', currency: 'EUR' });
   assert.equal(res.items.length, 2);
   assert.deepEqual(res.items[0], {
-    itemId: '10', partNumber: 'EU-T100', description: 'Seal kit', quantity: '10', uom: 'EA',
+    itemId: '10', partNumber: 'EU-T100', description: 'Seal kit', quantity: '10.00000000000000', uom: 'EA',
     customerPartNumber: 'CUST-4711', ood: 'SAP', warehouse: 'EU01', picks: '2', leadTime: '6',
-    additionalCost: '1', supplier: 'ACME',
+    additionalCost: '1', supplier: '', // no supplier field on the quote item (confirmed on the real tenant)
+    productCategory: 'OR', priceBreak: false, alternativeToLine: '',
   });
   assert.equal(res.items[1].partNumber, 'P-10023'); // sparse rows come back with empty strings, never undefined keys
   assert.equal(res.items[1].ood, '');

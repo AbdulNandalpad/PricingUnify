@@ -37,34 +37,38 @@ const DEFAULT_FIELD_MAP = {
   marginPct: 'MarginPercent_SDK',
   pricingType: 'PricingType_SDK',
 
-  // Entity model knobs (same TO-CONFIRM status):
+  // Entity model knobs — CONFIRMED against the real my352500 tenant (quote 235063, 2026-11-24):
   headerIdField: 'ID',
-  itemProductField: 'ProductID',
+  itemProductField: 'ProductInternalID',
   itemParentField: 'ParentObjectID',
   collections: {
     QUOTE: { header: 'SalesQuoteCollection', item: 'SalesQuoteItemCollection' },
     OPPORTUNITY: { header: 'OpportunityCollection', item: 'OpportunityItemCollection' },
   },
 
-  // READ side (fetching a quote/opportunity's items to fill the pricing grid) — field names
-  // seen in the DEV2605 extension (ZProductBuyerID, OriginOfDataID, WarehouseID,
-  // ZNumberOfPicks, ZLeadTime, ZAddCost are the xbo's own); the exact OData spellings stay
-  // TO-CONFIRM and override via C4C_FIELD_MAP like everything else.
+  // READ side (fetching a quote/opportunity's items to fill the pricing grid) — CONFIRMED
+  // against the real my352500 tenant (quote 235063, 2026-11-24): extension fields keep
+  // their xbo names (typed ones flattened to <name>content/<name>currencyCode/unitCode),
+  // standard fields use the c4codataapi spellings below. Still overridable via the
+  // Connections field map / C4C_FIELD_MAP env.
   read: {
-    headerAccount: 'AccountName',
+    headerAccount: 'BuyerPartyName',
     headerCurrency: 'CurrencyCode',
     itemId: 'ItemID',
-    description: 'Description',
+    description: 'PROD_DESC', // 'Description' carries the product id on this tenant
     quantity: 'Quantity',
-    quantityUnit: 'QuantityUnitCode',
+    quantityUnit: 'QuantityMeasureUnitCode',
     customerPartNumber: 'ZProductBuyerID',
     originOfData: 'OriginOfDataID',
     warehouse: 'WarehouseID',
     numberOfPicks: 'ZNumberOfPicks',
     leadTime: 'ZLeadTime',
-    additionalCost: 'ZAddCost',
-    supplier: 'SupplierID',
-    // Product master search (the Add-item type-ahead):
+    additionalCost: 'ZAddCost_KUT',
+    supplier: '', // no supplier field on the quote item — it resolves via OOD/supplier master later
+    productCategory: 'ProductCategoryID',
+    priceBreak: 'PriceBreakIndicator_KUT',
+    alternativeToLine: 'AlternativeToItemID',
+    // Product master search (the Add-item type-ahead; not yet confirmed live):
     productCollection: 'MaterialCollection',
     productId: 'InternalID',
     productDescription: 'Description',
@@ -189,6 +193,9 @@ function createC4cClient({
           leadTime: val(row, r.leadTime),
           additionalCost: val(row, r.additionalCost),
           supplier: val(row, r.supplier),
+          productCategory: val(row, r.productCategory),
+          priceBreak: row[r.priceBreak] === true || row[r.priceBreak] === 'true' || row[r.priceBreak] === 'X',
+          alternativeToLine: val(row, r.alternativeToLine),
         })),
       };
     } catch (err) {

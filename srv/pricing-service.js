@@ -608,10 +608,20 @@ module.exports = (srv) => {
 
   srv.on('fetchC4cObject', async (req) => {
     const payload = req.data.payload || {};
-    return currentC4c().fetchObjectItems({
+    const res = await currentC4c().fetchObjectItems({
       objectType: payload.objectType === 'OPPORTUNITY' ? 'OPPORTUNITY' : 'QUOTE',
       objectId: payload.objectId,
     });
+
+    // Bonus from the real tenant data: items carry OriginOfDataID (e.g. SMA), so the pricing
+    // region can be derived through the same region-route table the pricing API uses — the
+    // UI sets it automatically, derivation named, never a silent guess.
+    if (res.status === 'OK') {
+      const ood = (res.items.find((it) => it.ood) || {}).ood;
+      const route = ood ? store.getEffectiveRegionRoute(ood, '*', todayIso()) : null;
+      res.region = route ? { value: route.region, derivedBy: `ROUTE:${ood}`, entityLabel: route.entityLabel || null } : null;
+    }
+    return res;
   });
 
   srv.on('writeBackToC4C', async (req) => {

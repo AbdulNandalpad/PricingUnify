@@ -367,22 +367,30 @@ sap.ui.define([
               var row = that._newRow();
               row.partNumber = it.partNumber || "";
               row.description = it.description || "";
-              row.quantity = it.quantity || "1";
+              // OData decimals come as '50000.00000000000000' — normalize for the grid.
+              row.quantity = Number.isFinite(Number(it.quantity)) && Number(it.quantity) > 0 ? String(Number(it.quantity)) : "1";
               row.uom = it.uom || row.uom;
-              row.customerPartNumber = it.customerPartNumber || "";
-              row.ood = it.ood || "";
-              row.warehouse = it.warehouse || "";
-              row.picks = it.picks || "";
-              row.leadTime = it.leadTime || "";
-              row.additionalCost = it.additionalCost || "";
-              row.supplier = it.supplier || "";
+              row.customerPartNumber = (it.customerPartNumber || "").trim();
+              row.ood = (it.ood || "").trim();
+              row.warehouse = (it.warehouse || "").trim();
+              row.picks = Number.isFinite(Number(it.picks)) && it.picks !== "" ? String(Number(it.picks)) : (it.picks || "");
+              row.leadTime = (it.leadTime || "").trim();
+              row.additionalCost = (it.additionalCost || "").trim();
+              row.supplier = (it.supplier || "").trim();
+              row.productCategory = (it.productCategory || "").trim();
+              row.priceBreak = !!it.priceBreak;
+              row.alternativeToLine = (it.alternativeToLine || "").trim();
               return row;
             });
             if (rows.length === 0) { rows.push(that._newRow()); }
             vm.setProperty("/items", that._renumber(rows));
             vm.setProperty("/hasResults", false);
             vm.setProperty("/orderTotal", "");
-            that._message(bundle.getText("c4cLoaded", [res.items.length, value]), "Success");
+            // The items' Origin of Data resolves the pricing region via region-route (e.g.
+            // SMA -> AMERICAS) — set it so the right region config prices this quote.
+            if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
+            that._message(bundle.getText("c4cLoaded", [res.items.length, value]) +
+              (res.region && res.region.value ? " " + bundle.getText("c4cRegionSet", [res.region.value]) : ""), "Success");
           } else if (res.status === "C4C_NOT_CONFIGURED" || res.status === "C4C_CREDENTIALS_MISSING") {
             that._message(res.message, "Warning");
           } else {
