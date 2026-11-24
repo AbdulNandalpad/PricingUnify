@@ -54,7 +54,7 @@
         },
         "default": { "enum": ["MTS", "NonMTS"] }
       },
-      "description": "Stock class from the part's Origin-of-Data record in C4C: the FIRST rule whose Origin of Data AND strategy group code both match the line wins; no match gives `default`. Applies only when the part has a warehouse record (nothing to classify otherwise — the stock class stays open). Owner rule 2026-11-24 for Europe: ood SAP + strategy Z4 = MTS, everything else NonMTS. Optional: a region without it keeps the raw stockClassMap classification."
+      "description": "Stock class from the part's Origin-of-Data record in C4C. A rule set covers an Origin of Data when some rule names it; for a covered origin the FIRST rule whose Origin of Data AND strategy group code both match the line wins, no match gives `default`. Origins no rule names are not affected (they keep the raw stockClassMap classification). Applies only when the part has a warehouse record. Owner's golden rule 2026-11-24: ood SAP + strategy Z4 = MTS, SAP + anything else = NonMTS, for every region's quotes (other origins buy from SAP, not the reverse). Optional."
     },
     "additionalCostMap": {
       "type": "object",

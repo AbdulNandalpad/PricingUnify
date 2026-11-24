@@ -29,3 +29,13 @@ test('a part from another Origin of Data uses its own region\'s rules, else the 
   assert.equal(stockClassRulesForOod({ store, ood: 'CN', pricingRules: fallback, date: TODAY }), fallback);
   assert.equal(stockClassRulesForOod({ store, ood: '', pricingRules: fallback, date: TODAY }), fallback);
 });
+
+test('Europe pricing a part from ANOTHER origin (China, India, SMA) is not touched by the SAP golden rule — no default NonMTS leaks onto it', () => {
+  const europe = store.getEffectiveAsOf('EUROPE', '*', TODAY).stockClassRules;
+  for (const ood of ['CN', 'IN', 'SMA']) {
+    const rules = stockClassRulesForOod({ store, ood, pricingRules: europe, date: TODAY }); // falls back to Europe's set
+    const r = stockClassFromPicked({ stockClassWarehouse: 'W1', strategyGroupCode: 'Z8', stockClassRaw: 'MTS' }, { MTS: 'MTS' }, { rules, ood });
+    assert.equal(r.stockClass, undefined, `${ood}: no class from the SAP rule`);
+    assert.match(r.note, /^STRATEGY_GROUP_RULE_PENDING:Z8/, `${ood}: typed pending note instead`);
+  }
+});

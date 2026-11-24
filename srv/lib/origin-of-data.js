@@ -56,16 +56,19 @@ function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses }
 
 /**
  * Canonical stock class for a picked record — or a typed reason why not. Pure.
- *   1. Region `stockClassRules` (owner rule): the first rule whose Origin of Data AND strategy
- *      group code match the line wins, otherwise the rule set's default (Europe: SAP + Z4 = MTS,
- *      else NonMTS). Only applied when a warehouse record was found — with none there is nothing
- *      to classify, and the stock class stays open rather than becoming the default.
- *   2. No rules for the region: a strategy group still blocks the plain StockClass (typed
- *      STRATEGY_GROUP_RULE_PENDING — the warehouse StockClass column alone is not what C4C sends);
- *      without a strategy group the raw StockClass goes through the region's stockClassMap.
+ *   1. Region `stockClassRules` (owner's golden rule): a rule set COVERS an Origin of Data when
+ *      some rule names it (Europe's names SAP). For a covered origin the first rule matching
+ *      the line's Origin of Data AND the part's strategy group wins, else the set's default
+ *      (SAP + Z4 = MTS, SAP + anything else = NonMTS). Origins no rule names are NOT touched by
+ *      it — other origins buy from SAP, not the other way round. Applied only when a warehouse
+ *      record was found (nothing to classify otherwise — never the default by accident).
+ *   2. Otherwise: a strategy group still blocks the plain StockClass (typed
+ *      STRATEGY_GROUP_RULE_PENDING — the warehouse StockClass column alone is not what C4C
+ *      sends); without a strategy group the raw StockClass goes through the region's stockClassMap.
  */
 function stockClassFromPicked(picked, map, { rules, ood } = {}) {
-  if (rules) {
+  const covered = rules && (rules.rules || []).some((r) => stripZeros(r.ood) === stripZeros(ood));
+  if (covered) {
     if (!picked.stockClassWarehouse) return {};
     const code = picked.strategyGroupCode || '';
     const hit = (rules.rules || []).find((r) => stripZeros(r.ood) === stripZeros(ood) && r.strategyCode === code);
