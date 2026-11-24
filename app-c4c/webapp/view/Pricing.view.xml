@@ -22,7 +22,7 @@
 
       <!-- Context header: object-page style — title row + horizontal facts strip. Read-only
            context (C4C passes it); standalone gets the region select + object search. -->
-      <VBox id="contextHeader" class="ctxHeader sapUiSmallMargin">
+      <VBox id="contextHeader" class="ctxHeader">
         <HBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap">
           <HBox alignItems="Center">
             <core:Icon src="sap-icon://sales-quote" size="1.5rem" class="ctxIcon sapUiSmallMarginEnd"/>
@@ -77,10 +77,10 @@
       </VBox>
 
       <!-- Item table: input columns (manual until the Phase 5 C4C adapter fills them) + result columns. -->
-      <Panel class="sapUiSmallMargin" backgroundDesign="Solid">
+      <Panel class="itemsSection" backgroundDesign="Solid">
         <headerToolbar>
           <OverflowToolbar>
-            <Title text="{i18n>items}" level="H4"/>
+            <Title text="{i18n>items} ({vm>/itemCount})" level="H4"/>
             <ObjectStatus text="{vm>/orderTotal}" state="Information" class="sapUiSmallMarginBegin" visible="{= !!${vm>/orderTotal} }"/>
             <ToolbarSpacer/>
             <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>

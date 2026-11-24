@@ -20,6 +20,7 @@ sap.ui.define([
         busy: false,
         hasResults: false,
         showAdvanced: false,
+        itemCount: 0,
         orderTotal: "",
         message: "",
         messageType: "Information"
@@ -41,6 +42,7 @@ sap.ui.define([
 
     _renumber: function (items) {
       items.forEach(function (row, i) { row.itemNo = i + 1; });
+      this._vm().setProperty("/itemCount", items.length);
       return items;
     },
 

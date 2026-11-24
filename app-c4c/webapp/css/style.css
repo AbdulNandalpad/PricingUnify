@@ -11,12 +11,24 @@
   overflow: hidden;
 }
 
-/* Object-page-style context header. */
+/* Fiori Elements List-Report look (modeled on TSS's own RFQ app): full-bleed white title +
+   filter strip with a hairline below, table section as a white sheet on the gray page. */
+.sapMPage > section {
+  background: var(--sapBackgroundColor, #f5f6f7);
+}
 .ctxHeader {
-  background: var(--sapObjectHeader_Background, var(--sapGroup_ContentBackground, #fff));
-  border-radius: 0.75rem;
+  background: var(--sapObjectHeader_Background, #fff);
+  border-radius: 0;
+  box-shadow: var(--sapContent_HeaderShadow, inset 0 -0.0625rem var(--sapPageHeader_BorderColor, #d9d9d9), 0 0.125rem 0.25rem 0 rgba(34, 54, 73, 0.08));
+  padding: 0.875rem 2rem 1rem;
+}
+.itemsSection.sapMPanel {
+  margin: 1rem;
+  border-radius: 0.5rem;
   box-shadow: var(--sapContent_Shadow0, 0 0 0.125rem 0 rgba(34, 54, 73, 0.16));
-  padding: 1rem 1.25rem 0.875rem;
+}
+.itemsSection .sapMPanelContent {
+  padding: 0;
 }
 .ctxIcon {
   color: var(--sapContent_IconColor, #0064d9);
@@ -44,8 +56,13 @@
 
 /* Tighter side margins on narrow screens so the table gets the full width. */
 @media (max-width: 900px) {
-  .sapMPanel.sapUiSmallMargin {
+  .sapMPanel.sapUiSmallMargin,
+  .itemsSection.sapMPanel {
     margin-left: 0.25rem !important;
     margin-right: 0.25rem !important;
+  }
+  .ctxHeader {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
