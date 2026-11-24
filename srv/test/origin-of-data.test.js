@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { pickOriginOfData } = require('../lib/origin-of-data');
+const { pickOriginOfData, stockClassFromPicked } = require('../lib/origin-of-data');
 
 const sup = (o) => ({ partNumber: 'P1', ood: 'SMA', parentOod: 'SMA', supplierId: 'X_TUI', externalId: '113955', name: 'Tuico Products SJC', isDefault: false, ...o });
 const wh = (o) => ({ partNumber: 'P1', ood: 'SMA', warehouseId: 'LG01', stockClassRaw: 'OMT', leadTime: '14', country: 'US', preferred: false, ...o });
@@ -46,4 +46,20 @@ test('no Origin of Data on the line, or nothing in C4C, is a typed note', () => 
   const r = pickOriginOfData({ suppliers: [], warehouses: [] }, { partNumber: 'P1', ood: 'SMA' });
   assert.equal(r.supplierNote, 'NO_SUPPLIER_IN_C4C');
   assert.equal(r.warehouseNote, 'NO_WAREHOUSE_IN_C4C');
+});
+
+test('a strategy group blocks the plain StockClass: the real Z8 part (StockClass MTS, but the BI service sent MTO) stays unresolved, never silently MTS', () => {
+  const rows = { suppliers: [], warehouses: [wh({ stockClassRaw: 'MTS', strategyCode: 'Z8', strategyDesc: 'MTS-Z & QuickSeal' })] };
+  const picked = pickOriginOfData(rows, { partNumber: 'P1', ood: 'SMA' });
+  assert.equal(picked.strategyGroupCode, 'Z8');
+  const sc = stockClassFromPicked(picked, { MTS: 'MTS', MTO: 'NonMTS' });
+  assert.equal(sc.stockClass, undefined);
+  assert.equal(sc.note, 'STRATEGY_GROUP_RULE_PENDING:Z8 (MTS-Z & QuickSeal)');
+});
+
+test('without a strategy group the stock class resolves through the region map, with typed notes otherwise', () => {
+  assert.deepEqual(stockClassFromPicked({ stockClassRaw: 'OMT' }, { OMT: 'NonMTS' }), { stockClass: 'NonMTS' });
+  assert.deepEqual(stockClassFromPicked({ stockClassRaw: 'ZZZ' }, { OMT: 'NonMTS' }), { note: 'UNMAPPED:ZZZ' });
+  assert.deepEqual(stockClassFromPicked({ stockClassRaw: 'OMT' }, null), { note: 'NO_STOCK_CLASS_MAP_FOR_REGION' });
+  assert.deepEqual(stockClassFromPicked({}, { OMT: 'NonMTS' }), {});
 });

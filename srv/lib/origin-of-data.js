@@ -47,10 +47,29 @@ function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses }
   } else {
     out.stockClassWarehouse = wh.warehouseId;
     if (wh.stockClassRaw) out.stockClassRaw = wh.stockClassRaw;
+    if (wh.strategyCode) { out.strategyGroupCode = wh.strategyCode; out.strategyGroupDesc = wh.strategyDesc || ''; }
     if (wh.leadTime) out.leadTime = wh.leadTime;
     if (wh.country) out.country = wh.country;
   }
   return out;
 }
 
-module.exports = { pickOriginOfData };
+/**
+ * Canonical stock class for a picked record — or a typed reason why not. The warehouse's own
+ * StockClass column is NOT the stock class the BI service uses: a real part (OR1600810-V9005)
+ * has StockClass MTS on both warehouses and strategy group Z8 "MTS-Z & QuickSeal", yet C4C
+ * sent stockClassGroupCode MTO for it. So while a strategy group is present and no rule maps
+ * it, the stock class is left UNRESOLVED (typed note) instead of silently taken from StockClass.
+ * Pure. `map` = the region's stockClassMap (raw class -> canonical) or null.
+ */
+function stockClassFromPicked(picked, map) {
+  if (picked.strategyGroupCode) {
+    return { note: `STRATEGY_GROUP_RULE_PENDING:${picked.strategyGroupCode}${picked.strategyGroupDesc ? ` (${picked.strategyGroupDesc})` : ''}` };
+  }
+  if (!picked.stockClassRaw) return {};
+  if (!map) return { note: 'NO_STOCK_CLASS_MAP_FOR_REGION' };
+  if (Object.prototype.hasOwnProperty.call(map, picked.stockClassRaw)) return { stockClass: map[picked.stockClassRaw] };
+  return { note: `UNMAPPED:${picked.stockClassRaw}` };
+}
+
+module.exports = { pickOriginOfData, stockClassFromPicked };

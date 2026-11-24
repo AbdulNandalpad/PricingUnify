@@ -1,5 +1,5 @@
 const { resolveProductStockClass } = require('./lib/product-stock-class');
-const { pickOriginOfData } = require('./lib/origin-of-data');
+const { pickOriginOfData, stockClassFromPicked } = require('./lib/origin-of-data');
 const Decimal = require('decimal.js');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
@@ -673,12 +673,10 @@ module.exports = (srv) => {
     const results = lines.map((line) => {
       const picked = pickOriginOfData(rows, line, { knownStockClasses: map ? new Set(Object.keys(map)) : null });
       const res = { partNumber: line.partNumber, ...picked };
-      // Raw ERP stock class -> canonical through the region's own map (same rule as ProductSales).
-      if (picked.stockClassRaw) {
-        const sc = resolveProductStockClass([{ salesOrg: '*', stockClassRaw: picked.stockClassRaw }], { salesOrg: '*', map });
-        if (sc.stockClass) res.stockClass = sc.stockClass;
-        if (sc.note) res.stockClassNote = sc.note;
-      }
+      // Stock class: see stockClassFromPicked — a strategy group blocks the plain StockClass.
+      const sc = stockClassFromPicked(picked, map);
+      if (sc.stockClass) res.stockClass = sc.stockClass;
+      if (sc.note) res.stockClassNote = sc.note;
       return res;
     });
     return { status: 'OK', results };

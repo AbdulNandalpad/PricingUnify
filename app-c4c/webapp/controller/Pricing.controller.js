@@ -276,7 +276,12 @@ sap.ui.define([
             }
             if (!r.stockClassSel) {
               if (o.stockClass) { r.stockClassSel = o.stockClass; }
-              else if (o.stockClassNote) { notes[r.partNumber + ": stock class " + o.stockClassNote] = true; }
+              else if (o.stockClassNote) {
+                notes[r.partNumber + ": stock class " + o.stockClassNote] = true;
+                // A strategy group overrides the plain stock class: hold the line back so the
+                // product-sales fallback below cannot fill in a stock class C4C would not use.
+                if (/^STRATEGY_GROUP_RULE_PENDING/.test(o.stockClassNote)) { r.stockClassHold = true; }
+              }
             }
           });
           vm.setProperty("/items", items);
@@ -314,7 +319,7 @@ sap.ui.define([
             if (!p) { return; }
             if (!(r.description || "").trim() && p.description) { r.description = p.description; }
             if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; }
-            if (!r.stockClassSel) {
+            if (!r.stockClassSel && !r.stockClassHold) {
               if (p.stockClass) { r.stockClassSel = p.stockClass; }
               else if (p.stockClassNote && p.stockClassNote !== "NO_STOCK_CLASS_IN_C4C") { notes[p.stockClassNote] = true; }
             }
