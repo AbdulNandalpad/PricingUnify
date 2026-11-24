@@ -479,7 +479,7 @@ function resolveRegion({ region, salesOrg, customerOod, priceDate }) {
  * to the original handler — this is extraction, not change.
  */
 async function runPricing({ payload, userId }) {
-  const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod } = payload;
+  const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod, customer } = payload;
   const priceDate = payload.priceDate || todayIso();
 
   if (!Array.isArray(items) || items.length === 0) return { error: { status: 400, message: 'payload.items must be a non-empty array.' } };
@@ -513,9 +513,13 @@ async function runPricing({ payload, userId }) {
       customerId,
       salesOrg,
       ood: resolvedCustomerOod,
-      territory: partyConfig ? partyConfig.territory : null,
-      country: partyConfig ? partyConfig.customerCountry : null,
-      currency: partyConfig ? partyConfig.customerCurrency : null,
+      // Customer header: values the caller read from the customer master (payload.customer)
+      // win over the stored party-config, the same explicit-selection precedence as elsewhere.
+      territory: (customer && customer.salesTerritory) || (partyConfig ? partyConfig.territory : null),
+      country: (customer && customer.countryCode) || (partyConfig ? partyConfig.customerCountry : null),
+      currency: (customer && customer.currency) || (partyConfig ? partyConfig.customerCurrency : null),
+      priceGroup: (customer && customer.priceGroup) || null,
+      classCode: (customer && customer.classCode) || null,
     },
     items,
     priceDate,
@@ -662,7 +666,9 @@ module.exports = (srv) => {
     // region can be derived through the same region-route table the pricing API uses — the
     // UI sets it automatically, derivation named, never a silent guess.
     if (res.status === 'OK') {
-      const ood = (res.items.find((it) => it.ood) || {}).ood;
+      if (res.customer) res.customer.userIdentifier = String((req.user && req.user.id) || '');
+      // The line items' Origin of Data wins; with none on the lines, the customer's own does.
+      const ood = (res.items.find((it) => it.ood) || {}).ood || (res.customer && res.customer.originOfData) || '';
       const route = ood ? store.getEffectiveRegionRoute(ood, '*', todayIso()) : null;
       res.region = route ? { value: route.region, derivedBy: `ROUTE:${ood}`, entityLabel: route.entityLabel || null } : null;
     }

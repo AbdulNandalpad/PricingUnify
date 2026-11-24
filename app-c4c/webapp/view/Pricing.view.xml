@@ -49,6 +49,30 @@
             <Label text="{i18n>currency}"/>
             <Text text="{= ${vm>/header/currency} || '—' }" class="ctxValue"/>
           </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custId}"/>
+            <Text text="{= ${vm>/customer/customerId} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custCountry}"/>
+            <Text text="{= ${vm>/customer/countryCode} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custTerritory}"/>
+            <Text text="{= ${vm>/customer/salesTerritory} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custClass}"/>
+            <Text text="{= ${vm>/customer/classCode} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custPriceGroup}"/>
+            <Text text="{= ${vm>/customer/priceGroup} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
+            <Label text="{i18n>custOod}"/>
+            <Text text="{= ${vm>/customer/originOfData} || '—' }" class="ctxValue"/>
+          </VBox>
           <VBox class="ctxFact">
             <Label text="{i18n>salesOrg}"/>
             <Text text="{session>/salesOrg}" class="ctxValue"/>

@@ -143,7 +143,12 @@ function fakeC4cRead() {
   const fetchImpl = async (url, init) => {
     calls.push({ url, method: init.method });
     if (url.includes('SalesQuoteCollection?')) {
-      return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', BuyerPartyName: 'Boston Scientific', CurrencyCode: 'EUR' }] } });
+      return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', BuyerPartyName: 'Boston Scientific', BuyerPartyID: '32539', CurrencyCode: 'EUR' }] } });
+    }
+    if (url.includes('CorporateAccountCollection?')) {
+      // Real account row (account 32539): note CURRENCY_KUT is genuinely empty on this tenant.
+      return jsonRes({ d: { results: [{ ObjectID: 'ACC-OBJ-1', AccountID: '32539', ExternalID: '0001035211', ExternalSystem: 'SAP',
+        CustomerABCClassificationCode: 'A', CountryCode: 'DE', SALESTERRITORYDETCODE: 'GJ1', CURRENCY_KUT: '', OOD_Routing_KUT: '' }] } });
     }
     if (url.includes('SalesQuoteItemCollection?')) {
       return jsonRes({ d: { results: [
@@ -300,4 +305,28 @@ test('fetchOriginOfDataRows reads the OriginOfData service (supplier + warehouse
   assert.match(err.message, /HTTP 403 on \/sap\/c4c\/odata\/cust\/v1\/originofdata\//);
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.fetchOriginOfDataRows({ partNumbers: ['X'] })).status, 'C4C_NOT_CONFIGURED');
+});
+
+test('fetchObjectItems also reads the customer header from the account (BuyerPartyID -> CorporateAccount), with the quote currency as the labelled fallback', async () => {
+  const c4c = fakeC4cRead();
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  const res = await client.fetchObjectItems({ objectType: 'QUOTE', objectId: '235616' });
+  assert.deepEqual(res.customer, {
+    accountId: '32539', quoteId: '235616', note: '',
+    customerId: '0001035211', originOfData: 'SAP', originOfDataSource: 'ExternalSystem',
+    classCode: 'A', countryCode: 'DE', salesTerritory: 'GJ1',
+    currency: 'EUR', currencySource: 'QUOTE', // CURRENCY_KUT empty -> the quote's currency, and it says so
+    priceGroup: '', // price-group field not confirmed yet -> not read, never invented
+  });
+  assert.ok(c4c.calls.some((c) => /CorporateAccountCollection\?\$filter=AccountID eq '32539'/.test(c.url)));
+});
+
+test('a failed customer lookup never fails the item fetch — the customer carries a note', async () => {
+  const base = fakeC4cRead().fetchImpl;
+  const fetchImpl = async (url, init) => (url.includes('CorporateAccountCollection?') ? { ok: false, status: 403, json: async () => ({}) } : base(url, init));
+  const res = await createC4cClient({ resolveDestination: () => DEST, fetchImpl }).fetchObjectItems({ objectType: 'QUOTE', objectId: '235616' });
+  assert.equal(res.status, 'OK');
+  assert.equal(res.items.length, 2);
+  assert.equal(res.customer.accountId, '32539');
+  assert.match(res.customer.note, /HTTP 403/);
 });

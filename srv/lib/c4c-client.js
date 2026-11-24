@@ -66,6 +66,24 @@ const DEFAULT_FIELD_MAP = {
     additionalCost: 'ZAddCost_KUT',
     supplier: '', // no supplier field on the quote item — it resolves via OOD/supplier master later
     productCategory: 'ProductCategoryID',
+    // Customer master (CorporateAccount, same service as the quote) — the quote header's
+    // BuyerPartyID is its AccountID. Names confirmed from a real account row (account 32539):
+    // ExternalID = the ERP customer number the BI contract calls customerId, ExternalSystem =
+    // the customer's Origin of Data, SALESTERRITORYDETCODE / CountryCode / ABC class as named.
+    headerBuyerId: 'BuyerPartyID',
+    accountCollection: 'CorporateAccountCollection',
+    accountKey: 'AccountID',
+    accountExternalId: 'ExternalID',
+    accountOod: 'ExternalSystem',
+    accountOodRouting: 'OOD_Routing_KUT',
+    accountClass: 'CustomerABCClassificationCode',
+    accountCountry: 'CountryCode',
+    accountTerritory: 'SALESTERRITORYDETCODE',
+    accountCurrency: 'CURRENCY_KUT',
+    // Price group sits on the account's sales-arrangement node; its field name is NOT confirmed
+    // yet, so it is only read when this key is set (blank = not read, shown as unknown).
+    accountSalesDataNav: 'CorporateAccountSalesData',
+    accountPriceGroup: '',
     priceBreak: 'PriceBreakIndicator_KUT',
     alternativeToLine: 'AlternativeToItemID',
     // Product master (Add-item type-ahead + blank-field enrichment). Confirmed against the
@@ -202,6 +220,54 @@ function createC4cClient({
       const rows = (itemsBody.d && itemsBody.d.results) || [];
 
       const val = (row, key) => (key && row[key] !== undefined && row[key] !== null ? String(row[key]) : '');
+
+      // Customer master for the BI contract's customer block. A failed/empty account lookup
+      // never fails the item fetch — the customer comes back with a `note` instead.
+      let customer = null;
+      const buyerId = val(headerRow, r.headerBuyerId);
+      if (buyerId) {
+        customer = { accountId: buyerId, quoteId: String(objectId), note: '' };
+        try {
+          const accRes = await fetchImpl(
+            `${root}/${r.accountCollection}?$filter=${r.accountKey} eq '${encodeURIComponent(buyerId)}'&$format=json`,
+            { method: 'GET', headers: base },
+          );
+          const accRows = accRes.ok ? (((await accRes.json()).d || {}).results || []) : [];
+          if (accRows.length === 0) {
+            customer.note = accRes.ok ? `Customer account ${buyerId} not found in C4C.` : `Customer lookup failed (HTTP ${accRes.status}).`;
+          } else {
+            const a = accRows[0];
+            customer.customerId = val(a, r.accountExternalId);
+            // Origin of Data: the account's source system; the account's OOD routing field is
+            // the fallback (raw — region-route decides what it means, no translation here).
+            const sys = val(a, r.accountOod);
+            const routing = val(a, r.accountOodRouting);
+            customer.originOfData = sys || routing;
+            customer.originOfDataSource = sys ? 'ExternalSystem' : (routing ? 'OOD_Routing' : '');
+            customer.classCode = val(a, r.accountClass);
+            customer.countryCode = val(a, r.accountCountry);
+            customer.salesTerritory = val(a, r.accountTerritory);
+            const accCurrency = val(a, r.accountCurrency);
+            customer.currency = accCurrency || val(headerRow, r.headerCurrency);
+            customer.currencySource = accCurrency ? 'ACCOUNT' : (customer.currency ? 'QUOTE' : '');
+            customer.priceGroup = '';
+            if (r.accountPriceGroup && a.ObjectID) {
+              try {
+                const sdRes = await fetchImpl(
+                  `${root}/${r.accountCollection}('${encodeURIComponent(a.ObjectID)}')/${r.accountSalesDataNav}?$format=json`,
+                  { method: 'GET', headers: base },
+                );
+                const sd = sdRes.ok ? (((await sdRes.json()).d || {}).results || []) : [];
+                const first = sd.find((x) => val(x, r.accountPriceGroup));
+                customer.priceGroup = first ? val(first, r.accountPriceGroup) : '';
+              } catch (e) { customer.priceGroup = ''; }
+            }
+          }
+        } catch (err) {
+          customer.note = `Customer lookup failed: ${err.message}`;
+        }
+      }
+
       return {
         status: 'OK',
         objectId,
@@ -209,6 +275,7 @@ function createC4cClient({
           account: val(headerRow, r.headerAccount) || null,
           currency: val(headerRow, r.headerCurrency) || null,
         },
+        customer,
         items: rows.map((row) => ({
           itemId: val(row, r.itemId),
           partNumber: val(row, fields.itemProductField),

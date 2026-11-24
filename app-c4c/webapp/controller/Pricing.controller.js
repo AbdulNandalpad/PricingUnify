@@ -17,6 +17,7 @@ sap.ui.define([
     onInit: function () {
       var vm = new JSONModel({
         header: { account: "", currency: "" },
+        customer: null,
         items: [],
         busy: false,
         hasResults: false,
@@ -399,6 +400,16 @@ sap.ui.define([
         hostObjectId: session.getProperty("/objectId") || undefined,
         items: built.payloadItems
       };
+      // Customer header read from the C4C customer master (when this quote was loaded from C4C).
+      var cust = vm.getProperty("/customer");
+      if (cust) {
+        payload.customerId = cust.customerId || undefined;
+        payload.customerOod = cust.originOfData || undefined;
+        payload.customer = {
+          salesTerritory: cust.salesTerritory, countryCode: cust.countryCode, currency: cust.currency,
+          priceGroup: cust.priceGroup, classCode: cust.classCode
+        };
+      }
 
       vm.setProperty("/busy", true);
       this._message("");
@@ -533,6 +544,7 @@ sap.ui.define([
           if (res.status === "OK") {
             that.getSession().setProperty("/objectId", value);
             vm.setProperty("/header", { account: res.header.account || "", currency: res.header.currency || "" });
+            vm.setProperty("/customer", res.customer || null);
             var rows = (res.items || []).map(function (it) {
               var row = that._newRow();
               row.itemNo = (it.itemId || "").trim(); // keep C4C's own item number (blank -> auto)
