@@ -184,17 +184,20 @@ function seedIndiaRegionConfig() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_LOCAL', originOfData: 'IN', costBasis: 'STANDARD', provenance: HUMAN_PROVENANCE }],
-    // Predefined margin, from retrivePriceBI's "Default Margin for China and India" (C4C sales unit
-    // TSSINDIA), keyed by product category group and the supplier ("TSSB" = supplier S_BNG):
-    //   group A (PG, PH, ...):  TSSB 90 %, others / imported 58 %
-    //   group B (YV, YU, ...):  TSSB 80 %, others / imported 58 %
-    // PARTIAL: only the rules visible in the ABSL excerpt the owner shared; categories outside these
-    // two groups get no predefined margin until the rest of that script is read and added.
+    // Predefined margin = retrivePriceBI's "Default Margin for China and India" (C4C sales unit
+    // TSSINDIA), COMPLETE rule set from the C4C export (DEV2605): by product category group, and
+    // whether the supplier is "TSSB" (S_BNG). Non-TSSB / imported = 58 % in the TSSB groups; fixed
+    // groups ignore the supplier; every other category = 58 %. First match wins; the final rule has
+    // no `when` (the script's "default margin for all other product categories").
     marginRules: [
-      { id: 'IN_TSSB_GROUP_A', when: ["item.supplier === 'S_BNG'", "item.productCategory in PG,PH,PS,PT,RG,RS,RT,TG,TJ,PR,RR"], marginPct: 90, provenance: HUMAN_PROVENANCE },
-      { id: 'IN_OTHER_GROUP_A', when: "item.productCategory in PG,PH,PS,PT,RG,RS,RT,TG,TJ,PR,RR", marginPct: 58, provenance: HUMAN_PROVENANCE },
-      { id: 'IN_TSSB_GROUP_B', when: ["item.supplier === 'S_BNG'", "item.productCategory in YV,YU,WA,WD,WK,WM,WN,WS,WX,WW,PD,AP,AD,AR,AW,RH,PQ,RQ,RD,WE,TV,TP,DV,TB,RV,TE,PE,RE,TT,RN,PV,PU,RU"], marginPct: 80, provenance: HUMAN_PROVENANCE },
-      { id: 'IN_OTHER_GROUP_B', when: "item.productCategory in YV,YU,WA,WD,WK,WM,WN,WS,WX,WW,PD,AP,AD,AR,AW,RH,PQ,RQ,RD,WE,TV,TP,DV,TB,RV,TE,PE,RE,TT,RN,PV,PU,RU", marginPct: 58, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_TSSB_90', when: ["item.supplier === 'S_BNG'", "item.productCategory in PG,PH,PS,PT,RG,RS,RT,TG,TJ,PR,RR"], marginPct: 90, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_TSSB_80', when: ["item.supplier === 'S_BNG'", "item.productCategory in YV,YU,WA,WD,WK,WM,WN,WS,WX,WW,PD,AP,AD,AR,AW,RH,PQ,RQ,RD,WE,TV,TP,DV,TB,RV,TE,PE,RE,TT,RN,PV,PU,RU"], marginPct: 80, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_TSSB_65', when: ["item.supplier === 'S_BNG'", "item.productCategory in BA,BB,BC,BD,BG,BH,BM,BP,BU,BV,BX,GC,GL,GN,GP,GR,GT,PK"], marginPct: 65, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_TSSB_60', when: ["item.supplier === 'S_BNG'", "item.productCategory === 'T'"], marginPct: 60, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_FIXED_60', when: "item.productCategory in OA,OB,OC,OD,OE,OF,OG,OH,OI,OJ,OK,OL,OM,ON,OP,OQ,OR,OS,OT,OU,OV,OW,OX,OY,OZ", marginPct: 60, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_FIXED_55', when: "item.productCategory in DC,DD,DF,DK,DP,DU,GB,MR,MX,PF,RF,TC,TM,XK,YC,YE,YF,YK,YR,YW", marginPct: 55, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_FIXED_80', when: "item.productCategory === 'YB'", marginPct: 80, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_DEFAULT_58', marginPct: 58, provenance: HUMAN_PROVENANCE },
     ],
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },

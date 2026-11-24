@@ -77,6 +77,7 @@ const DEFAULT_FIELD_MAP = {
     accountOod: 'ExternalSystem',
     accountOodRouting: 'OOD_Routing_KUT',
     accountClass: 'CustomerABCClassificationCode',
+    accountSegment: 'BUS_SEG_CDE_KUT', // customer business segment (AUT / IND ...) -> China's predefined margin; TO CONFIRM the OData spelling
     accountCountry: 'CountryCode',
     accountTerritory: 'SALESTERRITORYDETCODE',
     accountCurrency: 'CURRENCY_KUT',
@@ -252,6 +253,7 @@ function createC4cClient({
             customer.originOfData = sys || routing;
             customer.originOfDataSource = sys ? 'ExternalSystem' : (routing ? 'OOD_Routing' : '');
             customer.classCode = val(a, r.accountClass);
+            customer.segmentCode = val(a, r.accountSegment);
             customer.countryCode = val(a, r.accountCountry);
             customer.salesTerritory = val(a, r.accountTerritory);
             const accCurrency = val(a, r.accountCurrency);

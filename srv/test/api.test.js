@@ -1263,3 +1263,34 @@ test('margin: typed margin on the FIRST call gives the selling price; typed pric
   assert.equal(opp.marginPct, undefined);
   assert.equal(opp.landedCost, '113.19');
 });
+
+test('INDIA predefined margin follows the full ABSL rule set: TSSB groups, fixed groups, 58 % default', async () => {
+  const go = async (extra) => {
+    const res = await fetch(`${BASE}/rest/pricing/price`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+      body: JSON.stringify({ payload: { region: 'INDIA', items: [{ partNumber: 'IN-T100', quantity: 10, supplierCountry: 'IN', ...extra }] } }) });
+    return (await res.json()).items[0].result;
+  };
+  assert.deepEqual([await go({ supplier: 'S_BNG', productCategory: 'PH' })].map((r) => [r.marginPct, r.marginRule]), [['90', 'IN_TSSB_90']]);
+  assert.equal((await go({ supplier: 'S_BNG', productCategory: 'BA' })).marginPct, '65');
+  assert.equal((await go({ supplier: 'S_BNG', productCategory: 'T' })).marginPct, '60');
+  assert.equal((await go({ supplier: 'OTHER', productCategory: 'PH' })).marginPct, '58'); // non-TSSB in a TSSB group
+  assert.equal((await go({ supplier: 'S_BNG', productCategory: 'OA' })).marginPct, '60'); // fixed group: supplier irrelevant
+  assert.equal((await go({ supplier: 'OTHER', productCategory: 'DC' })).marginPct, '55');
+  assert.equal((await go({ supplier: 'OTHER', productCategory: 'YB' })).marginPct, '80');
+  const dflt = await go({ supplier: 'OTHER', productCategory: 'ZZ' });
+  assert.equal(dflt.marginPct, '58');
+  assert.equal(dflt.marginRule, 'IN_DEFAULT_58');
+  assert.equal(dflt.sellingPrice, '238.1'); // 100 / (1 - 0.58)
+  assert.equal((await go({ supplier: 'S_BNG', productCategory: 'PH', margin: { marginPct: 30 } })).priceBy, 'MARGIN'); // typed always wins
+});
+
+test('CHINA predefined margin from the customer business segment: AUT 35 %, IND 65 %; no segment -> none', async () => {
+  const go = async (customer) => {
+    const res = await fetch(`${BASE}/rest/pricing/price`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+      body: JSON.stringify({ payload: { region: 'CHINA', customer, items: [{ partNumber: 'CN-T100', quantity: 10, ood: 'CN' }] } }) });
+    return (await res.json()).items[0].result;
+  };
+  assert.equal((await go({ segmentCode: 'AUT' })).marginPct, '35');
+  assert.equal((await go({ segmentCode: 'IND' })).marginPct, '65');
+  assert.equal((await go({})).sellingPrice, undefined);
+});

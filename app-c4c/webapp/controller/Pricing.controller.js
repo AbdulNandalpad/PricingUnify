@@ -441,7 +441,7 @@ sap.ui.define([
         payload.customerOod = cust.originOfData || undefined;
         payload.customer = {
           salesTerritory: cust.salesTerritory, countryCode: cust.countryCode, currency: cust.currency,
-          priceGroup: cust.priceGroup, classCode: cust.classCode
+          priceGroup: cust.priceGroup, classCode: cust.classCode, segmentCode: cust.segmentCode
         };
       }
 

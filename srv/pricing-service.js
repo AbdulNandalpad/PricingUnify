@@ -577,6 +577,7 @@ async function runPricing({ payload, userId }) {
       currency: (customer && customer.currency) || (partyConfig ? partyConfig.customerCurrency : null),
       priceGroup: (customer && customer.priceGroup) || null,
       classCode: (customer && customer.classCode) || null,
+      segment: (customer && customer.segmentCode) || null,
     },
     // The customer's business segment feeds the predefined-margin rules (China): per line, an
     // explicit item.segment wins.

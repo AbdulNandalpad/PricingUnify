@@ -320,7 +320,7 @@ test('fetchObjectItems also reads the customer header from the account (BuyerPar
   assert.deepEqual(res.customer, {
     accountId: '32539', quoteId: '235616', note: '',
     customerId: '0001035211', originOfData: 'SAP', originOfDataSource: 'ExternalSystem',
-    classCode: 'A', countryCode: 'DE', salesTerritory: 'GJ1',
+    classCode: 'A', countryCode: 'DE', salesTerritory: 'GJ1', segmentCode: '',
     currency: 'EUR', currencySource: 'QUOTE', // CURRENCY_KUT empty -> the quote's currency, and it says so
     priceGroup: 'X0', // first sales-data entry that has one, like C4C's own script
   });
