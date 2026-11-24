@@ -1,11 +1,30 @@
-const { createApi6Client } = require('@tss-pricing/api6-client');
+const { createApi6Client, basicAuth, noAuth } = require('@tss-pricing/api6-client');
 const { store } = require('./store');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// The TSS API6 QUA gateway (APIM). A URL is a tenant fact, not a secret, so it is a default;
+// override in the Connections tab or with API6_BASE_URL. Credentials are NEVER defaulted.
+const DEFAULT_BASE_URL = 'https://apimqua.tss.trelleborg.com';
+
 let cached = { key: null, client: null };
+
+/** Basic auth from API6_USERNAME / API6_PASSWORD (environment only — never config, never code).
+ *  Without both, calls go unauthenticated (fine for recorded mode; a live call will be refused
+ *  by the gateway and surface as a typed FAILED, not a throw). */
+function credentialsConfigured() {
+  return Boolean(process.env.API6_USERNAME && process.env.API6_PASSWORD);
+}
+function envAuth() {
+  return credentialsConfigured()
+    ? basicAuth({ username: process.env.API6_USERNAME, password: process.env.API6_PASSWORD })
+    : noAuth();
+}
+function effectiveBaseUrl(a) {
+  return (a && a.baseUrl && String(a.baseUrl).trim()) || process.env.API6_BASE_URL || DEFAULT_BASE_URL;
+}
 
 /**
  * The API6/WSO2 client, honoring the admin-maintained connection-config (owner decision
@@ -24,7 +43,8 @@ function current() {
       key,
       client: createApi6Client({
         mode: a.mode || process.env.API6_MODE || 'recorded',
-        baseUrl: (a.baseUrl && String(a.baseUrl).trim()) || process.env.API6_BASE_URL,
+        baseUrl: effectiveBaseUrl(a),
+        auth: envAuth(),
         costSourceEndpoints: a.costSourceEndpoints || {},
         ...(a.priceListEndpoint ? { priceListEndpoint: a.priceListEndpoint } : {}),
         ...(a.biPriceListEndpoint ? { biPriceListEndpoint: a.biPriceListEndpoint } : {}),
@@ -36,6 +56,8 @@ function current() {
 }
 
 const api6 = {
+  get baseUrl() { return effectiveBaseUrl((store.getEffectiveConnectionConfig(todayIso()) || {}).api6); },
+  get credentialsConfigured() { return credentialsConfigured(); },
   get mode() { return current().mode; },
   get authType() { return current().authType; },
   get costSourceEndpoints() { return current().costSourceEndpoints; },
@@ -48,4 +70,4 @@ const api6 = {
   fetchBiCosts: (body) => current().fetchBiCosts(body),
 };
 
-module.exports = { api6 };
+module.exports = { api6, DEFAULT_BASE_URL };

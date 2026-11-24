@@ -234,6 +234,9 @@
                       <Input value="{vm>/connections/api6/baseUrl}" width="26rem" placeholder="https://wso2.example.com"/>
                     </VBox>
                   </HBox>
+                  <ObjectStatus class="sapUiTinyMarginBottom"
+                    text="{= ${vm>/connections/api6/credentialsConfigured} ? ${i18n>connApi6CredsSet} : ${i18n>connApi6CredsMissing} }"
+                    state="{= ${vm>/connections/api6/credentialsConfigured} ? 'Success' : 'Warning' }"/>
                   <MessageStrip text="{i18n>connRecordedNote}" type="Warning" showIcon="true" class="sapUiTinyMarginBottom"
                     visible="{= ${vm>/connections/api6/mode} !== 'live' }"/>
                   <Label text="{i18n>connCostEndpoints}" design="Bold" class="sapUiTinyMarginBottom"/>

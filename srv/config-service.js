@@ -127,12 +127,13 @@ module.exports = (srv) => {
       api6: {
         mode: api6.mode, // 'recorded' (dev fixtures, no outbound calls) or 'live'
         authType: api6.authType,
-        baseUrl: (conn && conn.api6 && conn.api6.baseUrl) || process.env.API6_BASE_URL || null,
+        baseUrl: api6.baseUrl,
+        credentialsConfigured: api6.credentialsConfigured,
         costSourceEndpoints: api6.costSourceEndpoints,
         priceListEndpoint: api6.priceListEndpoint,
         biPriceListEndpoint: api6.biPriceListEndpoint,
         requestMapping: (conn && conn.api6 && conn.api6.requestMapping) || null, // kept as saved; edited as data, not in this form
-        maintainedVia: 'Editable here (saved as a versioned connection-config). Environment defaults: API6_MODE, API6_BASE_URL. Credentials/auth stay environment-owned. The cost source ORDER stays pricing config (Cost Rules tab).',
+        maintainedVia: 'Editable here (saved as a versioned connection-config). Environment defaults: API6_MODE, API6_BASE_URL (default: the TSS APIM QUA gateway). Credentials (Basic auth) are environment-owned ONLY: API6_USERNAME and API6_PASSWORD — never saved here. The cost source ORDER stays pricing config (Cost Rules tab).',
       },
       c4c: {
         destinationName: c4cInfo.destinationName,

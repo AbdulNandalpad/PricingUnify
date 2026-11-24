@@ -1040,6 +1040,9 @@ test('getConnections describes the integration endpoints read-only, PricingAdmin
   const body = await res.json();
   assert.equal(body.api6.mode, 'recorded');
   assert.equal(body.api6.costSourceEndpoints.CCD, '/costs/ccd');
+  assert.equal(body.api6.baseUrl, 'https://apimqua.tss.trelleborg.com'); // prefilled default
+  assert.equal(body.api6.credentialsConfigured, false); // honest: no API6_USERNAME/PASSWORD in dev
+  assert.equal(body.api6.biPriceListEndpoint, '/core/price/rest/v1/getPriceList');
   assert.equal(body.c4c.destinationName, 'C4C_ODATA');
   assert.equal(body.c4c.configured, false); // honest: no destination in dev
   assert.equal(body.ai.configured, false);
