@@ -42,7 +42,13 @@ function translateCustomerPriceListRequest(c4cPayload, { store, priceDate }) {
     const partNumber = isGiven(it.itemLongNumber) ? String(it.itemLongNumber).trim() : String(it.itemShortNumber || '').trim();
     const item = { partNumber, quantity: Number(it.salesQuantity) || 1, pricingType: 'COST_PLUS' };
     if (isGiven(it.warehouseCode)) item.warehouse = String(it.warehouseCode).trim();
-    if (isGiven(it.supplierExternalID)) item.supplier = String(it.supplierExternalID).trim();
+    // C4C sends BOTH supplier identifiers: supplierMainGroupCode = the supplier ID (the custom
+    // OriginOfData Supplier node's GlobalSupplierCode, e.g. X_SIL) and supplierExternalID =
+    // its C4C external account ID. `supplier` is the ID (same as the UI's Supplier ID column);
+    // an older caller that only sends supplierExternalID keeps working through the fallback.
+    if (isGiven(it.supplierExternalID)) item.supplierExternalId = String(it.supplierExternalID).trim();
+    if (isGiven(it.supplierMainGroupCode)) item.supplier = String(it.supplierMainGroupCode).trim();
+    else if (isGiven(it.supplierExternalID)) item.supplier = String(it.supplierExternalID).trim();
     if (isGiven(it.supplierCountryCode)) item.supplierCountry = String(it.supplierCountryCode).trim();
     item.ood = ood;
 
@@ -57,6 +63,11 @@ function translateCustomerPriceListRequest(c4cPayload, { store, priceDate }) {
         item.stockClassError = `STOCK_CLASS_UNMAPPED:${raw}`;
       }
     }
+
+    // useCostPlusFlag is C4C's Additional Cost flag (0..4). It goes through the region's own
+    // additionalCostMap — only for regions that declare one, so a flag a region has no rules
+    // for can never turn into a spurious ADDITIONAL_COST_UNRESOLVED.
+    if (isGiven(it.useCostPlusFlag) && config.additionalCostMap) item.additionalCost = String(it.useCostPlusFlag).trim();
 
     meta.push({
       lineId: isGiven(it.lineId) ? String(it.lineId) : '',
