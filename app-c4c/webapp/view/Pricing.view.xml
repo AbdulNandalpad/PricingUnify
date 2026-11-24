@@ -84,6 +84,7 @@
             <ObjectStatus text="{vm>/orderTotal}" state="Information" class="sapUiSmallMarginBegin" visible="{= !!${vm>/orderTotal} }"/>
             <ToolbarSpacer/>
             <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
+            <Button id="importBtn" icon="sap-icon://excel-attachment" text="{i18n>importItems}" press=".onOpenImport" type="Transparent"/>
             <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onAddRow" type="Transparent"/>
             <Button id="fetchCostsBtn" text="{i18n>fetchCosts}" type="Emphasized" icon="sap-icon://money-bills"
               press=".onFetchCosts" enabled="{= !${vm>/busy} }"/>
@@ -137,6 +138,30 @@
                 <Label text="{i18n>colCategory}"/>
                 <t:template><Input value="{vm>productCategory}" placeholder="SEALS"/></t:template>
               </t:Column>
+              <t:Column width="8.5rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colCustPart}"/>
+                <t:template><Input value="{vm>customerPartNumber}"/></t:template>
+              </t:Column>
+              <t:Column width="6rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colDataOrigin}"/>
+                <t:template><Input value="{vm>ood}" placeholder="SAP"/></t:template>
+              </t:Column>
+              <t:Column width="6rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colWarehouse}"/>
+                <t:template><Input value="{vm>warehouse}" placeholder="EU01"/></t:template>
+              </t:Column>
+              <t:Column width="4.5rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colPicks}"/>
+                <t:template><Input value="{vm>picks}" textAlign="End"/></t:template>
+              </t:Column>
+              <t:Column width="6rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colLeadTime}"/>
+                <t:template><Input value="{vm>leadTime}"/></t:template>
+              </t:Column>
+              <t:Column width="5.5rem" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colAddlCost}"/>
+                <t:template><Input value="{vm>additionalCost}" placeholder="0–4"/></t:template>
+              </t:Column>
               <t:Column width="8rem">
                 <Label text="{i18n>colPricingType}"/>
                 <t:template>
@@ -161,6 +186,10 @@
               <t:Column width="6.5rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colPrice}"/>
                 <t:template><Text text="{path: 'vm>price', formatter: '.formatter.fmt2'}"/></t:template>
+              </t:Column>
+              <t:Column width="7rem" hAlign="End">
+                <Label text="{i18n>colLineValue}"/>
+                <t:template><Text text="{vm>lineValue}"/></t:template>
               </t:Column>
               <t:Column width="6rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colMargin}"/>

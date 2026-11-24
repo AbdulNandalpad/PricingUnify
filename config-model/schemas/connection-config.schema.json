@@ -29,6 +29,7 @@
     "c4c": {
       "type": "object",
       "properties": {
+        "url": { "type": ["string", "null"], "description": "C4C tenant base URL, e.g. https://myNNNNNN.crm.ondemand.com. A URL is tenant fact, not a secret; the technical user's credentials still come from the BTP destination or environment only." },
         "servicePath": { "type": ["string", "null"], "description": "OData service path on the C4C tenant, e.g. /sap/c4c/odata/v1/c4codataapi." },
         "fieldMap": {
           "type": "object",

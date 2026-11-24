@@ -45,6 +45,26 @@ const DEFAULT_FIELD_MAP = {
     QUOTE: { header: 'SalesQuoteCollection', item: 'SalesQuoteItemCollection' },
     OPPORTUNITY: { header: 'OpportunityCollection', item: 'OpportunityItemCollection' },
   },
+
+  // READ side (fetching a quote/opportunity's items to fill the pricing grid) — field names
+  // seen in the DEV2605 extension (ZProductBuyerID, OriginOfDataID, WarehouseID,
+  // ZNumberOfPicks, ZLeadTime, ZAddCost are the xbo's own); the exact OData spellings stay
+  // TO-CONFIRM and override via C4C_FIELD_MAP like everything else.
+  read: {
+    headerAccount: 'AccountName',
+    headerCurrency: 'CurrencyCode',
+    itemId: 'ItemID',
+    description: 'Description',
+    quantity: 'Quantity',
+    quantityUnit: 'QuantityUnitCode',
+    customerPartNumber: 'ZProductBuyerID',
+    originOfData: 'OriginOfDataID',
+    warehouse: 'WarehouseID',
+    numberOfPicks: 'ZNumberOfPicks',
+    leadTime: 'ZLeadTime',
+    additionalCost: 'ZAddCost',
+    supplier: 'SupplierID',
+  },
 };
 
 /** Default destination resolver: the CF `destinations` env convention
@@ -86,6 +106,92 @@ function createC4cClient({
     return { Authorization: `Basic ${token}` };
   }
 
+  /** Shared gate for every C4C call: typed outcomes, never a half-configured attempt. */
+  async function gate(objectId) {
+    const destination = await resolveDestination(destinationName);
+    if (!destination || !destination.url) {
+      return { error: {
+        status: 'C4C_NOT_CONFIGURED',
+        message: `No C4C connection — set the C4C URL in the admin Connections tab (or the "${destinationName}" destination). Nothing was called.`,
+      } };
+    }
+    if (!destination.username || !destination.password) {
+      return { error: {
+        status: 'C4C_CREDENTIALS_MISSING',
+        message: 'C4C URL is set but the technical user is not — provide credentials via the BTP destination or the C4C_USERNAME / C4C_PASSWORD environment variables (never in config).',
+      } };
+    }
+    if (!objectId) {
+      return { error: { status: 'C4C_ERROR', message: 'objectId is required.' } };
+    }
+    return { destination };
+  }
+
+  /**
+   * READ: fetch a quote/opportunity header + items from C4C to fill the pricing grid —
+   * the "replace the Products tab" direction. Returns typed outcomes like writeBack:
+   * { status:'OK', objectId, header:{account,currency}, items:[...] } with each item
+   * carrying the grid's columns (partNumber, description, quantity, uom, customer part
+   * number, origin of data, warehouse, picks, lead time, additional cost, supplier).
+   */
+  async function fetchObjectItems({ objectType, objectId }) {
+    const kind = objectType === 'OPPORTUNITY' ? 'OPPORTUNITY' : 'QUOTE';
+    const gated = await gate(objectId);
+    if (gated.error) return gated.error;
+    const destination = gated.destination;
+
+    const root = destination.url.replace(/\/$/, '') + servicePath;
+    const base = { ...authHeaders(destination), Accept: 'application/json' };
+    const collections = fields.collections[kind];
+    const r = fields.read;
+
+    try {
+      const headerRes = await fetchImpl(
+        `${root}/${collections.header}?$filter=${fields.headerIdField} eq '${encodeURIComponent(objectId)}'`,
+        { method: 'GET', headers: base },
+      );
+      if (!headerRes.ok) { return { status: 'C4C_ERROR', message: `C4C header lookup failed (HTTP ${headerRes.status}).` }; }
+      const headerBody = await headerRes.json();
+      const headerRows = (headerBody.d && headerBody.d.results) || [];
+      if (headerRows.length === 0) { return { status: 'C4C_ERROR', message: `${kind} "${objectId}" not found in C4C.` }; }
+      const headerRow = headerRows[0];
+
+      const itemsRes = await fetchImpl(
+        `${root}/${collections.item}?$filter=${fields.itemParentField} eq '${headerRow.ObjectID}'`,
+        { method: 'GET', headers: base },
+      );
+      if (!itemsRes.ok) { return { status: 'C4C_ERROR', message: `C4C item lookup failed (HTTP ${itemsRes.status}).` }; }
+      const itemsBody = await itemsRes.json();
+      const rows = (itemsBody.d && itemsBody.d.results) || [];
+
+      const val = (row, key) => (key && row[key] !== undefined && row[key] !== null ? String(row[key]) : '');
+      return {
+        status: 'OK',
+        objectId,
+        header: {
+          account: val(headerRow, r.headerAccount) || null,
+          currency: val(headerRow, r.headerCurrency) || null,
+        },
+        items: rows.map((row) => ({
+          itemId: val(row, r.itemId),
+          partNumber: val(row, fields.itemProductField),
+          description: val(row, r.description),
+          quantity: val(row, r.quantity),
+          uom: val(row, r.quantityUnit),
+          customerPartNumber: val(row, r.customerPartNumber),
+          ood: val(row, r.originOfData),
+          warehouse: val(row, r.warehouse),
+          picks: val(row, r.numberOfPicks),
+          leadTime: val(row, r.leadTime),
+          additionalCost: val(row, r.additionalCost),
+          supplier: val(row, r.supplier),
+        })),
+      };
+    } catch (err) {
+      return { status: 'C4C_ERROR', message: `C4C call failed: ${err.message}` };
+    }
+  }
+
   /**
    * Writes one pricing run's results back to the C4C host object.
    * items: [{ partNumber, cost, landedCost, price, marginPct, pricingType, currency }]
@@ -97,17 +203,9 @@ function createC4cClient({
    */
   async function writeBack({ objectType, objectId, items, user }) {
     const kind = objectType === 'OPPORTUNITY' ? 'OPPORTUNITY' : 'QUOTE';
-    const destination = await resolveDestination(destinationName);
-    if (!destination || !destination.url) {
-      return {
-        status: 'C4C_NOT_CONFIGURED',
-        message: `BTP destination "${destinationName}" is not configured — nothing was written to C4C. ` +
-          'Maintain the destination (technical user) and, when the owner confirms the real C4C field names, the C4C_FIELD_MAP env.',
-      };
-    }
-    if (!objectId) {
-      return { status: 'C4C_ERROR', message: 'objectId is required to write back to C4C.' };
-    }
+    const gated = await gate(objectId);
+    if (gated.error) return gated.error;
+    const destination = gated.destination;
 
     const root = destination.url.replace(/\/$/, '') + servicePath;
     const base = { ...authHeaders(destination), Accept: 'application/json' };
@@ -211,14 +309,16 @@ function createC4cClient({
     const destination = await resolveDestination(destinationName);
     return {
       destinationName,
-      configured: !!(destination && destination.url),
+      configured: !!(destination && destination.url && destination.username && destination.password),
+      urlConfigured: !!(destination && destination.url),
+      credentialsConfigured: !!(destination && destination.username && destination.password),
       url: destination && destination.url ? destination.url : null,
       servicePath,
       fieldMap: fields,
     };
   }
 
-  return { writeBack, describe, fields };
+  return { writeBack, fetchObjectItems, describe, fields };
 }
 
 module.exports = { createC4cClient, DEFAULT_FIELD_MAP, DEFAULT_SERVICE_PATH };

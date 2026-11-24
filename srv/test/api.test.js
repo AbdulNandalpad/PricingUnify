@@ -1103,3 +1103,20 @@ test('saveConnections refuses live mode without a base URL (422, store untouched
   });
   assert.equal(asViewer.status, 403);
 });
+
+test('fetchC4cObject answers typed C4C_NOT_CONFIGURED in dev and is a Viewer capability', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/fetchC4cObject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-140981' } }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).status, 'C4C_NOT_CONFIGURED');
+
+  const noRole = await fetch(`${BASE}/rest/pricing/fetchC4cObject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-1' } }),
+  });
+  assert.equal(noRole.status, 403);
+});

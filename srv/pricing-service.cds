@@ -28,6 +28,12 @@ service PricingService {
   @requires: 'PricingViewer'
   action getPricePoints(requestorId: String, originOfData: String, priceTypeCode: String, supplierMainCde: String, itemLongNumber: String, unitCode: String, currencyCode: String) returns Map;
 
+  // READ a C4C quote/opportunity header + items into the pricing grid (the "replace the
+  // Products tab" direction). Typed outcomes: OK | C4C_NOT_CONFIGURED |
+  // C4C_CREDENTIALS_MISSING | C4C_ERROR — never a faked item list.
+  @requires: 'PricingViewer'
+  action fetchC4cObject(payload: Map) returns Map;
+
   // Write the results of a pricing run back to the C4C host object (Phase 5). A Viewer
   // capability per the owner's role spec. QUOTE items get cost/landed cost/price/margin/
   // pricing type; OPPORTUNITY items get cost fields only (price is never written — enforced

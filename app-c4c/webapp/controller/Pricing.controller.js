@@ -1,7 +1,8 @@
 sap.ui.define([
   "./BaseController",
-  "sap/ui/model/json/JSONModel"
-], function (BaseController, JSONModel) {
+  "sap/ui/model/json/JSONModel",
+  "sap/ui/core/Fragment"
+], function (BaseController, JSONModel, Fragment) {
   "use strict";
 
   /**
@@ -33,7 +34,8 @@ sap.ui.define([
       return {
         itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "PC",
         stockClassSel: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
-        sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "",
+        customerPartNumber: "", ood: "", warehouse: "", picks: "", leadTime: "", additionalCost: "",
+        sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         status: "", confidence: "", line: null
       };
     },
@@ -83,6 +85,9 @@ sap.ui.define([
         if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
         if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
         if ((row.productCategory || "").trim()) { item.productCategory = row.productCategory.trim(); }
+        if ((row.ood || "").trim()) { item.ood = row.ood.trim(); }
+        if ((row.warehouse || "").trim()) { item.warehouse = row.warehouse.trim(); }
+        if ((row.additionalCost || "").trim() !== "") { item.additionalCost = String(row.additionalCost).trim(); }
         payloadItems.push(item);
         rowIndexes.push(i);
       });
@@ -169,6 +174,10 @@ sap.ui.define([
               priced++;
               var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
               row.landedCost = amount;
+              var lv = Number(amount) * Number(line.result.quantity);
+              row.lineValue = Number.isFinite(lv)
+                ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : "";
               if (fillPrices && line.result.unitPrice !== undefined) {
                 row.price = line.result.unitPrice;
                 var p = Number(line.result.unitPrice);
@@ -182,6 +191,7 @@ sap.ui.define([
               row.landedCost = "";
               row.price = "";
               row.marginPct = "";
+              row.lineValue = "";
             }
           });
           vm.setProperty("/items", rows);
@@ -241,11 +251,158 @@ sap.ui.define([
         .finally(function () { vm.setProperty("/busy", false); });
     },
 
+    /** Load a quote/opportunity's items straight from C4C (fetchC4cObject) — the
+     *  "replace the C4C Products tab" flow. Typed non-OK outcomes show honestly: not
+     *  configured / credentials missing / object not found — items are never invented. */
     onLoadObject: function () {
+      var that = this;
       var value = (this.byId("objectSearch").getValue() || "").trim();
       if (!value) { return; }
-      this.getSession().setProperty("/objectId", value);
-      this._message(this.getView().getModel("i18n").getResourceBundle().getText("standaloneLoadedHint", [value]), "Information");
+      var vm = this._vm();
+      vm.setProperty("/busy", true);
+      this.callRest("/rest/pricing/fetchC4cObject", {
+        body: { payload: { objectType: this.getSession().getProperty("/objectType"), objectId: value } }
+      })
+        .then(function (res) {
+          var bundle = that.getView().getModel("i18n").getResourceBundle();
+          if (res.status === "OK") {
+            that.getSession().setProperty("/objectId", value);
+            vm.setProperty("/header", { account: res.header.account || "", currency: res.header.currency || "" });
+            var rows = (res.items || []).map(function (it) {
+              var row = that._newRow();
+              row.partNumber = it.partNumber || "";
+              row.description = it.description || "";
+              row.quantity = it.quantity || "1";
+              row.uom = it.uom || row.uom;
+              row.customerPartNumber = it.customerPartNumber || "";
+              row.ood = it.ood || "";
+              row.warehouse = it.warehouse || "";
+              row.picks = it.picks || "";
+              row.leadTime = it.leadTime || "";
+              row.additionalCost = it.additionalCost || "";
+              row.supplier = it.supplier || "";
+              return row;
+            });
+            if (rows.length === 0) { rows.push(that._newRow()); }
+            vm.setProperty("/items", that._renumber(rows));
+            vm.setProperty("/hasResults", false);
+            vm.setProperty("/orderTotal", "");
+            that._message(bundle.getText("c4cLoaded", [res.items.length, value]), "Success");
+          } else if (res.status === "C4C_NOT_CONFIGURED" || res.status === "C4C_CREDENTIALS_MISSING") {
+            that._message(res.message, "Warning");
+          } else {
+            that._message(res.message || res.status, "Error");
+          }
+        })
+        .catch(function (err) { that._message(String(err.message || err), "Error"); })
+        .finally(function () { vm.setProperty("/busy", false); });
+    },
+
+    // ---- Excel/CSV import: paste from Excel (tab-separated) or upload a CSV export of the
+    // C4C Products tab — columns are matched by the C4C screen's own header names, extra
+    // columns are ignored, so the original list is usable as-is. ----
+
+    onOpenImport: function () {
+      var that = this;
+      var view = this.getView();
+      this._vm().setProperty("/importText", "");
+      if (!this._importDialogPromise) {
+        this._importDialogPromise = Fragment.load({
+          id: view.getId(), name: "com.tss.pricing.c4c.view.ImportDialog", controller: this
+        }).then(function (dialog) { view.addDependent(dialog); return dialog; });
+      }
+      this._importDialogPromise.then(function (dialog) { that._importDialog = dialog; dialog.open(); });
+    },
+
+    onCloseImport: function () {
+      if (this._importDialog) { this._importDialog.close(); }
+    },
+
+    onPickImportFile: function () {
+      var that = this;
+      var input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".csv,.txt,.tsv";
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        if (!file) { return; }
+        var reader = new FileReader();
+        reader.onload = function () { that._vm().setProperty("/importText", String(reader.result || "")); };
+        reader.readAsText(file);
+      });
+      input.click();
+    },
+
+    onRunImport: function () {
+      var count = this._importRows(this._vm().getProperty("/importText") || "");
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      this._message(count > 0 ? bundle.getText("importDone", [count]) : bundle.getText("importNone"), count > 0 ? "Success" : "Warning");
+      if (count > 0) { this.onCloseImport(); }
+    },
+
+    _importRows: function (text) {
+      var that = this;
+      var lines = text.split(/\r?\n/).filter(function (l) { return l.trim() !== ""; });
+      if (lines.length === 0) { return 0; }
+      var delim = lines[0].indexOf("\t") >= 0 ? "\t" : (lines[0].indexOf(";") >= 0 && lines[0].indexOf(",") < 0 ? ";" : ",");
+
+      function parseLine(line) {
+        if (delim === "\t") { return line.split("\t").map(function (s) { return s.trim(); }); }
+        var out = [], cur = "", quoted = false;
+        for (var i = 0; i < line.length; i++) {
+          var ch = line[i];
+          if (ch === '"') { quoted = !quoted; }
+          else if (ch === delim && !quoted) { out.push(cur.trim()); cur = ""; }
+          else { cur += ch; }
+        }
+        out.push(cur.trim());
+        return out;
+      }
+
+      // Header names as the C4C Products tab (and our own grid) spell them.
+      var HEADER_MAP = {
+        "product id": "partNumber", "product": "partNumber", "part number": "partNumber", "partnumber": "partNumber",
+        "product description": "description", "description": "description",
+        "quantity": "quantity", "qty": "quantity",
+        "uom": "uom", "unit": "uom", "quantity uom": "uom",
+        "customer part number": "customerPartNumber", "customer part no": "customerPartNumber",
+        "origin of data": "ood", "data origin": "ood", "ood": "ood",
+        "warehouse id": "warehouse", "warehouse": "warehouse",
+        "no. of picks": "picks", "no of picks": "picks", "picks": "picks",
+        "lead time (weeks)": "leadTime", "quoted lead time (weeks)": "leadTime", "lead time": "leadTime",
+        "additional cost": "additionalCost", "addl cost": "additionalCost", "add cost": "additionalCost",
+        "supplier": "supplier", "supplier external id": "supplier",
+        "supplier country": "supplierCountry",
+        "product category": "productCategory", "category": "productCategory",
+        "stock class": "stockClassSel", "mts/mtc": "stockClassSel",
+        "pricing type": "pricingType"
+      };
+      var firstCells = parseLine(lines[0]).map(function (h) { return HEADER_MAP[h.toLowerCase().replace(/:$/, "").trim()]; });
+      var hasHeader = firstCells.some(Boolean);
+      var fields = hasHeader ? firstCells : ["partNumber", "quantity"];
+      var rows = [];
+      for (var i = hasHeader ? 1 : 0; i < lines.length; i++) {
+        var vals = parseLine(lines[i]);
+        var row = that._newRow();
+        fields.forEach(function (field, j) {
+          if (!field || vals[j] === undefined || vals[j] === "") { return; }
+          var value = vals[j];
+          if (field === "stockClassSel") {
+            value = value === "MTS" ? "MTS" : (/^non.?mts$/i.test(value) ? "NonMTS" : "");
+            if (!value) { return; } // raw ERP codes stay auto — the backend normalizes via config
+          }
+          if (field === "pricingType") { value = /price.?list/i.test(value) ? "PRICE_LIST" : "COST_PLUS"; }
+          row[field] = value;
+        });
+        if ((row.partNumber || "").trim()) { rows.push(row); }
+      }
+      if (rows.length > 0) {
+        var vm = this._vm();
+        vm.setProperty("/items", this._renumber(rows));
+        vm.setProperty("/hasResults", false);
+        vm.setProperty("/orderTotal", "");
+      }
+      return rows.length;
     },
 
     onRegionChange: function () {

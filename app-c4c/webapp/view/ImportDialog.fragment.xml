@@ -1,0 +1,20 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+  <Dialog title="{i18n>importItems}" contentWidth="44rem" draggable="true" resizable="true">
+    <content>
+      <VBox class="sapUiSmallMargin">
+        <MessageStrip text="{i18n>importHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
+        <TextArea value="{vm>/importText}" rows="12" width="100%" growing="true" growingMaxLines="20"
+          placeholder="{i18n>importPlaceholder}"/>
+        <Button text="{i18n>chooseFile}" icon="sap-icon://open-folder" press=".onPickImportFile" class="sapUiTinyMarginTop" type="Transparent"/>
+      </VBox>
+    </content>
+    <beginButton>
+      <Button text="{i18n>importRun}" type="Emphasized" press=".onRunImport"/>
+    </beginButton>
+    <endButton>
+      <Button text="{i18n>close}" press=".onCloseImport"/>
+    </endButton>
+  </Dialog>
+</core:FragmentDefinition>

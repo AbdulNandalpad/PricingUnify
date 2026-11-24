@@ -135,10 +135,12 @@ module.exports = (srv) => {
       c4c: {
         destinationName: c4cInfo.destinationName,
         configured: c4cInfo.configured,
-        url: c4cInfo.url,
+        urlConfigured: c4cInfo.urlConfigured,
+        credentialsConfigured: c4cInfo.credentialsConfigured,
+        url: c4cInfo.url || (conn && conn.c4c && conn.c4c.url) || null,
         servicePath: c4cInfo.servicePath,
         fieldMap: c4cInfo.fieldMap,
-        maintainedVia: 'Service path and field map editable here. The destination itself (URL + technical user) stays in the BTP destination C4C_ODATA / environment — credentials are never stored in config.',
+        maintainedVia: 'Tenant URL, service path and field map editable here. The technical user\'s credentials are NEVER stored in config — BTP destination C4C_ODATA, or the C4C_USERNAME / C4C_PASSWORD environment variables.',
       },
       ai: {
         configured: !!getAiClientOrNull(),

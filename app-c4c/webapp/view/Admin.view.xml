@@ -261,12 +261,19 @@
 
               <Panel headerText="{i18n>connC4c}" class="sapUiTinyMarginBottom">
                 <VBox class="sapUiSmallMargin">
-                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom" wrap="Wrap">
                     <Label text="{i18n>connDestination}:" class="sapUiTinyMarginEnd"/>
                     <Text text="{vm>/connections/c4c/destinationName}" class="sapUiTinyMarginEnd"/>
+                    <ObjectStatus class="sapUiTinyMarginEnd"
+                      text="{= ${vm>/connections/c4c/urlConfigured} ? ${i18n>connUrlSet} : ${i18n>connUrlMissing} }"
+                      state="{= ${vm>/connections/c4c/urlConfigured} ? 'Success' : 'Warning' }"/>
                     <ObjectStatus
-                      text="{= ${vm>/connections/c4c/configured} ? ${i18n>connConfigured} : ${i18n>connNotConfigured} }"
-                      state="{= ${vm>/connections/c4c/configured} ? 'Success' : 'Warning' }"/>
+                      text="{= ${vm>/connections/c4c/credentialsConfigured} ? ${i18n>connCredsSet} : ${i18n>connCredsMissing} }"
+                      state="{= ${vm>/connections/c4c/credentialsConfigured} ? 'Success' : 'Warning' }"/>
+                  </HBox>
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                    <Label text="{i18n>connC4cUrl}" class="sapUiTinyMarginEnd"/>
+                    <Input value="{vm>/connections/c4c/url}" width="26rem" placeholder="https://myNNNNNN.crm.ondemand.com"/>
                   </HBox>
                   <HBox alignItems="Center" class="sapUiTinyMarginBottom">
                     <Label text="{i18n>connServicePath}" class="sapUiTinyMarginEnd"/>

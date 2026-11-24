@@ -583,6 +583,14 @@ module.exports = (srv) => {
     return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
   });
 
+  srv.on('fetchC4cObject', async (req) => {
+    const payload = req.data.payload || {};
+    return currentC4c().fetchObjectItems({
+      objectType: payload.objectType === 'OPPORTUNITY' ? 'OPPORTUNITY' : 'QUOTE',
+      objectId: payload.objectId,
+    });
+  });
+
   srv.on('writeBackToC4C', async (req) => {
     const payload = req.data.payload || {};
     const { objectType, objectId, items } = payload;

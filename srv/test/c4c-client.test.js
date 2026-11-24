@@ -135,3 +135,53 @@ test('the field map is configuration: an override changes what gets written, not
   assert.equal(itemPatch.body.zLandedCost, '130.78');
   assert.equal(itemPatch.body.Price_SDK, undefined);
 });
+
+// --- READ side: fetchObjectItems (fill the pricing grid from a C4C object) ---
+
+function fakeC4cRead() {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, method: init.method });
+    if (url.includes('SalesQuoteCollection?')) {
+      return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', AccountName: 'Boston Scientific', CurrencyCode: 'EUR' }] } });
+    }
+    if (url.includes('SalesQuoteItemCollection?')) {
+      return jsonRes({ d: { results: [
+        { ObjectID: 'ITM-1', ItemID: '10', ProductID: 'EU-T100', Description: 'Seal kit', Quantity: '10', QuantityUnitCode: 'EA',
+          ZProductBuyerID: 'CUST-4711', OriginOfDataID: 'SAP', WarehouseID: 'EU01', ZNumberOfPicks: '2', ZLeadTime: '6', ZAddCost: '1', SupplierID: 'ACME' },
+        { ObjectID: 'ITM-2', ItemID: '20', ProductID: 'P-10023', Quantity: '5' },
+      ] } });
+    }
+    throw new Error('unexpected: ' + url);
+  };
+  return { calls, fetchImpl };
+}
+
+test('fetchObjectItems returns the header context and every grid column the Products tab carries', async () => {
+  const c4c = fakeC4cRead();
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  const res = await client.fetchObjectItems({ objectType: 'QUOTE', objectId: 'Q-140981' });
+  assert.equal(res.status, 'OK');
+  assert.deepEqual(res.header, { account: 'Boston Scientific', currency: 'EUR' });
+  assert.equal(res.items.length, 2);
+  assert.deepEqual(res.items[0], {
+    itemId: '10', partNumber: 'EU-T100', description: 'Seal kit', quantity: '10', uom: 'EA',
+    customerPartNumber: 'CUST-4711', ood: 'SAP', warehouse: 'EU01', picks: '2', leadTime: '6',
+    additionalCost: '1', supplier: 'ACME',
+  });
+  assert.equal(res.items[1].partNumber, 'P-10023'); // sparse rows come back with empty strings, never undefined keys
+  assert.equal(res.items[1].ood, '');
+});
+
+test('fetchObjectItems distinguishes "no URL" from "URL set but credentials missing" — both typed, nothing called', async () => {
+  const none = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('must not call'); } });
+  assert.equal((await none.fetchObjectItems({ objectType: 'QUOTE', objectId: 'Q-1' })).status, 'C4C_NOT_CONFIGURED');
+
+  const urlOnly = createC4cClient({
+    resolveDestination: () => ({ name: 'C4C_ODATA', url: 'https://my332854.crm.ondemand.com', username: null, password: null }),
+    fetchImpl: () => { throw new Error('must not call'); },
+  });
+  const res = await urlOnly.fetchObjectItems({ objectType: 'QUOTE', objectId: 'Q-1' });
+  assert.equal(res.status, 'C4C_CREDENTIALS_MISSING');
+  assert.match(res.message, /C4C_USERNAME/);
+});

@@ -109,6 +109,7 @@ sap.ui.define([
           priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
         },
         c4c: {
+          url: (conn.c4c.url || "").trim() || null,
           servicePath: (conn.c4c.servicePath || "").trim() || null,
           fieldMap: fieldMap,
         },
