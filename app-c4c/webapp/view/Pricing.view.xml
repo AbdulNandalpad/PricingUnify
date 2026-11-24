@@ -20,57 +20,61 @@
         text="{i18n>noRoleHint}" type="Warning" showIcon="true"
         visible="{= ${session>/meLoaded} &amp;&amp; !${session>/meError} &amp;&amp; !${session>/roles/PricingViewer} &amp;&amp; !${session>/roles/PricingAdmin} }"/>
 
-      <!-- Context header: host object + party context, read-only (C4C passes it; standalone shows a search field). -->
-      <Panel id="contextPanel" class="sapUiSmallMargin" backgroundDesign="Solid">
-        <headerToolbar>
-          <OverflowToolbar>
-            <Title text="{= ${session>/objectType} === 'OPPORTUNITY' ? ${i18n>titleOpportunity} : ${i18n>titleQuote} }" level="H4"/>
-            <ObjectStatus text="{session>/objectId}" state="Information" visible="{= !!${session>/objectId} }"/>
-            <ToolbarSpacer/>
-            <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' }"/>
-            <Text text="{i18n>signedInAs}: {session>/user}" visible="{= !!${session>/user} }"/>
-            <Button id="openAdminBtn" text="{i18n>openAdmin}" type="Transparent" icon="sap-icon://action-settings"
-              visible="{session>/roles/PricingAdmin}" press=".onOpenAdmin"/>
-          </OverflowToolbar>
-        </headerToolbar>
-        <content>
-          <l:HorizontalLayout allowWrapping="true" class="sapUiSmallMarginBegin sapUiTinyMarginBottom">
-            <VBox class="sapUiMediumMarginEnd">
-              <Label text="{i18n>account}"/>
-              <Text text="{= ${vm>/header/account} || '—' }"/>
-            </VBox>
-            <VBox class="sapUiMediumMarginEnd">
-              <Label text="{i18n>currency}"/>
-              <Text text="{= ${vm>/header/currency} || '—' }"/>
-            </VBox>
-            <VBox class="sapUiMediumMarginEnd">
-              <Label text="{i18n>salesOrg}"/>
-              <Text text="{session>/salesOrg}"/>
-            </VBox>
-            <VBox class="sapUiMediumMarginEnd">
-              <Label text="{i18n>region}"/>
-              <!-- Read-only when the host passed an object; standalone may choose. -->
-              <Text text="{session>/region}" visible="{= !!${session>/objectId} }"/>
-              <Select selectedKey="{session>/region}" visible="{= !${session>/objectId} }" change=".onRegionChange">
-                <core:Item key="EUROPE" text="EUROPE"/>
-                <core:Item key="CHINA" text="CHINA"/>
-                <core:Item key="INDIA" text="INDIA"/>
-                <core:Item key="AMERICAS" text="AMERICAS"/>
-              </Select>
-            </VBox>
-            <!-- Standalone (3c): no objectId -> search field for a Quote/Opportunity id. -->
-            <VBox visible="{= !${session>/objectId} }">
-              <Label text="{i18n>standaloneSearch}"/>
-              <HBox>
-                <Input id="objectSearch" width="14rem" placeholder="{i18n>standaloneSearchPlaceholder}" submit=".onLoadObject"/>
-                <Button text="{i18n>load}" press=".onLoadObject" class="sapUiTinyMarginBegin"/>
+      <!-- Context header: object-page style — title row + horizontal facts strip. Read-only
+           context (C4C passes it); standalone gets the region select + object search. -->
+      <VBox id="contextHeader" class="ctxHeader sapUiSmallMargin">
+        <HBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap">
+          <HBox alignItems="Center">
+            <core:Icon src="sap-icon://sales-quote" size="1.5rem" class="ctxIcon sapUiSmallMarginEnd"/>
+            <VBox>
+              <Title text="{= ${session>/objectType} === 'OPPORTUNITY' ? ${i18n>titleOpportunity} : ${i18n>titleQuote} }" level="H3" class="ctxTitle"/>
+              <HBox alignItems="Center">
+                <ObjectStatus text="{session>/objectId}" state="Information" visible="{= !!${session>/objectId} }" class="sapUiSmallMarginEnd"/>
+                <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' }"/>
               </HBox>
             </VBox>
-          </l:HorizontalLayout>
-          <MessageStrip text="{vm>/message}" type="{vm>/messageType}" showIcon="true" showCloseButton="true"
-            class="sapUiSmallMarginBeginEnd sapUiTinyMarginBottom" visible="{= !!${vm>/message} }" close=".onCloseMessage"/>
-        </content>
-      </Panel>
+          </HBox>
+          <HBox alignItems="Center">
+            <Text text="{i18n>signedInAs}: {session>/user}" visible="{= !!${session>/user} }" class="sapUiSmallMarginEnd ctxUser"/>
+            <Button id="openAdminBtn" text="{i18n>openAdmin}" type="Transparent" icon="sap-icon://action-settings"
+              visible="{session>/roles/PricingAdmin}" press=".onOpenAdmin"/>
+          </HBox>
+        </HBox>
+        <HBox wrap="Wrap" class="ctxFacts" alignItems="Start">
+          <VBox class="ctxFact">
+            <Label text="{i18n>account}"/>
+            <Text text="{= ${vm>/header/account} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact">
+            <Label text="{i18n>currency}"/>
+            <Text text="{= ${vm>/header/currency} || '—' }" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact">
+            <Label text="{i18n>salesOrg}"/>
+            <Text text="{session>/salesOrg}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact">
+            <Label text="{i18n>region}"/>
+            <Text text="{session>/region}" class="ctxValue" visible="{= !!${session>/objectId} }"/>
+            <Select selectedKey="{session>/region}" visible="{= !${session>/objectId} }" change=".onRegionChange">
+              <core:Item key="EUROPE" text="EUROPE"/>
+              <core:Item key="CHINA" text="CHINA"/>
+              <core:Item key="INDIA" text="INDIA"/>
+              <core:Item key="AMERICAS" text="AMERICAS"/>
+            </Select>
+          </VBox>
+          <!-- Standalone (3c): no objectId -> search field for a Quote/Opportunity id. -->
+          <VBox class="ctxFact" visible="{= !${session>/objectId} }">
+            <Label text="{i18n>standaloneSearch}"/>
+            <HBox>
+              <Input id="objectSearch" width="13rem" placeholder="{i18n>standaloneSearchPlaceholder}" submit=".onLoadObject"/>
+              <Button text="{i18n>load}" press=".onLoadObject" class="sapUiTinyMarginBegin"/>
+            </HBox>
+          </VBox>
+        </HBox>
+        <MessageStrip text="{vm>/message}" type="{vm>/messageType}" showIcon="true" showCloseButton="true"
+          class="sapUiTinyMarginTop" visible="{= !!${vm>/message} }" close=".onCloseMessage"/>
+      </VBox>
 
       <!-- Item table: input columns (manual until the Phase 5 C4C adapter fills them) + result columns. -->
       <Panel class="sapUiSmallMargin" backgroundDesign="Solid">
@@ -99,7 +103,7 @@
                 <Label text="{i18n>colItem}"/>
                 <t:template><Text text="{vm>itemNo}"/></t:template>
               </t:Column>
-              <t:Column width="9rem">
+              <t:Column minWidth="130">
                 <Label text="{i18n>colProduct}"/>
                 <t:template><Input value="{vm>partNumber}" placeholder="EU-T100"/></t:template>
               </t:Column>
@@ -125,7 +129,7 @@
                   </Select>
                 </t:template>
               </t:Column>
-              <t:Column width="7rem">
+              <t:Column minWidth="110">
                 <Label text="{i18n>colSupplier}"/>
                 <t:template><Input value="{vm>supplier}" placeholder="ACME"/></t:template>
               </t:Column>

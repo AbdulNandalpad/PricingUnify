@@ -11,6 +11,37 @@
   overflow: hidden;
 }
 
+/* Object-page-style context header. */
+.ctxHeader {
+  background: var(--sapObjectHeader_Background, var(--sapGroup_ContentBackground, #fff));
+  border-radius: 0.75rem;
+  box-shadow: var(--sapContent_Shadow0, 0 0 0.125rem 0 rgba(34, 54, 73, 0.16));
+  padding: 1rem 1.25rem 0.875rem;
+}
+.ctxIcon {
+  color: var(--sapContent_IconColor, #0064d9);
+}
+.ctxUser {
+  color: var(--sapContent_LabelColor, #556b82);
+}
+.ctxFacts {
+  margin-top: 0.875rem;
+  row-gap: 0.625rem;
+}
+.ctxFact {
+  margin-right: 3rem;
+  min-width: 5.5rem;
+}
+.ctxFact .sapMLabel {
+  color: var(--sapContent_LabelColor, #556b82);
+  font-size: 0.8125rem;
+  margin-bottom: 0.125rem;
+}
+.ctxValue {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
 /* Tighter side margins on narrow screens so the table gets the full width. */
 @media (max-width: 900px) {
   .sapMPanel.sapUiSmallMargin {

@@ -1,10 +1,8 @@
 const { suggestConfigChange, applySuggestion, rejectSuggestion, ConfigValidationError } = require('@tss-pricing/config-model');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
-const { createC4cClient } = require('./lib/c4c-client');
+const { currentC4c } = require('./lib/c4c');
 const { getAiClientOrNull } = require('./lib/ai');
-
-const c4c = createC4cClient();
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -120,15 +118,19 @@ module.exports = (srv) => {
   });
 
   srv.on('getConnections', async () => {
-    const c4cInfo = await c4c.describe();
+    const c4cInfo = await currentC4c().describe();
+    const conn = store.getEffectiveConnectionConfig(todayIso());
     return {
+      // Effective values = UI-saved connection-config (when one exists) over environment
+      // defaults — exactly what the adapters use on the next call.
+      configVersion: conn ? conn.version : null,
       api6: {
-        mode: api6.mode, // 'recorded' (dev fixtures) or 'live'
+        mode: api6.mode, // 'recorded' (dev fixtures, no outbound calls) or 'live'
         authType: api6.authType,
-        baseUrl: process.env.API6_BASE_URL || null,
+        baseUrl: (conn && conn.api6 && conn.api6.baseUrl) || process.env.API6_BASE_URL || null,
         costSourceEndpoints: api6.costSourceEndpoints,
         priceListEndpoint: api6.priceListEndpoint,
-        maintainedVia: 'Environment: API6_MODE, API6_BASE_URL (+ auth strategy); endpoint paths via api6-client config. The cost source ORDER stays pricing config (Cost Rules tab).',
+        maintainedVia: 'Editable here (saved as a versioned connection-config). Environment defaults: API6_MODE, API6_BASE_URL. Credentials/auth stay environment-owned. The cost source ORDER stays pricing config (Cost Rules tab).',
       },
       c4c: {
         destinationName: c4cInfo.destinationName,
@@ -136,13 +138,35 @@ module.exports = (srv) => {
         url: c4cInfo.url,
         servicePath: c4cInfo.servicePath,
         fieldMap: c4cInfo.fieldMap,
-        maintainedVia: 'BTP destination C4C_ODATA (technical user); field names via C4C_FIELD_MAP env, service path via C4C_SERVICE_PATH env.',
+        maintainedVia: 'Service path and field map editable here. The destination itself (URL + technical user) stays in the BTP destination C4C_ODATA / environment — credentials are never stored in config.',
       },
       ai: {
         configured: !!getAiClientOrNull(),
         maintainedVia: 'Environment: ANTHROPIC_API_KEY.',
       },
     };
+  });
+
+  /**
+   * Saves the integration endpoints as a new version of the global connection-config
+   * (owner decision 2026-11-24: WSO2/API6 endpoints are external, not BTP-managed, so
+   * admins maintain them here). Same rules as every config save: brand-new version, never
+   * in place, server-stamped provenance, validation failure = 422 and an untouched store.
+   * NO credentials: the schema rejects anything but endpoints/paths/field names, and a
+   * live mode without a base URL is refused outright. Like all config, in-memory until
+   * real persistence lands — a backend restart reverts to environment defaults.
+   */
+  srv.on('saveConnections', (req) => {
+    const p = req.data.payload || {};
+    const existing = store.getEffectiveConnectionConfig(todayIso());
+    const versions = store.listConnectionConfigVersions();
+    const doc = withHumanProvenance({
+      name: 'GLOBAL',
+      version: (p.version && String(p.version).trim()) || `${todayIso()}-r${versions.length + 1}`,
+      api6: p.api6 || (existing && existing.api6) || {},
+      c4c: p.c4c || (existing && existing.c4c) || {},
+    }, req);
+    return trySave(req, () => store.saveConnectionConfig(doc));
   });
 
   srv.on('lookupPriceList', async (req) => {

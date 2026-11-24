@@ -1,0 +1,44 @@
+{
+  "$id": "connection-config.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConnectionConfig",
+  "description": "Integration endpoints the engine's outbound adapters talk to — the WSO2/API6 middleware routes (external URLs, owner decision 2026-11-24: maintained in the admin UI, since they are not BTP-managed) and the C4C OData service path + field map. One global, versioned, effective-dated document (name 'GLOBAL'), same audit pattern as every other config table. DELIBERATELY excluded: credentials of any kind (API keys, users, passwords) — those stay in BTP destinations / environment secrets, never in a config document.",
+  "type": "object",
+  "required": ["name", "version", "validFrom", "status", "provenance"],
+  "properties": {
+    "name": { "const": "GLOBAL" },
+    "version": { "type": "string" },
+    "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
+    "supersedes": { "type": ["string", "null"] },
+    "validFrom": { "type": "string", "format": "date" },
+    "validTo": { "type": ["string", "null"], "format": "date" },
+    "api6": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["recorded", "live"], "description": "recorded = replay dev fixtures, no outbound calls; live = real HTTP against baseUrl." },
+        "baseUrl": { "type": ["string", "null"], "description": "WSO2/API6 base URL, e.g. https://wso2.tss.example — required when mode is live." },
+        "costSourceEndpoints": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "description": "Cost source system -> endpoint path (e.g. CCD -> /costs/ccd). The ORDER they are called in stays pricing config (region-config.costAccessSequence)."
+        },
+        "priceListEndpoint": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "c4c": {
+      "type": "object",
+      "properties": {
+        "servicePath": { "type": ["string", "null"], "description": "OData service path on the C4C tenant, e.g. /sap/c4c/odata/v1/c4codataapi." },
+        "fieldMap": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Our field name -> C4C field/collection name overrides (flat string entries only; the nested collections map stays code-default or C4C_FIELD_MAP env)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": { "$ref": "provenance.schema.json" }
+  },
+  "additionalProperties": false
+}

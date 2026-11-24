@@ -1047,3 +1047,59 @@ test('getConnections describes the integration endpoints read-only, PricingAdmin
   const asViewer = await fetch(`${BASE}/rest/config/getConnections`, { headers: { Authorization: basicAuthHeader('alice') } });
   assert.equal(asViewer.status, 403);
 });
+
+// --- Editable connections (owner decision: WSO2/API6 endpoints are external, admins maintain them) ---
+
+test('saveConnections versions the endpoints, and the very next pricing call routes through them', async () => {
+  const save = await fetch(`${BASE}/rest/config/saveConnections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('bob') },
+    body: JSON.stringify({ payload: {
+      api6: { mode: 'recorded', baseUrl: null, costSourceEndpoints: { CCD: '/v2/costs/ccd-bi' }, priceListEndpoint: '/v2/costs/price-list' },
+      c4c: { servicePath: '/sap/c4c/odata/v1/c4codataapi', fieldMap: {} },
+    } }),
+  });
+  assert.equal(save.status, 200);
+  const saved = await save.json();
+  assert.equal(saved.status, 'ACTIVE');
+  assert.equal(saved.provenance.source, 'HUMAN'); // stamped server-side, as every config save
+
+  // The routing walk on the next call must show the NEW endpoint path — no restart.
+  const priced = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-50099', quantity: 5 }] } }),
+  });
+  const [line] = (await priced.json()).items;
+  const ccdCall = line.trace.costRouting.calls.find((c) => c.system === 'CCD');
+  assert.equal(ccdCall.endpoint, '/v2/costs/ccd-bi');
+  assert.equal(line.status, 'PRICED'); // recorded mode: same cost data, only the declared route changed
+
+  const conn = await fetch(`${BASE}/rest/config/getConnections`, { headers: { Authorization: basicAuthHeader('bob') } }).then((r) => r.json());
+  assert.equal(conn.api6.costSourceEndpoints.CCD, '/v2/costs/ccd-bi');
+  assert.equal(conn.api6.costSourceEndpoints.ERP, '/costs/erp'); // unset systems keep their defaults
+  assert.equal(conn.configVersion, saved.version);
+});
+
+test('saveConnections refuses live mode without a base URL (422, store untouched), and never accepts credential-shaped fields', async () => {
+  const noUrl = await fetch(`${BASE}/rest/config/saveConnections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('bob') },
+    body: JSON.stringify({ payload: { api6: { mode: 'live', baseUrl: '' } } }),
+  });
+  assert.equal(noUrl.status, 422);
+
+  const withSecret = await fetch(`${BASE}/rest/config/saveConnections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('bob') },
+    body: JSON.stringify({ payload: { api6: { mode: 'recorded', apiKey: 'sk-secret' } } }),
+  });
+  assert.equal(withSecret.status, 422); // additionalProperties: false — a credential cannot land in config
+
+  const asViewer = await fetch(`${BASE}/rest/config/saveConnections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { api6: { mode: 'recorded' } } }),
+  });
+  assert.equal(asViewer.status, 403);
+});

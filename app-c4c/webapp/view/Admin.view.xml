@@ -221,19 +221,40 @@
 
               <Panel headerText="{i18n>connApi6}" class="sapUiTinyMarginBottom">
                 <VBox class="sapUiSmallMargin">
-                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
-                    <Label text="{i18n>connMode}:" class="sapUiTinyMarginEnd"/>
-                    <ObjectStatus text="{vm>/connections/api6/mode}"
-                      state="{= ${vm>/connections/api6/mode} === 'live' ? 'Success' : 'Warning' }"/>
-                    <Text text="{i18n>connRecordedNote}" class="sapUiSmallMarginBegin"
-                      visible="{= ${vm>/connections/api6/mode} !== 'live' }"/>
+                  <HBox alignItems="Center" wrap="Wrap" class="sapUiTinyMarginBottom">
+                    <VBox class="sapUiMediumMarginEnd">
+                      <Label text="{i18n>connMode}"/>
+                      <Select selectedKey="{vm>/connections/api6/mode}" width="12rem">
+                        <core:Item key="recorded" text="{i18n>connModeRecorded}"/>
+                        <core:Item key="live" text="{i18n>connModeLive}"/>
+                      </Select>
+                    </VBox>
+                    <VBox>
+                      <Label text="{i18n>connBaseUrl}"/>
+                      <Input value="{vm>/connections/api6/baseUrl}" width="26rem" placeholder="https://wso2.example.com"/>
+                    </VBox>
                   </HBox>
-                  <Text text="{i18n>connBaseUrl}: {= ${vm>/connections/api6/baseUrl} || '—' }" class="sapUiTinyMarginBottom"/>
-                  <Label text="{i18n>connCostEndpoints}" design="Bold"/>
-                  <List items="{vm>/connections/api6/endpointRows}" inset="false">
-                    <StandardListItem title="{vm>system}" info="{vm>path}"/>
-                  </List>
-                  <Text text="{i18n>connPriceListEndpoint}: {vm>/connections/api6/priceListEndpoint}"/>
+                  <MessageStrip text="{i18n>connRecordedNote}" type="Warning" showIcon="true" class="sapUiTinyMarginBottom"
+                    visible="{= ${vm>/connections/api6/mode} !== 'live' }"/>
+                  <Label text="{i18n>connCostEndpoints}" design="Bold" class="sapUiTinyMarginBottom"/>
+                  <Table items="{vm>/connections/api6/endpointRows}" inset="false">
+                    <columns>
+                      <Column width="9rem"><Text text="{i18n>connSystem}"/></Column>
+                      <Column><Text text="{i18n>connEndpointPath}"/></Column>
+                    </columns>
+                    <items>
+                      <ColumnListItem>
+                        <cells>
+                          <ObjectIdentifier title="{vm>system}"/>
+                          <Input value="{vm>path}"/>
+                        </cells>
+                      </ColumnListItem>
+                    </items>
+                  </Table>
+                  <HBox alignItems="Center" class="sapUiTinyMarginTop">
+                    <Label text="{i18n>connPriceListEndpoint}" class="sapUiTinyMarginEnd"/>
+                    <Input value="{vm>/connections/api6/priceListEndpoint}" width="18rem"/>
+                  </HBox>
                   <Text text="{i18n>maintainedVia}: {vm>/connections/api6/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
                 </VBox>
               </Panel>
@@ -247,15 +268,37 @@
                       text="{= ${vm>/connections/c4c/configured} ? ${i18n>connConfigured} : ${i18n>connNotConfigured} }"
                       state="{= ${vm>/connections/c4c/configured} ? 'Success' : 'Warning' }"/>
                   </HBox>
-                  <Text text="{i18n>connServicePath}: {vm>/connections/c4c/servicePath}" class="sapUiTinyMarginBottom"/>
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                    <Label text="{i18n>connServicePath}" class="sapUiTinyMarginEnd"/>
+                    <Input value="{vm>/connections/c4c/servicePath}" width="26rem"/>
+                  </HBox>
                   <MessageStrip text="{i18n>fieldMapToConfirm}" type="Warning" showIcon="true" class="sapUiTinyMarginBottom"/>
-                  <Label text="{i18n>connFieldMap}" design="Bold"/>
-                  <List items="{vm>/connections/c4c/fieldRows}" inset="false">
-                    <StandardListItem title="{vm>ours}" info="{vm>theirs}"/>
-                  </List>
+                  <Label text="{i18n>connFieldMap}" design="Bold" class="sapUiTinyMarginBottom"/>
+                  <Table items="{vm>/connections/c4c/fieldRows}" inset="false">
+                    <columns>
+                      <Column width="12rem"><Text text="{i18n>connOurField}"/></Column>
+                      <Column><Text text="{i18n>connTheirField}"/></Column>
+                    </columns>
+                    <items>
+                      <ColumnListItem>
+                        <cells>
+                          <ObjectIdentifier title="{vm>ours}"/>
+                          <Input value="{vm>theirs}"/>
+                        </cells>
+                      </ColumnListItem>
+                    </items>
+                  </Table>
                   <Text text="{i18n>maintainedVia}: {vm>/connections/c4c/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
                 </VBox>
               </Panel>
+
+              <OverflowToolbar class="sapUiTinyMarginBottom">
+                <Label text="{i18n>newVersion}"/>
+                <Input value="{vm>/connections/newVersion}" width="11rem" placeholder="{i18n>connVersionAuto}"/>
+                <Text text="{i18n>connInMemoryNote}" class="traceNote sapUiSmallMarginBegin"/>
+                <ToolbarSpacer/>
+                <Button text="{i18n>saveConnections}" type="Emphasized" icon="sap-icon://save" press=".onSaveConnections"/>
+              </OverflowToolbar>
 
               <Panel headerText="{i18n>connAi}">
                 <VBox class="sapUiSmallMargin">

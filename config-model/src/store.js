@@ -4,6 +4,7 @@ const {
   validateSupplierConfig,
   validateRegionRoute,
   validatePartyConfig,
+  validateConnectionConfig,
   ConfigValidationError,
 } = require('./validate');
 
@@ -110,6 +111,11 @@ class ConfigStore {
       entityLabel: 'customerId',
       keyOf: (doc) => doc.customerId,
     });
+    this._connectionConfigs = new VersionedBucketStore({
+      validate: validateConnectionConfig,
+      entityLabel: 'name',
+      keyOf: (doc) => doc.name,
+    });
     this.suggestions = new Map();
   }
 
@@ -192,6 +198,20 @@ class ConfigStore {
    *  no natural "default customer" the way "*" salesOrg/supplier stand in for one. */
   getEffectivePartyConfig(customerId, date) {
     return this._partyConfigs.getEffectiveAsOf(customerId, customerId, date);
+  }
+
+  /** One global document (name 'GLOBAL'): the integration endpoints the outbound adapters
+   *  use. Versioned/effective-dated like everything else; holds NO credentials ever. */
+  saveConnectionConfig(config) {
+    return this._connectionConfigs.saveVersion(config);
+  }
+
+  listConnectionConfigVersions() {
+    return this._connectionConfigs.listVersions('GLOBAL');
+  }
+
+  getEffectiveConnectionConfig(date) {
+    return this._connectionConfigs.getEffectiveAsOf('GLOBAL', 'GLOBAL', date);
   }
 
   saveSuggestion(suggestion) {

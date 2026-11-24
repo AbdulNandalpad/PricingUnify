@@ -12,6 +12,7 @@ const SCHEMA_FILES = [
   'supplier-config.schema.json',
   'region-route.schema.json',
   'party-config.schema.json',
+  'connection-config.schema.json',
 ];
 
 function buildAjv() {
@@ -128,11 +129,25 @@ function validatePartyConfig(config) {
   return true;
 }
 
+function validateConnectionConfig(config) {
+  validateAgainst('connection-config.schema.json', config);
+  checkValidToAfterValidFrom('ConnectionConfig', config);
+  // A live mode without a base URL would make every outbound call fail at runtime — refuse
+  // the save instead, same philosophy as the FACTOR-basis rule.
+  if (config.api6 && config.api6.mode === 'live' && !(config.api6.baseUrl && String(config.api6.baseUrl).trim())) {
+    throw new ConfigValidationError('ConnectionConfig failed business-rule validation', [
+      'api6.mode "live" requires api6.baseUrl.',
+    ]);
+  }
+  return true;
+}
+
 module.exports = {
   validateRegionConfig,
   validateAiSuggestion,
   validateSupplierConfig,
   validateRegionRoute,
   validatePartyConfig,
+  validateConnectionConfig,
   ConfigValidationError,
 };

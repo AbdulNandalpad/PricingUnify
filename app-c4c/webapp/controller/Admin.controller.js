@@ -76,9 +76,52 @@ sap.ui.define([
           conn.c4c.fieldRows = Object.keys(conn.c4c.fieldMap || {})
             .filter(function (key) { return typeof conn.c4c.fieldMap[key] === "string"; })
             .map(function (key) { return { ours: key, theirs: conn.c4c.fieldMap[key] }; });
+          conn.newVersion = "";
           that._vm().setProperty("/connections", conn);
         })
         .catch(function () { /* non-admin or backend down — tab simply stays empty */ });
+    },
+
+    /** Endpoints/paths/field names only — the schema server-side rejects anything that
+     *  could smuggle a credential into config. A save is a new version, applied to the
+     *  very next outbound call (no restart). */
+    onSaveConnections: function () {
+      var that = this;
+      var vm = this._vm();
+      var conn = vm.getProperty("/connections");
+      if (!conn) { return; }
+
+      var costSourceEndpoints = {};
+      (conn.api6.endpointRows || []).forEach(function (row) {
+        if ((row.path || "").trim()) { costSourceEndpoints[row.system] = row.path.trim(); }
+      });
+      var fieldMap = {};
+      (conn.c4c.fieldRows || []).forEach(function (row) {
+        if ((row.theirs || "").trim()) { fieldMap[row.ours] = row.theirs.trim(); }
+      });
+
+      var payload = {
+        version: (conn.newVersion || "").trim() || undefined,
+        api6: {
+          mode: conn.api6.mode || "recorded",
+          baseUrl: (conn.api6.baseUrl || "").trim() || null,
+          costSourceEndpoints: costSourceEndpoints,
+          priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
+        },
+        c4c: {
+          servicePath: (conn.c4c.servicePath || "").trim() || null,
+          fieldMap: fieldMap,
+        },
+      };
+
+      vm.setProperty("/busy", true);
+      this.callRest("/rest/config/saveConnections", { body: { payload: payload } })
+        .then(function (saved) {
+          that._message(that.getView().getModel("i18n").getResourceBundle().getText("connectionsSaved", [saved.version]), "Success");
+          that._loadConnections();
+        })
+        .catch(function (err) { that._message(String(err.message || err), "Error"); })
+        .finally(function () { vm.setProperty("/busy", false); });
     },
 
     onRegionSelect: function () {

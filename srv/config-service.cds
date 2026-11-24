@@ -40,11 +40,15 @@ service ConfigService {
   @requires: 'PricingAdmin'
   function listPartyConfigVersions(customerId: String) returns Map;
 
-  // Integration connections, read-only: which API6/WSO2 endpoints and C4C destination this
-  // deployment talks to, and where each is maintained. Values are env/destination config —
-  // they are not editable from the UI by design (secrets and routes are deployment concerns).
+  // Integration connections: which API6/WSO2 endpoints and C4C service path this deployment
+  // talks to. EDITABLE (owner decision 2026-11-24 — these are external endpoints, not
+  // BTP-managed): saves create a versioned connection-config document. Credentials are
+  // never part of it — they stay in environment secrets / the BTP destination.
   @requires: 'PricingAdmin'
   function getConnections() returns Map;
+
+  @requires: 'PricingAdmin'
+  action saveConnections(payload: Map) returns Map;
 
   // Read-only browser over what the WSO2 price-list endpoint serves (owner decision
   // 2026-11-24: price lists are maintained at the source, not in our config store — this

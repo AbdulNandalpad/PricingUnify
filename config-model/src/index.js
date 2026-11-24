@@ -4,6 +4,7 @@ const {
   validateSupplierConfig,
   validateRegionRoute,
   validatePartyConfig,
+  validateConnectionConfig,
   ConfigValidationError,
 } = require('./validate');
 const { ConfigStore } = require('./store');
@@ -17,6 +18,7 @@ module.exports = {
   validateSupplierConfig,
   validateRegionRoute,
   validatePartyConfig,
+  validateConnectionConfig,
   ConfigValidationError,
   ConfigStore,
   createAnthropicClient,
