@@ -69,7 +69,7 @@ const DEFAULT_FIELD_MAP = {
     priceBreak: 'PriceBreakIndicator_KUT',
     alternativeToLine: 'AlternativeToItemID',
     // Product master search (the Add-item type-ahead; not yet confirmed live):
-    productCollection: 'MaterialCollection',
+    productCollection: 'ProductCollection',
     productId: 'InternalID',
     productDescription: 'Description',
   },

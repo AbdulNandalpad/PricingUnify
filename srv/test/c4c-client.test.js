@@ -205,7 +205,7 @@ test('searchProducts queries the material collection and maps id/description; ty
     { id: 'EU-T100', description: 'Verification part' },
     { id: 'EU-T200', description: '' },
   ]);
-  assert.match(calls[0], /MaterialCollection\?\$filter=startswith\(InternalID,'EU-T'\)/);
+  assert.match(calls[0], /ProductCollection\?\$filter=startswith\(InternalID,'EU-T'\)/);
 
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.searchProducts({ query: 'EU-T' })).status, 'C4C_NOT_CONFIGURED');
@@ -229,7 +229,7 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   });
   // One call, duplicates/blanks dropped, or-joined filter against the material collection.
   assert.equal(calls.length, 1);
-  assert.match(calls[0], /MaterialCollection\?\$filter=InternalID eq 'ORAR00125-N7H07' or InternalID eq 'EU-T100'/);
+  assert.match(calls[0], /ProductCollection\?\$filter=InternalID eq 'ORAR00125-N7H07' or InternalID eq 'EU-T100'/);
 
   // No parts -> nothing called, empty OK. Unconfigured -> typed, nothing called.
   assert.deepEqual(await client.fetchProductDetails({ partNumbers: [] }), { status: 'OK', products: {} });
