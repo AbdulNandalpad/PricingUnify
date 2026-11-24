@@ -43,8 +43,22 @@ sap.ui.define([
 
     _vm: function () { return this.getView().getModel("vm"); },
 
+    /** C4C line numbering: 10, 20, 30, … starting at 10. Lines that already carry a number
+     *  (loaded from C4C with its own ItemID, or numbered earlier) KEEP it — removing a line
+     *  never renumbers the rest, so "Alt. line" links and C4C's own IDs stay valid. Only
+     *  lines without a number get the next free multiple of 10. */
     _renumber: function (items) {
-      items.forEach(function (row, i) { row.itemNo = i + 1; });
+      var max = 0;
+      items.forEach(function (row) {
+        var n = parseInt(row.itemNo, 10);
+        if (n > max) { max = n; }
+      });
+      items.forEach(function (row) {
+        if (!(parseInt(row.itemNo, 10) > 0)) {
+          max = Math.floor(max / 10) * 10 + 10;
+          row.itemNo = String(max);
+        }
+      });
       this._vm().setProperty("/itemCount", items.length);
       return items;
     },
@@ -137,7 +151,8 @@ sap.ui.define([
       main.description = add.description || "";
       main.quantity = String(Number(add.quantity) || 1);
       items.push(main);
-      var mainLineNo = items.length; // after renumber this is the main row's item number
+      this._renumber(items);
+      var mainLineNo = main.itemNo; // C4C-style number (10, 20, …) the break lines point back at
 
       var breakCount = 0;
       if (add.withBreaks) {
@@ -153,6 +168,7 @@ sap.ui.define([
             breakRow.priceBreak = true;
             breakRow.alternativeToLine = String(mainLineNo);
             breakRow.line = null;
+            breakRow.itemNo = 0; // gets its own next number (not a copy of the main line's)
             items.push(breakRow);
             breakCount++;
           });
@@ -427,6 +443,7 @@ sap.ui.define([
             vm.setProperty("/header", { account: res.header.account || "", currency: res.header.currency || "" });
             var rows = (res.items || []).map(function (it) {
               var row = that._newRow();
+              row.itemNo = (it.itemId || "").trim(); // keep C4C's own item number (blank -> auto)
               row.partNumber = it.partNumber || "";
               row.description = it.description || "";
               // OData decimals come as '50000.00000000000000' — normalize for the grid.
