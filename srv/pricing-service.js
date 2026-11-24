@@ -1,4 +1,5 @@
 const { resolveProductStockClass } = require('./lib/product-stock-class');
+const { pickOriginOfData } = require('./lib/origin-of-data');
 const Decimal = require('decimal.js');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
@@ -626,6 +627,28 @@ module.exports = (srv) => {
       if (resolved.note) product.stockClassNote = resolved.note;
     }
     return res;
+  });
+
+  srv.on('fetchC4cOriginOfData', async (req) => {
+    const { items, region, salesOrg } = req.data.payload || {};
+    const lines = Array.isArray(items) ? items : [];
+    const rows = await currentC4c().fetchOriginOfDataRows({ partNumbers: lines.map((l) => l.partNumber) });
+    if (rows.status !== 'OK') return rows;
+
+    let map = null;
+    try { map = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso()) || {}).stockClassMap || null; } catch (e) { map = null; }
+    const results = lines.map((line) => {
+      const picked = pickOriginOfData(rows, line);
+      const res = { partNumber: line.partNumber, ...picked };
+      // Raw ERP stock class -> canonical through the region's own map (same rule as ProductSales).
+      if (picked.stockClassRaw) {
+        const sc = resolveProductStockClass([{ salesOrg: '*', stockClassRaw: picked.stockClassRaw }], { salesOrg: '*', map });
+        if (sc.stockClass) res.stockClass = sc.stockClass;
+        if (sc.note) res.stockClassNote = sc.note;
+      }
+      return res;
+    });
+    return { status: 'OK', results };
   });
 
   srv.on('fetchC4cObject', async (req) => {

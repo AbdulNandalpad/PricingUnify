@@ -1171,3 +1171,16 @@ test('fetchC4cProductDetails answers typed C4C_CREDENTIALS_MISSING in dev and is
   });
   assert.equal(noRole.status, 403);
 });
+
+test('fetchC4cOriginOfData answers typed C4C_CREDENTIALS_MISSING in dev, empty list is a no-op, and it is a Viewer capability', async () => {
+  const call = (user, payload) => fetch(`${BASE}/rest/pricing/fetchC4cOriginOfData`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader(user) },
+    body: JSON.stringify({ payload }),
+  });
+  const res = await call('alice', { items: [{ partNumber: 'ORAR00125-N7H07', ood: 'SMA', warehouse: 'LG01' }], region: 'AMERICAS' });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).status, 'C4C_CREDENTIALS_MISSING'); // typed — supplier data is never invented
+  assert.deepEqual(await (await call('alice', { items: [] })).json(), { status: 'OK', results: [] });
+  assert.equal((await call('carol', { items: [] })).status, 403);
+});

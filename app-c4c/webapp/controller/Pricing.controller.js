@@ -37,6 +37,7 @@ sap.ui.define([
         stockClassSel: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "", leadTime: "", additionalCost: "",
         priceBreak: false, alternativeToLine: "",
+        supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         status: "", confidence: "", line: null
       };
@@ -233,6 +234,63 @@ sap.ui.define([
      *  caller keeps the grid busy until it's done. */
     _enrichFromProductMaster: function () {
       var that = this;
+      return this._enrichFromOriginOfData().then(function () { return that._enrichFromProductDetails(); });
+    },
+
+    /** Supplier ID / external ID / name and the warehouse's stock class from C4C's custom
+     *  Origin of Data object (the same lookup C4C's own Supplier Information does), per line:
+     *  needs the line's Origin of Data. Fills only BLANK cells — a user's entry always wins.
+     *  Ambiguous suppliers / unmapped stock classes are reported, never guessed. */
+    _enrichFromOriginOfData: function () {
+      var that = this;
+      var vm = this._vm();
+      var rows = vm.getProperty("/items");
+      var lines = [];
+      var rowIdx = [];
+      rows.forEach(function (r, i) {
+        if (!(r.partNumber || "").trim() || !(r.ood || "").trim()) { return; }
+        if ((r.supplier || "").trim() && (r.supplierExternalId || "").trim() && r.stockClassSel) { return; }
+        lines.push({ partNumber: r.partNumber.trim(), ood: r.ood.trim(), warehouse: (r.warehouse || "").trim() });
+        rowIdx.push(i);
+      });
+      if (lines.length === 0) { return Promise.resolve(); }
+      var session = this.getSession();
+      vm.setProperty("/busy", true);
+      return this.callRest("/rest/pricing/fetchC4cOriginOfData", {
+        body: { payload: { items: lines, region: session.getProperty("/region"), salesOrg: session.getProperty("/salesOrg") } }
+      })
+        .then(function (res) {
+          if (res.status !== "OK") { return; }
+          var items = vm.getProperty("/items");
+          var notes = {};
+          res.results.forEach(function (o, k) {
+            var r = items[rowIdx[k]];
+            if (!r) { return; }
+            if (o.supplier) {
+              if (!(r.supplier || "").trim()) { r.supplier = o.supplier.id || ""; }
+              if (!(r.supplierExternalId || "").trim()) { r.supplierExternalId = o.supplier.externalId || ""; }
+              if (!(r.supplierName || "").trim()) { r.supplierName = o.supplier.name || ""; }
+            } else if (o.supplierNote && o.supplierNote !== "NO_SUPPLIER_IN_C4C") {
+              notes[r.partNumber + ": " + o.supplierNote] = true;
+            }
+            if (!r.stockClassSel) {
+              if (o.stockClass) { r.stockClassSel = o.stockClass; }
+              else if (o.stockClassNote) { notes[r.partNumber + ": stock class " + o.stockClassNote] = true; }
+            }
+          });
+          vm.setProperty("/items", items);
+          var keys = Object.keys(notes);
+          if (keys.length > 0) {
+            var bundle = that.getView().getModel("i18n").getResourceBundle();
+            that._message(bundle.getText("originOfDataNotes", [keys.join("; ")]), "Warning");
+          }
+        })
+        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
+        .finally(function () { vm.setProperty("/busy", false); });
+    },
+
+    _enrichFromProductDetails: function () {
+      var that = this;
       var vm = this._vm();
       var parts = vm.getProperty("/items")
         .filter(function (r) {
@@ -290,6 +348,7 @@ sap.ui.define([
         var item = { partNumber: part, quantity: Number(row.quantity) || 1, pricingType: row.pricingType || "COST_PLUS" };
         if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
         if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
+        if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
         if ((row.productCategory || "").trim()) { item.productCategory = row.productCategory.trim(); }
         if ((row.ood || "").trim()) { item.ood = row.ood.trim(); }
         if ((row.warehouse || "").trim()) { item.warehouse = row.warehouse.trim(); }
@@ -587,7 +646,7 @@ sap.ui.define([
         "no. of picks": "picks", "no of picks": "picks", "picks": "picks",
         "lead time (weeks)": "leadTime", "quoted lead time (weeks)": "leadTime", "lead time": "leadTime",
         "additional cost": "additionalCost", "addl cost": "additionalCost", "add cost": "additionalCost",
-        "supplier": "supplier", "supplier external id": "supplier",
+        "supplier": "supplier", "supplier id": "supplier", "supplier external id": "supplierExternalId", "supplier ext. id": "supplierExternalId", "supplier ext id": "supplierExternalId", "supplier name": "supplierName",
         "supplier country": "supplierCountry",
         "product category": "productCategory", "category": "productCategory",
         "stock class": "stockClassSel", "mts/mtc": "stockClassSel",

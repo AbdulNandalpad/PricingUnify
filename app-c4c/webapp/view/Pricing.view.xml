@@ -136,6 +136,14 @@
                 <Label text="{i18n>colSupplier}"/>
                 <t:template><Input value="{vm>supplier}" placeholder="ACME"/></t:template>
               </t:Column>
+              <t:Column minWidth="110">
+                <Label text="{i18n>colSupplierExt}"/>
+                <t:template><Input value="{vm>supplierExternalId}"/></t:template>
+              </t:Column>
+              <t:Column minWidth="150" visible="{vm>/showAdvanced}">
+                <Label text="{i18n>colSupplierName}"/>
+                <t:template><Input value="{vm>supplierName}"/></t:template>
+              </t:Column>
               <t:Column width="7rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colCategory}"/>
                 <t:template><Input value="{vm>productCategory}" placeholder="SEALS"/></t:template>

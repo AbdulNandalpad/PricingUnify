@@ -40,6 +40,12 @@ service PricingService {
   @requires: 'PricingViewer'
   action fetchC4cProductDetails(payload: Map) returns Map;
 
+  // Supplier (ID / external ID / name) and warehouse data (stock class, lead time) per line,
+  // from C4C's custom OriginOfData object — the same lookup C4C's getSupplierInformation does.
+  // Typed outcomes; ambiguity is reported per line, never guessed.
+  @requires: 'PricingViewer'
+  action fetchC4cOriginOfData(payload: Map) returns Map;
+
   // READ a C4C quote/opportunity header + items into the pricing grid (the "replace the
   // Products tab" direction). Typed outcomes: OK | C4C_NOT_CONFIGURED |
   // C4C_CREDENTIALS_MISSING | C4C_ERROR — never a faked item list.

@@ -84,6 +84,23 @@ const DEFAULT_FIELD_MAP = {
     productSalesNav: 'ProductSales',
     productSalesOrg: 'SalesOrganisationID',
     productStockClass: 'StockClass',
+    // Custom OriginOfData BO (its own OData service; names confirmed from the tenant $metadata
+    // and a real row): per material + Origin of Data, a Supplier node and a Warehouse node.
+    originServicePath: '/sap/c4c/odata/cust/v1/originofdata',
+    originSupplierCollection: 'OriginOfDataSupplierCollection',
+    originWarehouseCollection: 'OriginOfDataWarehouseCollection',
+    originMaterial: 'MaterialID',
+    originOod: 'OriginOfDataID',
+    originParentOod: 'OriginOfDataID1',
+    originSupplierCode: 'GlobalSupplierCode',
+    originSupplierExternalId: 'ExternalID',
+    originSupplierName: 'SupplierName',
+    originSupplierDefault: 'DefaultSupplier',
+    originWarehouseId: 'WarehouseID',
+    originStockClass: 'StockClass',
+    originLeadTime: 'LeadTime',
+    originCountry: 'Country_WH',
+    originPreferredWarehouse: 'PreferredWarehouse',
   },
 };
 
@@ -407,6 +424,58 @@ function createC4cClient({
     }
   }
 
+  /**
+   * Supplier + warehouse rows of the custom OriginOfData BO for a set of materials (one call
+   * each, or-filtered; <=20 distinct parts). Returns NEUTRAL rows only — which row applies to
+   * a given line (Origin of Data, warehouse, default supplier) is decided by the pure picker
+   * in lib/origin-of-data.js, so the rules are testable without C4C.
+   */
+  async function fetchOriginOfDataRows({ partNumbers }) {
+    const parts = [...new Set((partNumbers || []).map((p) => String(p || '').trim()).filter(Boolean))].slice(0, 20);
+    if (parts.length === 0) return { status: 'OK', suppliers: [], warehouses: [] };
+    const gated = await gate(parts[0]);
+    if (gated.error) return gated.error;
+    const destination = gated.destination;
+
+    const r = fields.read;
+    const root = destination.url.replace(/\/$/, '') + r.originServicePath;
+    const filter = parts.map((p) => `${r.originMaterial} eq '${encodeURIComponent(p)}'`).join(' or ');
+    const get = async (collection) => {
+      const res = await fetchImpl(`${root}/${collection}?$filter=${filter}&$top=500`,
+        { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } });
+      if (!res.ok) { const e = new Error(`HTTP ${res.status} on ${r.originServicePath}/${collection}`); e.http = true; throw e; }
+      const body = await res.json();
+      return (body.d && body.d.results) || [];
+    };
+    const str = (v) => (v !== undefined && v !== null ? String(v).trim() : '');
+    try {
+      const [supplierRows, warehouseRows] = await Promise.all([get(r.originSupplierCollection), get(r.originWarehouseCollection)]);
+      return {
+        status: 'OK',
+        suppliers: supplierRows.map((x) => ({
+          partNumber: str(x[r.originMaterial]),
+          ood: str(x[r.originOod]),
+          parentOod: str(x[r.originParentOod]),
+          supplierId: str(x[r.originSupplierCode]),
+          externalId: str(x[r.originSupplierExternalId]),
+          name: str(x[r.originSupplierName]),
+          isDefault: x[r.originSupplierDefault] === true,
+        })),
+        warehouses: warehouseRows.map((x) => ({
+          partNumber: str(x[r.originMaterial]),
+          ood: str(x[r.originOod]),
+          warehouseId: str(x[r.originWarehouseId]),
+          stockClassRaw: str(x[r.originStockClass]),
+          leadTime: str(x[r.originLeadTime]),
+          country: str(x[r.originCountry]),
+          preferred: x[r.originPreferredWarehouse] === true,
+        })),
+      };
+    } catch (err) {
+      return { status: 'C4C_ERROR', message: `C4C Origin of Data lookup failed: ${err.message}` };
+    }
+  }
+
   /** For the admin "Connections" view: what this adapter would talk to, and whether a
    *  destination is actually configured — never the credentials themselves. */
   async function describe() {
@@ -422,7 +491,7 @@ function createC4cClient({
     };
   }
 
-  return { writeBack, fetchObjectItems, searchProducts, fetchProductDetails, describe, fields };
+  return { writeBack, fetchObjectItems, searchProducts, fetchProductDetails, fetchOriginOfDataRows, describe, fields };
 }
 
 module.exports = { createC4cClient, DEFAULT_FIELD_MAP, DEFAULT_SERVICE_PATH };

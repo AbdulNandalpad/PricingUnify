@@ -269,3 +269,35 @@ test('fetchProductDetails returns the raw stock class per sales org from the Pro
   assert.equal(retry.length, 2); // expand attempt, then plain
   assert.deepEqual(fallback.products.X, { description: 'Plain', uom: 'PC', sales: [] });
 });
+
+test('fetchOriginOfDataRows reads the OriginOfData service (supplier + warehouse) and maps the real row shape', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes('OriginOfDataSupplierCollection')) {
+      return jsonRes({ d: { results: [{
+        MaterialID: 'ORAR00125-N7H07', OriginOfDataID: 'SMA', OriginOfDataID1: 'SMA',
+        GlobalSupplierCode: 'X_TUI', ExternalID: '113955', SupplierName: 'Tuico Products SJC', DefaultSupplier: false,
+      }] } });
+    }
+    return jsonRes({ d: { results: [{
+      MaterialID: 'ORAR00125-N7H07', OriginOfDataID: 'SMA', WarehouseID: 'LG01', StockClass: 'OMT', LeadTime: '14', Country_WH: 'US', PreferredWarehouse: true,
+    }] } });
+  };
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl });
+  const res = await client.fetchOriginOfDataRows({ partNumbers: ['ORAR00125-N7H07', 'ORAR00125-N7H07'] });
+  assert.equal(res.status, 'OK');
+  assert.deepEqual(res.suppliers, [{ partNumber: 'ORAR00125-N7H07', ood: 'SMA', parentOod: 'SMA', supplierId: 'X_TUI', externalId: '113955', name: 'Tuico Products SJC', isDefault: false }]);
+  assert.deepEqual(res.warehouses, [{ partNumber: 'ORAR00125-N7H07', ood: 'SMA', warehouseId: 'LG01', stockClassRaw: 'OMT', leadTime: '14', country: 'US', preferred: true }]);
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((u) => u.includes('/sap/c4c/odata/cust/v1/originofdata/')));
+  assert.match(calls[0], /OriginOfDataSupplierCollection\?\$filter=MaterialID eq 'ORAR00125-N7H07'&\$top=500/);
+
+  assert.deepEqual(await client.fetchOriginOfDataRows({ partNumbers: [] }), { status: 'OK', suppliers: [], warehouses: [] });
+  const denied = createC4cClient({ resolveDestination: () => DEST, fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({}) }) });
+  const err = await denied.fetchOriginOfDataRows({ partNumbers: ['X'] });
+  assert.equal(err.status, 'C4C_ERROR');
+  assert.match(err.message, /HTTP 403 on \/sap\/c4c\/odata\/cust\/v1\/originofdata\//);
+  const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
+  assert.equal((await offline.fetchOriginOfDataRows({ partNumbers: ['X'] })).status, 'C4C_NOT_CONFIGURED');
+});
