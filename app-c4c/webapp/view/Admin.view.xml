@@ -214,7 +214,61 @@
             </VBox>
           </IconTabFilter>
 
-          <!-- 6. Simulate -->
+          <!-- 6. Connections (read-only: integration endpoints and where each is maintained) -->
+          <IconTabFilter text="{i18n>tabConnections}" key="connections" icon="sap-icon://chain-link">
+            <VBox class="sapUiSmallMargin">
+              <MessageStrip text="{i18n>connectionsHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
+
+              <Panel headerText="{i18n>connApi6}" class="sapUiTinyMarginBottom">
+                <VBox class="sapUiSmallMargin">
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                    <Label text="{i18n>connMode}:" class="sapUiTinyMarginEnd"/>
+                    <ObjectStatus text="{vm>/connections/api6/mode}"
+                      state="{= ${vm>/connections/api6/mode} === 'live' ? 'Success' : 'Warning' }"/>
+                    <Text text="{i18n>connRecordedNote}" class="sapUiSmallMarginBegin"
+                      visible="{= ${vm>/connections/api6/mode} !== 'live' }"/>
+                  </HBox>
+                  <Text text="{i18n>connBaseUrl}: {= ${vm>/connections/api6/baseUrl} || '—' }" class="sapUiTinyMarginBottom"/>
+                  <Label text="{i18n>connCostEndpoints}" design="Bold"/>
+                  <List items="{vm>/connections/api6/endpointRows}" inset="false">
+                    <StandardListItem title="{vm>system}" info="{vm>path}"/>
+                  </List>
+                  <Text text="{i18n>connPriceListEndpoint}: {vm>/connections/api6/priceListEndpoint}"/>
+                  <Text text="{i18n>maintainedVia}: {vm>/connections/api6/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
+                </VBox>
+              </Panel>
+
+              <Panel headerText="{i18n>connC4c}" class="sapUiTinyMarginBottom">
+                <VBox class="sapUiSmallMargin">
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                    <Label text="{i18n>connDestination}:" class="sapUiTinyMarginEnd"/>
+                    <Text text="{vm>/connections/c4c/destinationName}" class="sapUiTinyMarginEnd"/>
+                    <ObjectStatus
+                      text="{= ${vm>/connections/c4c/configured} ? ${i18n>connConfigured} : ${i18n>connNotConfigured} }"
+                      state="{= ${vm>/connections/c4c/configured} ? 'Success' : 'Warning' }"/>
+                  </HBox>
+                  <Text text="{i18n>connServicePath}: {vm>/connections/c4c/servicePath}" class="sapUiTinyMarginBottom"/>
+                  <MessageStrip text="{i18n>fieldMapToConfirm}" type="Warning" showIcon="true" class="sapUiTinyMarginBottom"/>
+                  <Label text="{i18n>connFieldMap}" design="Bold"/>
+                  <List items="{vm>/connections/c4c/fieldRows}" inset="false">
+                    <StandardListItem title="{vm>ours}" info="{vm>theirs}"/>
+                  </List>
+                  <Text text="{i18n>maintainedVia}: {vm>/connections/c4c/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
+                </VBox>
+              </Panel>
+
+              <Panel headerText="{i18n>connAi}">
+                <VBox class="sapUiSmallMargin">
+                  <ObjectStatus
+                    text="{= ${vm>/connections/ai/configured} ? ${i18n>connConfigured} : ${i18n>connNotConfigured} }"
+                    state="{= ${vm>/connections/ai/configured} ? 'Success' : 'None' }"/>
+                  <Text text="{i18n>maintainedVia}: {vm>/connections/ai/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
+                </VBox>
+              </Panel>
+            </VBox>
+          </IconTabFilter>
+
+          <!-- 7. Simulate -->
           <IconTabFilter text="{i18n>tabSimulate}" key="simulate" icon="sap-icon://simulate">
             <VBox class="sapUiSmallMargin">
               <l:HorizontalLayout allowWrapping="true">

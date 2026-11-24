@@ -1,7 +1,10 @@
 const { suggestConfigChange, applySuggestion, rejectSuggestion, ConfigValidationError } = require('@tss-pricing/config-model');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
+const { createC4cClient } = require('./lib/c4c-client');
 const { getAiClientOrNull } = require('./lib/ai');
+
+const c4c = createC4cClient();
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -114,6 +117,32 @@ module.exports = (srv) => {
     const { customerId } = req.data;
     if (!customerId) return req.reject(400, 'customerId is required.');
     return { versions: store.listPartyConfigVersions(customerId) };
+  });
+
+  srv.on('getConnections', async () => {
+    const c4cInfo = await c4c.describe();
+    return {
+      api6: {
+        mode: api6.mode, // 'recorded' (dev fixtures) or 'live'
+        authType: api6.authType,
+        baseUrl: process.env.API6_BASE_URL || null,
+        costSourceEndpoints: api6.costSourceEndpoints,
+        priceListEndpoint: api6.priceListEndpoint,
+        maintainedVia: 'Environment: API6_MODE, API6_BASE_URL (+ auth strategy); endpoint paths via api6-client config. The cost source ORDER stays pricing config (Cost Rules tab).',
+      },
+      c4c: {
+        destinationName: c4cInfo.destinationName,
+        configured: c4cInfo.configured,
+        url: c4cInfo.url,
+        servicePath: c4cInfo.servicePath,
+        fieldMap: c4cInfo.fieldMap,
+        maintainedVia: 'BTP destination C4C_ODATA (technical user); field names via C4C_FIELD_MAP env, service path via C4C_SERVICE_PATH env.',
+      },
+      ai: {
+        configured: !!getAiClientOrNull(),
+        maintainedVia: 'Environment: ANTHROPIC_API_KEY.',
+      },
+    };
   });
 
   srv.on('lookupPriceList', async (req) => {

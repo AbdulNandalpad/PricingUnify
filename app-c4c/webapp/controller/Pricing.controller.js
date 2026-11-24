@@ -19,6 +19,8 @@ sap.ui.define([
         items: [],
         busy: false,
         hasResults: false,
+        showAdvanced: false,
+        orderTotal: "",
         message: "",
         messageType: "Information"
       });
@@ -87,6 +89,25 @@ sap.ui.define([
 
     onFetchCosts: function () { this._runPricing(false); },
     onCalculatePrices: function () { this._runPricing(true); },
+
+    /** Display-only order summary (sum of (price||landed cost) x rule-adjusted qty, per
+     *  currency) — plain Number math, deliberately: the engine owns all real pricing math. */
+    _orderTotal: function (rows) {
+      var totals = {};
+      rows.forEach(function (row) {
+        if (!row.line || row.line.status !== "PRICED") { return; }
+        var unit = Number(row.price || row.landedCost);
+        var qty = Number(row.line.result.quantity);
+        var currency = row.line.result.currency;
+        if (!Number.isFinite(unit) || !Number.isFinite(qty) || !currency) { return; }
+        totals[currency] = (totals[currency] || 0) + unit * qty;
+      });
+      var parts = Object.keys(totals).map(function (currency) {
+        return totals[currency].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + currency;
+      });
+      if (parts.length === 0) { return ""; }
+      return this.getView().getModel("i18n").getResourceBundle().getText("orderTotal", [parts.join(" · ")]);
+    },
 
     _runPricing: function (fillPrices) {
       var that = this;
@@ -163,6 +184,7 @@ sap.ui.define([
           });
           vm.setProperty("/items", rows);
           vm.setProperty("/hasResults", priced > 0);
+          vm.setProperty("/orderTotal", that._orderTotal(rows));
           if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
           var bundle = that.getView().getModel("i18n").getResourceBundle();
           that._message(bundle.getText(fillPrices ? "pricedSummary" : "costedSummary", [priced, (res.items || []).length]),

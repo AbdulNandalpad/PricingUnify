@@ -77,7 +77,9 @@
         <headerToolbar>
           <OverflowToolbar>
             <Title text="{i18n>items}" level="H4"/>
+            <ObjectStatus text="{vm>/orderTotal}" state="Information" class="sapUiSmallMarginBegin" visible="{= !!${vm>/orderTotal} }"/>
             <ToolbarSpacer/>
+            <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
             <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onAddRow" type="Transparent"/>
             <Button id="fetchCostsBtn" text="{i18n>fetchCosts}" type="Emphasized" icon="sap-icon://money-bills"
               press=".onFetchCosts" enabled="{= !${vm>/busy} }"/>
@@ -90,7 +92,7 @@
         </headerToolbar>
         <content>
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="None" busy="{vm>/busy}"
-            visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36"
+            visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36" alternateRowColors="true"
             cellClick=".onCellClick" noData="{i18n>noItems}">
             <t:columns>
               <t:Column width="3.5rem">
@@ -101,7 +103,7 @@
                 <Label text="{i18n>colProduct}"/>
                 <t:template><Input value="{vm>partNumber}" placeholder="EU-T100"/></t:template>
               </t:Column>
-              <t:Column width="10rem">
+              <t:Column minWidth="140" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colDescription}"/>
                 <t:template><Input value="{vm>description}"/></t:template>
               </t:Column>
@@ -109,7 +111,7 @@
                 <Label text="{i18n>colQty}"/>
                 <t:template><Input value="{vm>quantity}" type="Number" textAlign="End"/></t:template>
               </t:Column>
-              <t:Column width="4.5rem">
+              <t:Column width="4.5rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colUom}"/>
                 <t:template><Input value="{vm>uom}"/></t:template>
               </t:Column>
@@ -127,7 +129,7 @@
                 <Label text="{i18n>colSupplier}"/>
                 <t:template><Input value="{vm>supplier}" placeholder="ACME"/></t:template>
               </t:Column>
-              <t:Column width="7rem">
+              <t:Column width="7rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colCategory}"/>
                 <t:template><Input value="{vm>productCategory}" placeholder="SEALS"/></t:template>
               </t:Column>
@@ -140,7 +142,7 @@
                   </Select>
                 </t:template>
               </t:Column>
-              <t:Column width="6rem">
+              <t:Column width="6rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colSourceErp}"/>
                 <t:template><Text text="{vm>sourceErp}"/></t:template>
               </t:Column>

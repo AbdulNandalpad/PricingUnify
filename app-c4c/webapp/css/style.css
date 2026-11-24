@@ -3,3 +3,18 @@
   color: var(--sapNeutralTextColor, #6a6d70);
   font-style: italic;
 }
+
+/* Modern card look for the content panels (Horizon-friendly: tokens, soft radius/shadow). */
+.sapMPanel {
+  border-radius: 0.75rem;
+  box-shadow: var(--sapContent_Shadow0, 0 0 0.125rem 0 rgba(34, 54, 73, 0.16));
+  overflow: hidden;
+}
+
+/* Tighter side margins on narrow screens so the table gets the full width. */
+@media (max-width: 900px) {
+  .sapMPanel.sapUiSmallMargin {
+    margin-left: 0.25rem !important;
+    margin-right: 0.25rem !important;
+  }
+}

@@ -15,14 +15,18 @@
         ' data-sap-ui-theme="' + theme + '"' +
         ' data-sap-ui-libs="sap.m,sap.ui.table,sap.ui.layout"' +
         ' data-sap-ui-compatVersion="edge"' +
+        ' data-sap-ui-xx-componentPreload="off"' +
         ' data-sap-ui-async="true"' +
         ' data-sap-ui-resourceroots=\'{"com.tss.pricing.c4c": "./"}\'' +
         ' data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"><\/script>');
     })();
   </script>
 </head>
-<!-- Compact density: this app is desktop/mouse-first inside a C4C iframe. No shell header. -->
-<body class="sapUiBody sapUiSizeCompact" id="content">
+<!-- Density adapts to the device: compact for mouse/desktop (the C4C iframe case), cozy on touch. -->
+<body class="sapUiBody" id="content">
+  <script>
+    document.body.classList.add(("ontouchstart" in window) ? "sapUiSizeCozy" : "sapUiSizeCompact");
+  </script>
   <div data-sap-ui-component data-name="com.tss.pricing.c4c" data-id="container" data-settings='{"id":"tssPricing"}'></div>
 </body>
 </html>

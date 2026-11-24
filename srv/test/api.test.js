@@ -1033,3 +1033,17 @@ test('getPricePoints serves the quantity-break and price-list points with their 
   );
   assert.equal(body.pricePoints[0].tssArticleNumber, 'EU-T100');
 });
+
+test('getConnections describes the integration endpoints read-only, PricingAdmin only', async () => {
+  const res = await fetch(`${BASE}/rest/config/getConnections`, { headers: { Authorization: basicAuthHeader('bob') } });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.api6.mode, 'recorded');
+  assert.equal(body.api6.costSourceEndpoints.CCD, '/costs/ccd');
+  assert.equal(body.c4c.destinationName, 'C4C_ODATA');
+  assert.equal(body.c4c.configured, false); // honest: no destination in dev
+  assert.equal(body.ai.configured, false);
+
+  const asViewer = await fetch(`${BASE}/rest/config/getConnections`, { headers: { Authorization: basicAuthHeader('alice') } });
+  assert.equal(asViewer.status, 403);
+});

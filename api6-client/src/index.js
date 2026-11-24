@@ -39,6 +39,9 @@ function createApi6Client({
   return {
     mode: connector.mode,
     authType: connector.authType,
+    // Exposed for the admin "Connections" view — which endpoint each cost source routes to.
+    costSourceEndpoints: endpoints,
+    priceListEndpoint,
 
     /** Returns { costs, elements, fx } shaped exactly like engine-core's `facts` — quantity
      *  breaks are the engine's problem (requirements §8), so `items` here is only used to

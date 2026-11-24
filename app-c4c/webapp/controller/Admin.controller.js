@@ -40,6 +40,7 @@ sap.ui.define([
         sheet: { seqDefault: "", seqMTS: "", seqNonMTS: "", buildUp: [], constraintCount: 0, version: "", validFrom: today, loaded: null },
         versions: [],
         priceList: { supplier: "", productCategory: "", partNumber: "", quantity: "1", asOf: "", looked: false, entry: null, matchedBy: "", triedText: "" },
+        connections: null,
         sim: { partNumber: "EU-T100", quantity: "10", supplier: "", productCategory: "", pricingType: "COST_PLUS", objectType: "QUOTE", line: null, resultText: "", resultState: "None" }
       });
       this.getView().setModel(vm, "vm");
@@ -62,6 +63,22 @@ sap.ui.define([
       this._loadRegions();
       this._loadSheet();
       this._loadVersions();
+      this._loadConnections();
+    },
+
+    _loadConnections: function () {
+      var that = this;
+      this.callRest("/rest/config/getConnections")
+        .then(function (conn) {
+          conn.api6.endpointRows = Object.keys(conn.api6.costSourceEndpoints || {}).map(function (system) {
+            return { system: system, path: conn.api6.costSourceEndpoints[system] };
+          });
+          conn.c4c.fieldRows = Object.keys(conn.c4c.fieldMap || {})
+            .filter(function (key) { return typeof conn.c4c.fieldMap[key] === "string"; })
+            .map(function (key) { return { ours: key, theirs: conn.c4c.fieldMap[key] }; });
+          that._vm().setProperty("/connections", conn);
+        })
+        .catch(function () { /* non-admin or backend down — tab simply stays empty */ });
     },
 
     onRegionSelect: function () {

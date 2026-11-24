@@ -205,7 +205,20 @@ function createC4cClient({
     }
   }
 
-  return { writeBack, fields };
+  /** For the admin "Connections" view: what this adapter would talk to, and whether a
+   *  destination is actually configured — never the credentials themselves. */
+  async function describe() {
+    const destination = await resolveDestination(destinationName);
+    return {
+      destinationName,
+      configured: !!(destination && destination.url),
+      url: destination && destination.url ? destination.url : null,
+      servicePath,
+      fieldMap: fields,
+    };
+  }
+
+  return { writeBack, describe, fields };
 }
 
 module.exports = { createC4cClient, DEFAULT_FIELD_MAP, DEFAULT_SERVICE_PATH };
