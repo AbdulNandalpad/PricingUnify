@@ -70,7 +70,9 @@ sap.ui.define([
         partNumber: line.partNumber,
         status: line.status,
         stockClass: trace.stockClass || "",
-        missing: line.missing ? (line.missing.reason + (line.missing.detail ? " — " + line.missing.detail : "")) : "",
+        missing: line.missing ? (line.missing.reason
+          + (line.missing.element ? " — step " + line.missing.element + (line.missing.from ? " needs the value \"" + line.missing.from + "\"" : "") : "")
+          + (line.missing.detail ? " — " + line.missing.detail : "")) : "",
         candidate: cc ? {
           value: cc.value, currency: cc.currency, basis: cc.basis,
           system: cc.source ? cc.source.system : "", key: cc.source ? cc.source.key : "",
