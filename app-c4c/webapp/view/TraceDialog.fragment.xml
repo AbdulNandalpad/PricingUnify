@@ -15,9 +15,10 @@
           <Text text="{i18n>stockClass}: {trace>/stockClass}" visible="{= !!${trace>/stockClass} }"/>
         </Panel>
 
-        <Panel headerText="{i18n>traceRouting}" expandable="true" expanded="false" visible="{= ${trace>/routingCalls}.length > 0 }" class="sapUiTinyMarginBottom">
+        <Panel headerText="{i18n>traceRouting}" expandable="true" expanded="{= ${trace>/status} !== 'PRICED' }" visible="{= ${trace>/routingCalls}.length > 0 }" class="sapUiTinyMarginBottom">
           <List items="{trace>/routingCalls}">
             <StandardListItem title="{trace>system} — {trace>endpoint}"
+              description="{trace>note}" wrapping="true"
               info="{= ${trace>found} > 0 ? 'cost found' : 'no cost' }"
               infoState="{= ${trace>found} > 0 ? 'Success' : 'None' }"/>
           </List>
