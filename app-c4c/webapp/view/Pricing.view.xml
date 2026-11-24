@@ -146,19 +146,13 @@
                 <Label text="{i18n>colUom}"/>
                 <t:template><Input value="{vm>uom}"/></t:template>
               </t:Column>
-              <t:Column width="5.5rem" hAlign="Center">
+              <t:Column width="8.5rem">
                 <Label text="{i18n>colStockType}"/>
                 <t:template>
-                  <ObjectStatus inverted="true" tooltip="{= ${vm>stockClassHow} || ${i18n>stockTypeNotSetHint} }"
-                    text="{= ${vm>stockClassSel} === 'MTS' ? 'MTS' : (${vm>stockClassSel} === 'NonMTS' ? 'Non-MTS' : ${i18n>stockTypeNotSet}) }"
-                    state="{= ${vm>stockClassSel} === 'MTS' ? 'Success' : (${vm>stockClassSel} === 'NonMTS' ? 'Warning' : 'None') }"/>
-                </t:template>
-              </t:Column>
-              <t:Column width="7rem">
-                <Label text="{i18n>colStockClass}"/>
-                <t:template>
-                  <Select selectedKey="{vm>stockClassSel}" width="100%" change=".onStockClassChange">
-                    <core:Item key="" text="{i18n>auto}"/>
+                  <Select selectedKey="{vm>stockClassSel}" width="100%" change=".onStockClassChange"
+                    tooltip="{= ${vm>stockClassHow} || ${i18n>stockTypeNotSetHint} }"
+                    valueState="{= ${vm>stockClassSel} === 'MTS' ? 'Success' : (${vm>stockClassSel} === 'NonMTS' ? 'Warning' : 'None') }">
+                    <core:Item key="" text="{i18n>stockTypeNotSet}"/>
                     <core:Item key="MTS" text="MTS"/>
                     <core:Item key="NonMTS" text="Non-MTS"/>
                   </Select>

@@ -664,7 +664,12 @@ module.exports = (srv) => {
 
   srv.on('fetchC4cOriginOfData', async (req) => {
     const { items, region, salesOrg } = req.data.payload || {};
-    const lines = Array.isArray(items) ? items : [];
+    // A line without an Origin of Data (a manually added one) gets its region's own origin —
+    // only when exactly one origin routes to that region (EUROPE -> SAP); otherwise it stays
+    // blank. The UI shows the value it was given (`ood` in the answer), never a silent change.
+    const regionOods = region ? store.listOodsForRegion(region, todayIso()) : [];
+    const defaultOod = regionOods.length === 1 ? regionOods[0] : '';
+    const lines = (Array.isArray(items) ? items : []).map((l) => (String(l.ood || '').trim() ? l : { ...l, ood: defaultOod, oodDefaulted: !!defaultOod }));
     const rows = await currentC4c().fetchOriginOfDataRows({ partNumbers: lines.map((l) => l.partNumber) });
     if (rows.status !== 'OK') return rows;
 
@@ -682,7 +687,7 @@ module.exports = (srv) => {
     const rulesForOod = (ood) => stockClassRulesForOod({ store, ood, pricingRules, date: todayIso() });
     const results = lines.map((line) => {
       const picked = pickOriginOfData(rows, line, { knownStockClasses: map ? new Set(Object.keys(map)) : null });
-      const res = { partNumber: line.partNumber, ...picked };
+      const res = { partNumber: line.partNumber, ood: line.ood || '', oodDefaulted: !!line.oodDefaulted, ...picked };
       // Stock class: see stockClassFromPicked (region rules on Origin of Data + strategy group).
       const sc = stockClassFromPicked(picked, map, { rules: rulesForOod(line.ood), ood: line.ood });
       if (sc.stockClass) res.stockClass = sc.stockClass;

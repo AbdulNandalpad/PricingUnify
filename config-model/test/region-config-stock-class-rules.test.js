@@ -10,3 +10,15 @@ test('stockClassRules is optional, validates its shape, and rejects an unknown c
   assert.throws(() => validateRegionConfig(europeConfig({ stockClassRules: { rules: [{ ood: 'SAP', strategyCode: 'Z4', stockClass: 'MTO' }], default: 'NonMTS' } })));
   assert.throws(() => validateRegionConfig(europeConfig({ stockClassRules: { rules: [] } })));
 });
+
+test('listOodsForRegion returns the Origins of Data routed to a region (used to default a line\'s origin)', () => {
+  const { ConfigStore } = require('../src/store');
+  const store = new ConfigStore();
+  const route = (ood, region) => ({ ood, salesOrg: '*', region, entityLabel: region, version: '2026.08.0', status: 'ACTIVE', validFrom: '2026-01-01', validTo: null, provenance: { source: 'HUMAN', authoredBy: 't@tss.example', authoredAt: '2026-08-01T00:00:00Z' } });
+  store.saveRegionRoute(route('SAP', 'EUROPE'));
+  store.saveRegionRoute(route('SMA', 'AMERICAS'));
+  store.saveRegionRoute(route('SME', 'EUROPE'));
+  assert.deepEqual(store.listOodsForRegion('AMERICAS', '2026-11-24'), ['SMA']);
+  assert.deepEqual(store.listOodsForRegion('EUROPE', '2026-11-24').sort(), ['SAP', 'SME']); // ambiguous -> srv leaves the origin blank
+  assert.deepEqual(store.listOodsForRegion('INDIA', '2026-11-24'), []);
+});

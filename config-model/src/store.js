@@ -168,6 +168,17 @@ class ConfigStore {
     return [...seen.values()];
   }
 
+  /** The Origins of Data that route to `region` as of `date` (e.g. EUROPE -> ['SAP']). Used to
+   *  default a line's Origin of Data when it has none; only meaningful when it is unambiguous. */
+  listOodsForRegion(region, date) {
+    const oods = new Set();
+    for (const key of this._regionRoutes.versionsByKey.keys()) {
+      const effective = this._regionRoutes.getEffectiveAsOf(key, key, date);
+      if (effective && effective.region === region) oods.add(effective.ood);
+    }
+    return [...oods];
+  }
+
   saveRegionRoute(route) {
     return this._regionRoutes.saveVersion(route);
   }

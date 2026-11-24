@@ -195,6 +195,7 @@ sap.ui.define([
       var bundle = this.getView().getModel("i18n").getResourceBundle();
       this._message(breakCount > 0 ? bundle.getText("addItemDoneBreaks", [part, breakCount]) : bundle.getText("addItemDone", [part]), "Success");
       this.onCloseAddItem();
+      this._enrichFromProductMaster(); // stock type, supplier, description — filled as soon as the line is added
     },
 
     /** The user picks the stock class by hand — it always wins over any automatic value. */
@@ -256,9 +257,9 @@ sap.ui.define([
       var lines = [];
       var rowIdx = [];
       rows.forEach(function (r, i) {
-        if (!(r.partNumber || "").trim() || !(r.ood || "").trim()) { return; }
+        if (!(r.partNumber || "").trim()) { return; }
         if ((r.supplier || "").trim() && (r.supplierExternalId || "").trim() && r.stockClassSel) { return; }
-        lines.push({ partNumber: r.partNumber.trim(), ood: r.ood.trim(), warehouse: (r.warehouse || "").trim() });
+        lines.push({ partNumber: r.partNumber.trim(), ood: (r.ood || "").trim(), warehouse: (r.warehouse || "").trim() });
         rowIdx.push(i);
       });
       if (lines.length === 0) { return Promise.resolve(); }
@@ -274,6 +275,8 @@ sap.ui.define([
           res.results.forEach(function (o, k) {
             var r = items[rowIdx[k]];
             if (!r) { return; }
+            // A line that had no Origin of Data gets its region's own (shown in the column).
+            if (o.ood && !(r.ood || "").trim()) { r.ood = o.ood; }
             if (o.supplier) {
               if (!(r.supplier || "").trim()) { r.supplier = o.supplier.id || ""; }
               if (!(r.supplierExternalId || "").trim()) { r.supplierExternalId = o.supplier.externalId || ""; }
