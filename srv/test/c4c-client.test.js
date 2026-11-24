@@ -145,6 +145,10 @@ function fakeC4cRead() {
     if (url.includes('SalesQuoteCollection?')) {
       return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', BuyerPartyName: 'Boston Scientific', BuyerPartyID: '32539', CurrencyCode: 'EUR' }] } });
     }
+    if (url.includes("CorporateAccountCollection('ACC-OBJ-1')/CorporateAccountSalesData")) {
+      // Real sales-data shape: several sales orgs, only some carry a price group.
+      return jsonRes({ d: { results: [{ SalesOrganisationID: 'TSSOTHER', PriceGroupCode: '' }, { SalesOrganisationID: 'TSSGERMANY', PriceGroupCode: 'X0' }] } });
+    }
     if (url.includes('CorporateAccountCollection?')) {
       // Real account row (account 32539): note CURRENCY_KUT is genuinely empty on this tenant.
       return jsonRes({ d: { results: [{ ObjectID: 'ACC-OBJ-1', AccountID: '32539', ExternalID: '0001035211', ExternalSystem: 'SAP',
@@ -316,7 +320,7 @@ test('fetchObjectItems also reads the customer header from the account (BuyerPar
     customerId: '0001035211', originOfData: 'SAP', originOfDataSource: 'ExternalSystem',
     classCode: 'A', countryCode: 'DE', salesTerritory: 'GJ1',
     currency: 'EUR', currencySource: 'QUOTE', // CURRENCY_KUT empty -> the quote's currency, and it says so
-    priceGroup: '', // price-group field not confirmed yet -> not read, never invented
+    priceGroup: 'X0', // first sales-data entry that has one, like C4C's own script
   });
   assert.ok(c4c.calls.some((c) => /CorporateAccountCollection\?\$filter=AccountID eq '32539'/.test(c.url)));
 });

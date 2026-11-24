@@ -80,10 +80,11 @@ const DEFAULT_FIELD_MAP = {
     accountCountry: 'CountryCode',
     accountTerritory: 'SALESTERRITORYDETCODE',
     accountCurrency: 'CURRENCY_KUT',
-    // Price group sits on the account's sales-arrangement node; its field name is NOT confirmed
-    // yet, so it is only read when this key is set (blank = not read, shown as unknown).
+    // Price group sits on the account's sales-data node (confirmed on a real account:
+    // PriceGroupCode 'X0' = "Catalog Price EUR"). Like C4C's own script, the first sales-data
+    // entry that has one is used. Blank key = not read.
     accountSalesDataNav: 'CorporateAccountSalesData',
-    accountPriceGroup: '',
+    accountPriceGroup: 'PriceGroupCode',
     priceBreak: 'PriceBreakIndicator_KUT',
     alternativeToLine: 'AlternativeToItemID',
     // Product master (Add-item type-ahead + blank-field enrichment). Confirmed against the
