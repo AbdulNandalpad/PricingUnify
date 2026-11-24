@@ -72,6 +72,10 @@ const DEFAULT_FIELD_MAP = {
     // tenant's $metadata: entity set ProductCollection, Product.ID / .Description /
     // .UnitOfMeasureCode (ShortNumber and JDEMaterialNo_KUT also exist on it).
     productCollection: 'ProductCollection',
+    // The product master is served by the full c4codata service (verified by the owner:
+    // .../c4codata/ProductCollection?$filter=ID eq '...' works); the c4codataapi service
+    // used for quotes answers HTTP 400 on it. Separate path so quotes are unaffected.
+    productServicePath: '/sap/c4c/odata/v1/c4codata',
     productId: 'ID',
     productDescription: 'Description',
     productUom: 'UnitOfMeasureCode',
@@ -328,14 +332,15 @@ function createC4cClient({
     if (gated.error) return gated.error;
     const destination = gated.destination;
 
-    const root = destination.url.replace(/\/$/, '') + servicePath;
     const r = fields.read;
+    const productPath = r.productServicePath || servicePath;
+    const root = destination.url.replace(/\/$/, '') + productPath;
     try {
       const res = await fetchImpl(
         `${root}/${r.productCollection}?$filter=startswith(${r.productId},'${encodeURIComponent(q)}')&$top=10&$select=${r.productId},${r.productDescription}`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
       );
-      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status} on ${servicePath}/${r.productCollection}) — check the product collection name under Connections → field map.` }; }
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status} on ${productPath}/${r.productCollection}).` }; }
       const body = await res.json();
       const rows = (body.d && body.d.results) || [];
       return {
@@ -363,15 +368,16 @@ function createC4cClient({
     if (gated.error) return gated.error;
     const destination = gated.destination;
 
-    const root = destination.url.replace(/\/$/, '') + servicePath;
     const r = fields.read;
+    const productPath = r.productServicePath || servicePath;
+    const root = destination.url.replace(/\/$/, '') + productPath;
     const filter = parts.map((p) => `${r.productId} eq '${encodeURIComponent(p)}'`).join(' or ');
     try {
       const res = await fetchImpl(
         `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
       );
-      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status} on ${servicePath}/${r.productCollection}).` }; }
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status} on ${productPath}/${r.productCollection}).` }; }
       const body = await res.json();
       const rows = (body.d && body.d.results) || [];
       const products = {};

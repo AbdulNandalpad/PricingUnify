@@ -206,6 +206,8 @@ test('searchProducts queries the material collection and maps id/description; ty
     { id: 'EU-T200', description: '' },
   ]);
   assert.match(calls[0], /ProductCollection\?\$filter=startswith\(ID,'EU-T'\)/);
+  // Product master lives on the full c4codata service, not the c4codataapi one used for quotes.
+  assert.match(calls[0], /\/sap\/c4c\/odata\/v1\/c4codata\/ProductCollection/);
 
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.searchProducts({ query: 'EU-T' })).status, 'C4C_NOT_CONFIGURED');
