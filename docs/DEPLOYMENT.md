@@ -92,3 +92,32 @@ from here.
 - **API6 and the AI pipeline are still in recorded/unconfigured mode** — `API6_MODE`,
   `API6_BASE_URL`, and `ANTHROPIC_API_KEY` are all `cf set-env` variables you can add
   whenever those credentials are ready; no code changes needed either way.
+
+---
+
+## MTA deployment (approuter + UI) — added 2026-11-24
+
+The repo now also carries an MTA descriptor (`mta.yaml`) covering three modules: the CAP
+backend (`tss-pricing-srv`), the SAPUI5 UI (`tss-pricing-app-c4c`, staged into the
+approuter at build time — no html5-apps-repo service needed), and the approuter
+(`tss-pricing-approuter`: XSUAA login, serves the UI at `/app-c4c`, proxies `/rest/*` to
+srv with the token forwarded).
+
+```bash
+npm install -g mbt            # SAP's MTA build tool
+mbt build                     # produces mta_archives/tss-pricing-engine_1.0.0.mtar
+cf deploy mta_archives/tss-pricing-engine_1.0.0.mtar
+```
+
+The approuter URL is the app URL (its welcome file is the UI). C4C embeds it as an iframe
+mashup; the approuter is configured for that: session cookie `SameSite=None; Secure`
+(`COOKIES` env), and `Content-Security-Policy: frame-ancestors 'self'
+https://*.crm.ondemand.com` in place of the default X-Frame-Options.
+
+The URL parameters C4C should pass into the iframe: `objectType=QUOTE|OPPORTUNITY`,
+`objectId=<host object id>`, optional `mode=admin` (PricingAdmins only) and
+`sap-theme=<ui5 theme>`.
+
+Same caveat as everything else in this runbook: written ready-to-run but **not yet
+exercised against a real BTP org** from the dev sandbox (no `cf`/`mbt` here). The plain
+`cf push` path via `manifest.yml` still works for the backend alone.

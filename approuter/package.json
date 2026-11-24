@@ -1,0 +1,16 @@
+{
+  "name": "tss-pricing-approuter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAP approuter in front of srv (destination srv-api) and the app-c4c UI (served from ./resources). XSUAA login, iframe-ready cookies and CSP for C4C embedding.",
+  "dependencies": {
+    "@sap/approuter": "^16.7.1"
+  },
+  "scripts": {
+    "start": "node node_modules/@sap/approuter/approuter.js",
+    "stage": "rm -rf resources && cp -r ../app-c4c/webapp resources"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

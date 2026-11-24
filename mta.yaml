@@ -1,0 +1,74 @@
+# MTA descriptor: srv (CAP backend) + approuter (XSUAA login, serves the UI, proxies /rest)
+# + app-c4c (html5 content, staged into the approuter's resources/ at build time — no
+# html5-apps-repo service needed for this footprint).
+#
+# Build & deploy:  mbt build  &&  cf deploy mta_archives/tss-pricing-engine_1.0.0.mtar
+# (The plain `cf push` path via manifest.yml still exists for backend-only pushes.)
+_schema-version: "3.2"
+ID: tss-pricing-engine
+version: 1.0.0
+
+parameters:
+  enable-parallel-deployments: true
+
+modules:
+  - name: tss-pricing-srv
+    type: nodejs
+    path: .
+    parameters:
+      memory: 512M
+      disk-quota: 1024M
+      buildpack: nodejs_buildpack
+      command: node srv/server.js
+    build-parameters:
+      ignore: ["node_modules/", "app/node_modules/", ".git/"]
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: tss-pricing-xsuaa
+
+  # The UI as an html5 module. It is not deployed to an html5-apps-repo: the approuter module
+  # below stages webapp/ into its own resources/ during build and serves it at /app-c4c.
+  - name: tss-pricing-app-c4c
+    type: html5
+    path: app-c4c
+    build-parameters:
+      builder: custom
+      commands: []
+      supported-platforms: []
+
+  - name: tss-pricing-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      memory: 192M
+      disk-quota: 512M
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install --omit=dev
+        - npm run stage
+    properties:
+      # C4C iframe support: cross-site session cookie + frame-ancestors CSP (approuter's own
+      # X-Frame-Options default would block framing, so it is turned off in favor of the CSP).
+      COOKIES: '{"SameSite":"None"}'
+      SEND_XFRAMEOPTIONS: false
+      httpHeaders: '[{"Content-Security-Policy": "frame-ancestors ''self'' https://*.crm.ondemand.com"}]'
+    requires:
+      - name: tss-pricing-xsuaa
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+
+resources:
+  - name: tss-pricing-xsuaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./srv/xs-security.json
