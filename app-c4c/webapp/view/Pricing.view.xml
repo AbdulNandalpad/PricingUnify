@@ -235,7 +235,7 @@
                 <Label text="{i18n>colPrice}"/>
                 <t:template><Input value="{vm>price}" type="Number" textAlign="End" change=".onPriceEdit" valueState="{= ${vm>priceBy} === 'PRICE' ? 'Information' : 'None' }" tooltip="{i18n>priceEditTip}"/></t:template>
               </t:Column>
-              <t:Column width="7rem" hAlign="End">
+              <t:Column width="7rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colLineValue}"/>
                 <t:template><Text text="{vm>lineValue}"/></t:template>
               </t:Column>

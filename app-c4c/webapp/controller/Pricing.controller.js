@@ -403,7 +403,7 @@ sap.ui.define([
       rows.forEach(function (row) {
         if (!row.line || row.line.status !== "PRICED") { return; }
         var perUnit = Number(row.line.result.priceUnit) || 1; // price/cost unit: the amount is per N pieces
-        var unit = Number(row.price || row.landedCost) / perUnit;
+        var unit = Number(row.price) / perUnit; // order total = selling price x qty; cost is never summed here
         var qty = Number(row.line.result.quantity);
         var currency = row.line.result.currency;
         if (!Number.isFinite(unit) || !Number.isFinite(qty) || !currency) { return; }
@@ -488,8 +488,10 @@ sap.ui.define([
               var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
               row.landedCost = amount;
               row.currency = line.result.currency || row.currency;
-              var perUnitAmount = line.result.sellingPrice !== undefined ? line.result.sellingPrice : amount;
-              var lv = Number(perUnitAmount) / rowUnit * Number(line.result.quantity);
+              // Line value is ALWAYS selling price x quantity (owner rule) — never cost. No selling
+              // price yet (cost only, or an opportunity) = blank. A cost-based line value exists in C4C
+              // only for China / the sales-quote layout: a later item.
+              var lv = line.result.sellingPrice !== undefined ? Number(line.result.sellingPrice) / rowUnit * Number(line.result.quantity) : NaN;
               row.lineValue = Number.isFinite(lv)
                 ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 : "";
