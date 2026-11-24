@@ -210,3 +210,29 @@ test('searchProducts queries the material collection and maps id/description; ty
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.searchProducts({ query: 'EU-T' })).status, 'C4C_NOT_CONFIGURED');
 });
+
+test('fetchProductDetails looks up a set of parts in one or-filtered call and maps description/base UoM', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return jsonRes({ d: { results: [
+      { InternalID: 'ORAR00125-N7H07', Description: 'O-Rings', BaseMeasureUnitCode: 'EA' },
+      { InternalID: 'EU-T100', Description: 'Verification part', BaseMeasureUnitCode: null },
+    ] } });
+  };
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl });
+  const res = await client.fetchProductDetails({ partNumbers: ['ORAR00125-N7H07', 'EU-T100', 'ORAR00125-N7H07', '  '] });
+  assert.equal(res.status, 'OK');
+  assert.deepEqual(res.products, {
+    'ORAR00125-N7H07': { description: 'O-Rings', uom: 'EA' },
+    'EU-T100': { description: 'Verification part', uom: '' },
+  });
+  // One call, duplicates/blanks dropped, or-joined filter against the material collection.
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /MaterialCollection\?\$filter=InternalID eq 'ORAR00125-N7H07' or InternalID eq 'EU-T100'/);
+
+  // No parts -> nothing called, empty OK. Unconfigured -> typed, nothing called.
+  assert.deepEqual(await client.fetchProductDetails({ partNumbers: [] }), { status: 'OK', products: {} });
+  const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
+  assert.equal((await offline.fetchProductDetails({ partNumbers: ['X'] })).status, 'C4C_NOT_CONFIGURED');
+});

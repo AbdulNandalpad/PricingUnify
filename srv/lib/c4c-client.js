@@ -348,6 +348,44 @@ function createC4cClient({
     }
   }
 
+  /**
+   * Product-master details for a set of parts (fills blanks after a quote fetch or import —
+   * description/base UoM today; supplier is NOT here: it lives in the custom OriginOfData
+   * BO, which needs its own OData service name from the owner before we can read it).
+   */
+  async function fetchProductDetails({ partNumbers }) {
+    const parts = [...new Set((partNumbers || []).map((p) => String(p || '').trim()).filter(Boolean))].slice(0, 20);
+    if (parts.length === 0) return { status: 'OK', products: {} };
+    const gated = await gate(parts[0]);
+    if (gated.error) return gated.error;
+    const destination = gated.destination;
+
+    const root = destination.url.replace(/\/$/, '') + servicePath;
+    const r = fields.read;
+    const filter = parts.map((p) => `${r.productId} eq '${encodeURIComponent(p)}'`).join(' or ');
+    try {
+      const res = await fetchImpl(
+        `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`,
+        { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
+      );
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status}).` }; }
+      const body = await res.json();
+      const rows = (body.d && body.d.results) || [];
+      const products = {};
+      for (const row of rows) {
+        const id = row[r.productId] !== undefined && row[r.productId] !== null ? String(row[r.productId]) : '';
+        if (!id) continue;
+        products[id] = {
+          description: row[r.productDescription] !== undefined && row[r.productDescription] !== null ? String(row[r.productDescription]) : '',
+          uom: row.BaseMeasureUnitCode !== undefined && row.BaseMeasureUnitCode !== null ? String(row.BaseMeasureUnitCode) : '',
+        };
+      }
+      return { status: 'OK', products };
+    } catch (err) {
+      return { status: 'C4C_ERROR', message: `C4C call failed: ${err.message}` };
+    }
+  }
+
   /** For the admin "Connections" view: what this adapter would talk to, and whether a
    *  destination is actually configured — never the credentials themselves. */
   async function describe() {
@@ -363,7 +401,7 @@ function createC4cClient({
     };
   }
 
-  return { writeBack, fetchObjectItems, searchProducts, describe, fields };
+  return { writeBack, fetchObjectItems, searchProducts, fetchProductDetails, describe, fields };
 }
 
 module.exports = { createC4cClient, DEFAULT_FIELD_MAP, DEFAULT_SERVICE_PATH };

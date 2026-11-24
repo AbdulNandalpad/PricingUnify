@@ -84,6 +84,10 @@ sap.ui.define([
 
     onAddItemSuggest: function (oEvent) {
       var that = this;
+      // The server already filters (C4C startswith / local-catalog substring) — the Input's
+      // own client-side starts-with filter would hide substring matches, so disable it.
+      var input = oEvent.getSource();
+      input.setFilterFunction(function () { return true; });
       var value = (oEvent.getParameter("suggestValue") || "").trim();
       if (this._suggestTimer) { clearTimeout(this._suggestTimer); }
       if (value.length < 2) { this._vm().setProperty("/addItem/suggestions", []); return; }
@@ -92,12 +96,23 @@ sap.ui.define([
           body: { payload: { query: value, region: that.getSession().getProperty("/region") } }
         })
           .then(function (res) {
-            if (res.status !== "OK") { return; }
-            that._vm().setProperty("/addItem/suggestions", res.products || []);
             var bundle = that.getView().getModel("i18n").getResourceBundle();
+            if (res.status !== "OK") {
+              // A failed search is said, not silent — the dialog's note line shows why.
+              that._vm().setProperty("/addItem/suggestions", []);
+              that._vm().setProperty("/addItem/sourceNote", res.message || res.status || "");
+              return;
+            }
+            that._vm().setProperty("/addItem/suggestions", res.products || []);
             that._vm().setProperty("/addItem/sourceNote",
-              res.source === "C4C" ? bundle.getText("addItemSourceC4c")
-                : res.source === "LOCAL_CATALOG" ? bundle.getText("addItemSourceLocal") : "");
+              (res.note ? res.note + " " : "") +
+              (res.source === "C4C" ? bundle.getText("addItemSourceC4c")
+                : res.source === "LOCAL_CATALOG" ? bundle.getText("addItemSourceLocal") : ""));
+            // The popup only opens on its own if items exist when the suggest event fires;
+            // ours arrive asynchronously, so open it explicitly once they're in.
+            if ((res.products || []).length > 0) {
+              setTimeout(function () { input.showItems(function () { return true; }); }, 0);
+            }
           })
           .catch(function () { /* suggestions are a convenience — typing stays possible */ });
       }, 300);
@@ -157,7 +172,54 @@ sap.ui.define([
       var items = this._vm().getProperty("/items");
       items.splice(index, 1);
       if (items.length === 0) { items.push(this._newRow()); }
+      this.byId("itemTable").clearSelection();
       this._vm().setProperty("/items", this._renumber(items));
+    },
+
+    /** Remove every selected line at once — the table's row selectors (and the select-all
+     *  checkbox in its header) feed this, so "select all + Remove selected" clears the grid. */
+    onRemoveSelected: function () {
+      var table = this.byId("itemTable");
+      var selected = table.getSelectedIndices();
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      if (selected.length === 0) { this._message(bundle.getText("removeSelectedNone"), "Warning"); return; }
+      var items = this._vm().getProperty("/items");
+      selected.slice().sort(function (a, b) { return b - a; }).forEach(function (i) {
+        if (i >= 0 && i < items.length) { items.splice(i, 1); }
+      });
+      var removed = selected.length;
+      if (items.length === 0) { items.push(this._newRow()); }
+      table.clearSelection();
+      this._vm().setProperty("/items", this._renumber(items));
+      this._vm().setProperty("/hasResults", false);
+      this._vm().setProperty("/orderTotal", "");
+      this._message(bundle.getText("removedLines", [removed]), "Success");
+    },
+
+    /** Fill blank Description/UoM from the C4C product master — a convenience pass after a
+     *  quote load or an import. Typed non-OK outcomes (C4C not connected, lookup error) just
+     *  skip it silently; it only ever fills blanks, never overwrites a value already there. */
+    _enrichFromProductMaster: function () {
+      var that = this;
+      var vm = this._vm();
+      var parts = vm.getProperty("/items")
+        .filter(function (r) { return (r.partNumber || "").trim() && (!(r.description || "").trim() || !(r.uom || "").trim()); })
+        .map(function (r) { return r.partNumber.trim(); });
+      if (parts.length === 0) { return; }
+      this.callRest("/rest/pricing/fetchC4cProductDetails", { body: { payload: { partNumbers: parts } } })
+        .then(function (res) {
+          if (res.status !== "OK") { return; }
+          var items = vm.getProperty("/items");
+          var changed = false;
+          items.forEach(function (r) {
+            var p = res.products[(r.partNumber || "").trim()];
+            if (!p) { return; }
+            if (!(r.description || "").trim() && p.description) { r.description = p.description; changed = true; }
+            if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; changed = true; }
+          });
+          if (changed) { vm.setProperty("/items", items); }
+        })
+        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ });
     },
 
     _message: function (text, type) {
@@ -391,6 +453,7 @@ sap.ui.define([
             if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
             that._message(bundle.getText("c4cLoaded", [res.items.length, value]) +
               (res.region && res.region.value ? " " + bundle.getText("c4cRegionSet", [res.region.value]) : ""), "Success");
+            that._enrichFromProductMaster();
           } else if (res.status === "C4C_NOT_CONFIGURED" || res.status === "C4C_CREDENTIALS_MISSING") {
             that._message(res.message, "Warning");
           } else {
@@ -440,7 +503,7 @@ sap.ui.define([
       var count = this._importRows(this._vm().getProperty("/importText") || "");
       var bundle = this.getView().getModel("i18n").getResourceBundle();
       this._message(count > 0 ? bundle.getText("importDone", [count]) : bundle.getText("importNone"), count > 0 ? "Success" : "Warning");
-      if (count > 0) { this.onCloseImport(); }
+      if (count > 0) { this.onCloseImport(); this._enrichFromProductMaster(); }
     },
 
     _importRows: function (text) {

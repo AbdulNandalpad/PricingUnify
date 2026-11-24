@@ -86,6 +86,7 @@
             <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
             <Button id="importBtn" icon="sap-icon://excel-attachment" text="{i18n>importItems}" press=".onOpenImport" type="Transparent"/>
             <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onOpenAddItem" type="Transparent"/>
+            <Button id="removeSelectedBtn" icon="sap-icon://delete" text="{i18n>removeSelected}" press=".onRemoveSelected" type="Transparent"/>
             <Button id="fetchCostsBtn" text="{i18n>fetchCosts}" type="Emphasized" icon="sap-icon://money-bills"
               press=".onFetchCosts" enabled="{= !${vm>/busy} }"/>
             <Button id="calcPricesBtn" text="{i18n>calcPrices}" type="Emphasized" icon="sap-icon://simulate"
@@ -96,7 +97,7 @@
           </OverflowToolbar>
         </headerToolbar>
         <content>
-          <t:Table id="itemTable" rows="{vm>/items}" selectionMode="None" busy="{vm>/busy}"
+          <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}"
             visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36" alternateRowColors="true"
             cellClick=".onCellClick" noData="{i18n>noItems}">
             <t:columns>

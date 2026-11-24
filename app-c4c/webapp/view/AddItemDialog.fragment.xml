@@ -7,7 +7,7 @@
         <Label text="{i18n>colProduct}" required="true"/>
         <Input id="addItemProduct" value="{vm>/addItem/partNumber}" width="100%"
           placeholder="{i18n>addItemSearchPlaceholder}"
-          showSuggestion="true" suggest=".onAddItemSuggest" suggestionItemSelected=".onAddItemSuggestionPicked"
+          showSuggestion="true" filterSuggests="false" suggest=".onAddItemSuggest" suggestionItemSelected=".onAddItemSuggestionPicked"
           suggestionItems="{vm>/addItem/suggestions}">
           <suggestionItems>
             <core:ListItem key="{vm>id}" text="{vm>id}" additionalText="{vm>description}"/>

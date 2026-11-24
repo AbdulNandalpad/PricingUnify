@@ -589,9 +589,10 @@ module.exports = (srv) => {
     if (q.length < 2) return { status: 'OK', source: 'NONE', products: [] };
 
     const fromC4c = await currentC4c().searchProducts({ query: q });
-    if (fromC4c.status === 'OK' || fromC4c.status === 'C4C_ERROR') return fromC4c;
+    if (fromC4c.status === 'OK') return fromC4c;
 
-    // C4C not connected yet -> search the region's local recorded catalog instead, and say so.
+    // C4C not connected (or the search errored) -> the region's local recorded catalog
+    // answers instead, carrying the C4C message as `note` — never a silent empty list.
     try {
       const facts = await api6.getPricingFacts({ region: region || 'EUROPE', salesOrg: '*', items: [] });
       const upper = q.toUpperCase();
@@ -604,6 +605,11 @@ module.exports = (srv) => {
     } catch {
       return { status: 'OK', source: 'LOCAL_CATALOG', note: fromC4c.message, products: [] };
     }
+  });
+
+  srv.on('fetchC4cProductDetails', async (req) => {
+    const { partNumbers } = req.data.payload || {};
+    return currentC4c().fetchProductDetails({ partNumbers: Array.isArray(partNumbers) ? partNumbers : [] });
   });
 
   srv.on('fetchC4cObject', async (req) => {

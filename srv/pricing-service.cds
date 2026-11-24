@@ -34,6 +34,12 @@ service PricingService {
   @requires: 'PricingViewer'
   action searchC4cProducts(payload: Map) returns Map;
 
+  // Product-master details for a set of parts (fills blank description/UoM after a quote
+  // fetch or an import). Typed outcomes; supplier is deliberately NOT part of this — it
+  // lives in the custom OriginOfData BO, pending its OData service name.
+  @requires: 'PricingViewer'
+  action fetchC4cProductDetails(payload: Map) returns Map;
+
   // READ a C4C quote/opportunity header + items into the pricing grid (the "replace the
   // Products tab" direction). Typed outcomes: OK | C4C_NOT_CONFIGURED |
   // C4C_CREDENTIALS_MISSING | C4C_ERROR — never a faked item list.

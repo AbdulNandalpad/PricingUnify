@@ -1146,3 +1146,28 @@ test('searchC4cProducts falls back to the local recorded catalog in dev, honestl
   });
   assert.equal(noRole.status, 403);
 });
+
+test('fetchC4cProductDetails answers typed C4C_CREDENTIALS_MISSING in dev and is a Viewer capability', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/fetchC4cProductDetails`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { partNumbers: ['ORAR00125-N7H07'] } }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).status, 'C4C_CREDENTIALS_MISSING'); // typed — details are never invented
+
+  // No parts -> empty OK without touching C4C at all.
+  const empty = await fetch(`${BASE}/rest/pricing/fetchC4cProductDetails`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { partNumbers: [] } }),
+  }).then((r) => r.json());
+  assert.deepEqual(empty, { status: 'OK', products: {} });
+
+  const noRole = await fetch(`${BASE}/rest/pricing/fetchC4cProductDetails`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { partNumbers: ['X'] } }),
+  });
+  assert.equal(noRole.status, 403);
+});
