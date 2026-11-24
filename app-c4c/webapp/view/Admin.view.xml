@@ -158,6 +158,76 @@
             </VBox>
           </IconTabFilter>
 
+          <!-- 3b. Suppliers: freight / duty / tariff rates per destination warehouse -->
+          <IconTabFilter text="{i18n>tabSuppliers}" key="suppliers" icon="sap-icon://supplier">
+            <VBox class="sapUiSmallMargin">
+              <MessageStrip text="{i18n>suppliersHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
+              <HBox wrap="NoWrap" alignItems="Start">
+                <VBox width="22rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
+                  <OverflowToolbar>
+                    <Title text="{i18n>suppliersTitle}"/>
+                    <ToolbarSpacer/>
+                    <Button text="{i18n>newSupplier}" icon="sap-icon://add" press=".onNewSupplier"/>
+                  </OverflowToolbar>
+                  <List items="{vm>/suppliers/list}" mode="SingleSelectMaster" selectionChange=".onSupplierSelect" noDataText="{i18n>suppliersNone}">
+                    <StandardListItem title="{vm>supplier}" description="{vm>supplierCountry} — {vm>warehouseText}"/>
+                  </List>
+                </VBox>
+                <VBox visible="{= !!${vm>/suppliers/doc} }" class="sapUiSmallMarginBottom" width="100%">
+                  <HBox wrap="Wrap" alignItems="End" class="sapUiTinyMarginBottom">
+                    <VBox class="sapUiSmallMarginEnd">
+                      <Label text="{i18n>supplierId}"/>
+                      <Input value="{vm>/suppliers/doc/supplier}" width="11rem" editable="{vm>/suppliers/isNew}"/>
+                    </VBox>
+                    <VBox class="sapUiSmallMarginEnd">
+                      <Label text="{i18n>supplierCountry}"/>
+                      <Input value="{vm>/suppliers/doc/supplierCountry}" width="6rem"/>
+                    </VBox>
+                    <VBox>
+                      <Label text="{i18n>supplierMolv}"/>
+                      <Input value="{vm>/suppliers/doc/molv}" width="8rem" type="Number"/>
+                    </VBox>
+                  </HBox>
+                  <Table items="{vm>/suppliers/doc/warehouses}" inset="false">
+                    <headerToolbar>
+                      <OverflowToolbar>
+                        <Title text="{i18n>supplierWarehouses}"/>
+                        <ToolbarSpacer/>
+                        <Button text="{i18n>addWarehouse}" icon="sap-icon://add" press=".onAddWarehouse"/>
+                      </OverflowToolbar>
+                    </headerToolbar>
+                    <columns>
+                      <Column width="8rem"><Text text="{i18n>colWarehouse}"/></Column>
+                      <Column width="8rem" hAlign="End"><Text text="{i18n>freightPct}"/></Column>
+                      <Column width="8rem" hAlign="End"><Text text="{i18n>dutyPct}"/></Column>
+                      <Column width="8rem" hAlign="End"><Text text="{i18n>tariffPct}"/></Column>
+                      <Column width="3rem"><Text text=""/></Column>
+                    </columns>
+                    <items>
+                      <ColumnListItem>
+                        <cells>
+                          <Input value="{vm>code}"/>
+                          <Input value="{vm>freightPct}" type="Number" textAlign="End"/>
+                          <Input value="{vm>dutyPct}" type="Number" textAlign="End"/>
+                          <Input value="{vm>tariffPct}" type="Number" textAlign="End"/>
+                          <Button icon="sap-icon://decline" type="Transparent" press=".onRemoveWarehouse"/>
+                        </cells>
+                      </ColumnListItem>
+                    </items>
+                  </Table>
+                  <OverflowToolbar class="sapUiTinyMarginTop">
+                    <Label text="{i18n>newVersion}"/>
+                    <Input value="{vm>/suppliers/doc/version}" width="11rem"/>
+                    <Label text="{i18n>validFrom}"/>
+                    <Input value="{vm>/suppliers/doc/validFrom}" width="9rem"/>
+                    <ToolbarSpacer/>
+                    <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" press=".onSaveSupplier"/>
+                  </OverflowToolbar>
+                </VBox>
+              </HBox>
+            </VBox>
+          </IconTabFilter>
+
           <!-- 4. Price Lists (read-only WSO2 browser) -->
           <IconTabFilter text="{i18n>tabPriceLists}" key="priceLists" icon="sap-icon://list">
             <VBox class="sapUiSmallMargin">

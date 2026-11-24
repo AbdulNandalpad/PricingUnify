@@ -41,6 +41,7 @@ sap.ui.define([
         versions: [],
         priceList: { supplier: "", productCategory: "", partNumber: "", quantity: "1", asOf: "", looked: false, entry: null, matchedBy: "", triedText: "" },
         connections: null,
+        suppliers: { list: [], doc: null, isNew: false, versionCount: 0 },
         sim: { partNumber: "EU-T100", quantity: "10", supplier: "", productCategory: "", pricingType: "COST_PLUS", objectType: "QUOTE", line: null, resultText: "", resultState: "None" }
       });
       this.getView().setModel(vm, "vm");
@@ -64,6 +65,98 @@ sap.ui.define([
       this._loadSheet();
       this._loadVersions();
       this._loadConnections();
+      this._loadSuppliers();
+    },
+
+    // ---- Suppliers: freight / duty / tariff RATES per supplier x destination warehouse ----
+    // Shown and typed as percentages (0.6 = 0.6 %), stored as ratios (0.006). Every save is a
+    // new effective-dated version (validated server-side, provenance stamped by the server).
+    _ratioToPct: function (r) {
+      if (r === undefined || r === null || r === "") { return ""; }
+      var n = Number(r);
+      return Number.isFinite(n) ? String(parseFloat((n * 100).toPrecision(12))) : String(r);
+    },
+    _pctToRatio: function (p) {
+      var t = String(p === undefined || p === null ? "" : p).trim();
+      if (t === "") { return null; }
+      var n = Number(t);
+      return Number.isFinite(n) ? String(parseFloat((n / 100).toPrecision(12))) : t;
+    },
+    _loadSuppliers: function () {
+      var vm = this._vm();
+      return this.callRest("/rest/config/listSuppliers").then(function (res) {
+        vm.setProperty("/suppliers/list", (res.suppliers || []).map(function (d) {
+          return { supplier: d.supplier, supplierCountry: d.supplierCountry || "", warehouseText: Object.keys(d.warehouses || {}).join(", "), version: d.version };
+        }));
+      }).catch(function () { /* the tab shows its empty state; other tabs are unaffected */ });
+    },
+    onSupplierSelect: function (oEvent) {
+      var item = oEvent.getParameter("listItem");
+      var ctx = item && item.getBindingContext("vm");
+      if (ctx) { this._openSupplier(ctx.getObject().supplier); }
+    },
+    _openSupplier: function (id) {
+      var that = this;
+      var vm = this._vm();
+      var today = new Date().toISOString().slice(0, 10);
+      return Promise.all([
+        this.callRest("/rest/config/getEffectiveSupplierConfig?supplier=" + encodeURIComponent(id)),
+        this.callRest("/rest/config/listSupplierConfigVersions?supplier=" + encodeURIComponent(id)).catch(function () { return { versions: [] }; })
+      ]).then(function (r) {
+        var d = r[0];
+        var n = (r[1].versions || []).length + 1;
+        vm.setProperty("/suppliers/isNew", false);
+        vm.setProperty("/suppliers/doc", {
+          supplier: d.supplier, supplierCountry: d.supplierCountry || "", molv: d.molv === null || d.molv === undefined ? "" : String(d.molv),
+          currentVersion: d.version, version: today + "-r" + n, validFrom: today,
+          warehouses: Object.keys(d.warehouses || {}).map(function (code) {
+            var w = d.warehouses[code] || {};
+            return { code: code, freightPct: that._ratioToPct(w.freight), dutyPct: that._ratioToPct(w.duty), tariffPct: that._ratioToPct(w.tariff) };
+          })
+        });
+      }).catch(function (err) { that._message(String(err.message || err), "Error"); });
+    },
+    onNewSupplier: function () {
+      var vm = this._vm();
+      var today = new Date().toISOString().slice(0, 10);
+      vm.setProperty("/suppliers/isNew", true);
+      vm.setProperty("/suppliers/doc", { supplier: "", supplierCountry: "", molv: "", currentVersion: "", version: today + "-r1", validFrom: today, warehouses: [{ code: "", freightPct: "", dutyPct: "", tariffPct: "" }] });
+    },
+    onAddWarehouse: function () {
+      var vm = this._vm();
+      var rows = vm.getProperty("/suppliers/doc/warehouses");
+      rows.push({ code: "", freightPct: "", dutyPct: "", tariffPct: "" });
+      vm.setProperty("/suppliers/doc/warehouses", rows);
+    },
+    onRemoveWarehouse: function (oEvent) {
+      var vm = this._vm();
+      var idx = Number(oEvent.getSource().getBindingContext("vm").getPath().split("/").pop());
+      var rows = vm.getProperty("/suppliers/doc/warehouses");
+      rows.splice(idx, 1);
+      vm.setProperty("/suppliers/doc/warehouses", rows);
+    },
+    onSaveSupplier: function () {
+      var that = this;
+      var vm = this._vm();
+      var d = vm.getProperty("/suppliers/doc");
+      var id = String(d.supplier || "").trim(); // exact-match key: a stray space would create a ghost supplier
+      if (!id) { this._message("Enter a supplier ID first.", "Warning"); return; }
+      var warehouses = {};
+      d.warehouses.forEach(function (w) {
+        var code = String(w.code || "").trim();
+        if (!code) { return; }
+        warehouses[code] = { freight: that._pctToRatio(w.freightPct), duty: that._pctToRatio(w.dutyPct), tariff: that._pctToRatio(w.tariffPct) };
+      });
+      var payload = { supplier: id, version: d.version, validFrom: d.validFrom || undefined, supplierCountry: String(d.supplierCountry || "").trim() || null,
+        molv: String(d.molv || "").trim() || null, warehouses: warehouses };
+      vm.setProperty("/busy", true);
+      this.callRest("/rest/config/saveSupplierConfig", { body: { payload: payload } })
+        .then(function (saved) {
+          that._message(that.getView().getModel("i18n").getResourceBundle().getText("supplierSaved", [id, saved.version]), "Success");
+          return that._loadSuppliers().then(function () { return that._openSupplier(id); });
+        })
+        .catch(function (err) { that._message(String(err.message || err), "Error"); })
+        .finally(function () { vm.setProperty("/busy", false); });
     },
 
     _loadConnections: function () {
