@@ -332,7 +332,7 @@ function createC4cClient({
         `${root}/${r.productCollection}?$filter=startswith(${r.productId},'${encodeURIComponent(q)}')&$top=10&$select=${r.productId},${r.productDescription}`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
       );
-      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status}).` }; }
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status} on ${servicePath}/${r.productCollection}) — check the product collection name under Connections → field map.` }; }
       const body = await res.json();
       const rows = (body.d && body.d.results) || [];
       return {
@@ -368,7 +368,7 @@ function createC4cClient({
         `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
       );
-      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status}).` }; }
+      if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product lookup failed (HTTP ${res.status} on ${servicePath}/${r.productCollection}).` }; }
       const body = await res.json();
       const rows = (body.d && body.d.results) || [];
       const products = {};
