@@ -55,14 +55,22 @@ function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses }
 }
 
 /**
- * Canonical stock class for a picked record — or a typed reason why not. The warehouse's own
- * StockClass column is NOT the stock class the BI service uses: a real part (OR1600810-V9005)
- * has StockClass MTS on both warehouses and strategy group Z8 "MTS-Z & QuickSeal", yet C4C
- * sent stockClassGroupCode MTO for it. So while a strategy group is present and no rule maps
- * it, the stock class is left UNRESOLVED (typed note) instead of silently taken from StockClass.
- * Pure. `map` = the region's stockClassMap (raw class -> canonical) or null.
+ * Canonical stock class for a picked record — or a typed reason why not. Pure.
+ *   1. Region `stockClassRules` (owner rule): the first rule whose Origin of Data AND strategy
+ *      group code match the line wins, otherwise the rule set's default (Europe: SAP + Z4 = MTS,
+ *      else NonMTS). Only applied when a warehouse record was found — with none there is nothing
+ *      to classify, and the stock class stays open rather than becoming the default.
+ *   2. No rules for the region: a strategy group still blocks the plain StockClass (typed
+ *      STRATEGY_GROUP_RULE_PENDING — the warehouse StockClass column alone is not what C4C sends);
+ *      without a strategy group the raw StockClass goes through the region's stockClassMap.
  */
-function stockClassFromPicked(picked, map) {
+function stockClassFromPicked(picked, map, { rules, ood } = {}) {
+  if (rules) {
+    if (!picked.stockClassWarehouse) return {};
+    const code = picked.strategyGroupCode || '';
+    const hit = (rules.rules || []).find((r) => stripZeros(r.ood) === stripZeros(ood) && r.strategyCode === code);
+    return { stockClass: hit ? hit.stockClass : rules.default, stockClassBy: hit ? `RULE:${hit.ood}/${hit.strategyCode}` : 'RULE:DEFAULT' };
+  }
   if (picked.strategyGroupCode) {
     return { note: `STRATEGY_GROUP_RULE_PENDING:${picked.strategyGroupCode}${picked.strategyGroupDesc ? ` (${picked.strategyGroupDesc})` : ''}` };
   }
@@ -72,4 +80,20 @@ function stockClassFromPicked(picked, map) {
   return { note: `UNMAPPED:${picked.stockClassRaw}` };
 }
 
-module.exports = { pickOriginOfData, stockClassFromPicked };
+/**
+ * The stock-class rules that apply to a line: those of the region that OWNS the line's Origin
+ * of Data (via region-route, e.g. SAP -> EUROPE), so a China / Americas / India quote buying a
+ * SAP-sourced part gets the Europe answer; falling back to the pricing region's own rules.
+ */
+function stockClassRulesForOod({ store, ood, pricingRules, date }) {
+  try {
+    const key = stripZeros(ood);
+    const route = key ? store.getEffectiveRegionRoute(key, '*', date) : null;
+    const owner = route ? store.getEffectiveAsOf(route.region, '*', date) : null;
+    return (owner && owner.stockClassRules) || pricingRules || null;
+  } catch (e) {
+    return pricingRules || null;
+  }
+}
+
+module.exports = { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod };

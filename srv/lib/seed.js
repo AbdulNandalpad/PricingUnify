@@ -40,6 +40,8 @@ function seedRegionConfig() {
     // buildUp `when` conditions can branch on — see srv/pricing-service.js's
     // applyStockClassNormalization and engine-core/src/kernel.js.
     stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+    // Owner rule (2026-11-24): origin of data SAP + strategy group Z4 = MTS; everything else NonMTS.
+    stockClassRules: { rules: [{ ood: 'SAP', strategyCode: 'Z4', stockClass: 'MTS' }], default: 'NonMTS' },
     // Topic 10: the host UI's line-level "Additional Cost" selector (0-4) picks which of
     // these elements apply for that one line, independent of stock class — e.g. "2 - Markup
     // only" means markup fires but freight/duty/tariff/pick don't, even for an otherwise

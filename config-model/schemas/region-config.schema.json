@@ -34,6 +34,28 @@
       "additionalProperties": { "enum": ["MTS", "NonMTS"] },
       "description": "Maps this region's raw ERP stock-class codes (e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) to the two canonical buckets buildUp/constraint `when` expressions branch on via item.stockClass. Optional — a region whose formulas don't yet vary by stock class (e.g. India, or Europe before Appendix A lands) omits it entirely, and srv skips classification for that region rather than requiring every part to carry a code. Once present, every priced item for that region must resolve to a mapped code or it comes back MISSING(STOCK_CLASS_UNRESOLVED) — silently skipping stock-class-conditioned elements would risk under-pricing."
     },
+    "stockClassRules": {
+      "type": "object",
+      "required": ["rules", "default"],
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ood", "strategyCode", "stockClass"],
+            "additionalProperties": false,
+            "properties": {
+              "ood": { "type": "string", "minLength": 1 },
+              "strategyCode": { "type": "string", "minLength": 1 },
+              "stockClass": { "enum": ["MTS", "NonMTS"] }
+            }
+          }
+        },
+        "default": { "enum": ["MTS", "NonMTS"] }
+      },
+      "description": "Stock class from the part's Origin-of-Data record in C4C: the FIRST rule whose Origin of Data AND strategy group code both match the line wins; no match gives `default`. Applies only when the part has a warehouse record (nothing to classify otherwise — the stock class stays open). Owner rule 2026-11-24 for Europe: ood SAP + strategy Z4 = MTS, everything else NonMTS. Optional: a region without it keeps the raw stockClassMap classification."
+    },
     "additionalCostMap": {
       "type": "object",
       "additionalProperties": {

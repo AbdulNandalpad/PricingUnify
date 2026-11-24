@@ -301,7 +301,7 @@ sap.ui.define([
       var parts = vm.getProperty("/items")
         .filter(function (r) {
           return (r.partNumber || "").trim() &&
-            (!(r.description || "").trim() || !(r.uom || "").trim() || !r.stockClassSel);
+            (!(r.description || "").trim() || !(r.uom || "").trim());
         })
         .map(function (r) { return r.partNumber.trim(); });
       if (parts.length === 0) { return Promise.resolve(); }
@@ -313,23 +313,13 @@ sap.ui.define([
         .then(function (res) {
           if (res.status !== "OK") { return; }
           var items = vm.getProperty("/items");
-          var notes = {};
           items.forEach(function (r) {
             var p = res.products[(r.partNumber || "").trim()];
             if (!p) { return; }
             if (!(r.description || "").trim() && p.description) { r.description = p.description; }
             if (!(r.uom || "").trim() && p.uom) { r.uom = p.uom; }
-            if (!r.stockClassSel && !r.stockClassHold) {
-              if (p.stockClass) { r.stockClassSel = p.stockClass; }
-              else if (p.stockClassNote && p.stockClassNote !== "NO_STOCK_CLASS_IN_C4C") { notes[p.stockClassNote] = true; }
-            }
           });
           vm.setProperty("/items", items);
-          var keys = Object.keys(notes);
-          if (keys.length > 0) {
-            var bundle = that.getView().getModel("i18n").getResourceBundle();
-            that._message(bundle.getText("stockClassUnresolved", [keys.join(", ")]), "Warning");
-          }
         })
         .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
         .finally(function () { vm.setProperty("/busy", false); });

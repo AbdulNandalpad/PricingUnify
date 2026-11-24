@@ -1,5 +1,5 @@
 const { resolveProductStockClass } = require('./lib/product-stock-class');
-const { pickOriginOfData, stockClassFromPicked } = require('./lib/origin-of-data');
+const { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod } = require('./lib/origin-of-data');
 const Decimal = require('decimal.js');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
@@ -669,13 +669,24 @@ module.exports = (srv) => {
     if (rows.status !== 'OK') return rows;
 
     let map = null;
-    try { map = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso()) || {}).stockClassMap || null; } catch (e) { map = null; }
+    let pricingRules = null;
+    try {
+      const cfg = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso())) || {};
+      map = cfg.stockClassMap || null;
+      pricingRules = cfg.stockClassRules || null;
+    } catch (e) { map = null; pricingRules = null; }
+    // The stock-class rule belongs to the part's ORIGIN of data, not to the quote's region: a
+    // China / Americas / India quote buying a SAP-sourced part must get the Europe (SAP) answer.
+    // So the rules come from the region that owns the line's Origin of Data (via region-route,
+    // e.g. SAP -> EUROPE), falling back to the pricing region's own.
+    const rulesForOod = (ood) => stockClassRulesForOod({ store, ood, pricingRules, date: todayIso() });
     const results = lines.map((line) => {
       const picked = pickOriginOfData(rows, line, { knownStockClasses: map ? new Set(Object.keys(map)) : null });
       const res = { partNumber: line.partNumber, ...picked };
-      // Stock class: see stockClassFromPicked — a strategy group blocks the plain StockClass.
-      const sc = stockClassFromPicked(picked, map);
+      // Stock class: see stockClassFromPicked (region rules on Origin of Data + strategy group).
+      const sc = stockClassFromPicked(picked, map, { rules: rulesForOod(line.ood), ood: line.ood });
       if (sc.stockClass) res.stockClass = sc.stockClass;
+      if (sc.stockClassBy) res.stockClassBy = sc.stockClassBy;
       if (sc.note) res.stockClassNote = sc.note;
       return res;
     });

@@ -63,3 +63,19 @@ test('without a strategy group the stock class resolves through the region map, 
   assert.deepEqual(stockClassFromPicked({ stockClassRaw: 'OMT' }, null), { note: 'NO_STOCK_CLASS_MAP_FOR_REGION' });
   assert.deepEqual(stockClassFromPicked({}, { OMT: 'NonMTS' }), {});
 });
+
+test('region stockClassRules (owner rule): origin SAP + strategy Z4 = MTS, everything else NonMTS — and only when a warehouse record exists', () => {
+  const rules = { rules: [{ ood: 'SAP', strategyCode: 'Z4', stockClass: 'MTS' }], default: 'NonMTS' };
+  const picked = (code, extra = {}) => ({ stockClassWarehouse: '1020', stockClassRaw: 'MTS', strategyGroupCode: code, ...extra });
+  const sc = (p, ood = 'SAP') => stockClassFromPicked(p, { MTS: 'MTS' }, { rules, ood });
+
+  assert.deepEqual(sc(picked('Z4')), { stockClass: 'MTS', stockClassBy: 'RULE:SAP/Z4' });
+  // the real part: StockClass MTS but strategy Z8 -> NonMTS (C4C sent MTO)
+  assert.deepEqual(sc(picked('Z8')), { stockClass: 'NonMTS', stockClassBy: 'RULE:DEFAULT' });
+  assert.equal(sc(picked('Z3')).stockClass, 'NonMTS');
+  assert.equal(sc(picked('Z7')).stockClass, 'NonMTS');
+  assert.equal(sc(picked('')).stockClass, 'NonMTS'); // no strategy group -> the else branch
+  assert.equal(sc(picked('Z4'), 'CN').stockClass, 'NonMTS'); // Z4 only counts under origin SAP
+  assert.equal(sc(picked('Z4'), '000SAP').stockClass, 'MTS'); // leading zeros stripped like C4C
+  assert.deepEqual(sc({ strategyGroupCode: 'Z4' }), {}); // no warehouse record -> nothing to classify, never the default
+});
