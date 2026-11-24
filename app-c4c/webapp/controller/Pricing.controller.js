@@ -35,7 +35,7 @@ sap.ui.define([
     _newRow: function () {
       return {
         itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "PC",
-        stockClassSel: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
+        stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "", leadTime: "", additionalCost: "",
         priceBreak: false, alternativeToLine: "",
         supplierExternalId: "", supplierName: "",
@@ -197,6 +197,13 @@ sap.ui.define([
       this.onCloseAddItem();
     },
 
+    /** The user picks the stock class by hand — it always wins over any automatic value. */
+    onStockClassChange: function (oEvent) {
+      var ctx = oEvent.getSource().getBindingContext("vm");
+      var row = this._vm().getProperty(ctx.getPath());
+      this._vm().setProperty(ctx.getPath() + "/stockClassHow", row.stockClassSel ? "Chosen by you" : "");
+    },
+
     onRemoveRow: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");
       var index = Number(ctx.getPath().split("/").pop());
@@ -275,7 +282,11 @@ sap.ui.define([
               notes[r.partNumber + ": " + o.supplierNote] = true;
             }
             if (!r.stockClassSel) {
-              if (o.stockClass) { r.stockClassSel = o.stockClass; }
+              if (o.stockClass) {
+                r.stockClassSel = o.stockClass;
+                r.stockClassHow = o.stockClassBy === "RULE:DEFAULT" ? "Set by the stock-class rule (no special strategy group)"
+                  : (o.stockClassBy ? "Set by the stock-class rule " + o.stockClassBy.replace("RULE:", "") : "Read from C4C");
+              }
               else if (o.stockClassNote) {
                 notes[r.partNumber + ": stock class " + o.stockClassNote] = true;
                 // A strategy group overrides the plain stock class: hold the line back so the
@@ -419,7 +430,7 @@ sap.ui.define([
             var attrs = (attrRes.attributes || {})[built.payloadItems[j].partNumber];
             if (!attrs) { return; }
             if (!row.supplier && attrs.supplier) { row.supplier = attrs.supplier; }
-            if (!row.stockClassSel && attrs.stockClass) { row.stockClassSel = attrs.stockClass; }
+            if (!row.stockClassSel && attrs.stockClass) { row.stockClassSel = attrs.stockClass; row.stockClassHow = "From the part's classification"; }
           });
           vm.setProperty("/items", rows);
           // Re-build the payload so freshly resolved attributes flow into pricing too.
@@ -440,7 +451,7 @@ sap.ui.define([
             row.confidence = cc ? cc.confidence : "";
             row.sourceErp = cc && cc.source ? cc.source.system : "";
             row.cost = cc ? cc.value : "";
-            if (line.trace && line.trace.stockClass && !row.stockClassSel) { row.stockClassSel = line.trace.stockClass; }
+            if (line.trace && line.trace.stockClass && !row.stockClassSel) { row.stockClassSel = line.trace.stockClass; row.stockClassHow = "Resolved by the calculation"; }
             if (line.status === "PRICED") {
               priced++;
               var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
@@ -673,6 +684,7 @@ sap.ui.define([
           if (field === "stockClassSel") {
             value = value === "MTS" ? "MTS" : (/^non.?mts$/i.test(value) ? "NonMTS" : "");
             if (!value) { return; } // raw ERP codes stay auto — the backend normalizes via config
+            row.stockClassHow = "Imported";
           }
           if (field === "pricingType") { value = /price.?list/i.test(value) ? "PRICE_LIST" : "COST_PLUS"; }
           if (field === "priceBreak") { value = /^(x|true|yes|✓|1)$/i.test(String(value).trim()); }
