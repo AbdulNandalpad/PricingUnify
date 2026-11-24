@@ -522,6 +522,16 @@ function resolveRegion({ region, salesOrg, customerOod, priceDate }) {
  * request-level problems or { body } with the normal response. Behavior is byte-identical
  * to the original handler — this is extraction, not change.
  */
+/**
+ * Part facts for a run. Live mode has no /pricing-facts endpoint on the gateway (costs come
+ * from the BI price endpoint, charge amounts from supplier terms / region config), so the
+ * facts start empty there instead of failing every call that needs them.
+ */
+async function loadFacts(args) {
+  if (api6.mode === 'live') return { costs: {}, elements: {}, classification: {}, qtyBreaks: {}, fx: {}, itemAttributes: {}, priceLists: {} };
+  return api6.getPricingFacts(args);
+}
+
 async function runPricing({ payload, userId }) {
   const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod, customer } = payload;
   const priceDate = payload.priceDate || todayIso();
@@ -552,9 +562,7 @@ async function runPricing({ payload, userId }) {
   // Live mode has no /pricing-facts endpoint: costs come from the BI price endpoint (see
   // priceWithKits) and charge amounts from the supplier terms / region config, so the facts
   // start empty instead of failing the whole run.
-  const facts = api6.mode === 'live'
-    ? { costs: {}, elements: {}, classification: {}, qtyBreaks: {}, fx: {} }
-    : await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
+  const facts = await loadFacts({ region, salesOrg, items: allPartNumbers });
 
   const request = {
     context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
@@ -637,7 +645,7 @@ module.exports = (srv) => {
     const route = store.getEffectiveRegionRoute(String(originOfData).trim(), '*', priceDate);
     if (!route) return { status: 'FAILED', message: `Cannot resolve a region from originOfData "${originOfData}".` };
     const partNumber = String(itemLongNumber).trim();
-    const facts = await api6.getPricingFacts({ region: route.region, salesOrg: '*', items: [{ partNumber }] });
+    const facts = await loadFacts({ region: route.region, salesOrg: '*', items: [{ partNumber }] });
     return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
   });
 
@@ -802,7 +810,7 @@ module.exports = (srv) => {
       return req.reject(422, `No effective config for region "${region}" / salesOrg "${salesOrg}" as of ${priceDate}.`);
     }
 
-    const facts = await api6.getPricingFacts({ region, salesOrg, items });
+    const facts = await loadFacts({ region, salesOrg, items });
     const workingItems = items.map((it) => ({ ...it }));
     applyItemAttributesFromFacts(facts, workingItems);
     applySupplierOverrides(facts, workingItems, priceDate);
