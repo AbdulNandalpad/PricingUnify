@@ -104,7 +104,8 @@
       <Panel class="itemsSection" backgroundDesign="Solid">
         <headerToolbar>
           <OverflowToolbar>
-            <Title text="{i18n>items} ({vm>/itemCount})" level="H4"/>
+            <Title text="{= ${i18n>items} + ' (' + ( ${vm>/search} ? ${vm>/shownCount} + ' / ' + ${vm>/itemCount} : ${vm>/itemCount} ) + ')' }" level="H4"/>
+            <SearchField width="17rem" placeholder="{i18n>searchLinesPlaceholder}" liveChange=".onSearchItems" search=".onSearchItems" class="sapUiSmallMarginBegin"/>
             <ObjectStatus text="{vm>/orderTotal}" state="Information" class="sapUiSmallMarginBegin" visible="{= !!${vm>/orderTotal} }"/>
             <ToolbarSpacer/>
             <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
@@ -124,7 +125,7 @@
         <content>
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
             visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36" alternateRowColors="true"
-            rowSelectionChange=".onSelectionChange" cellClick=".onCellClick" noData="{i18n>noItems}">
+            rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" cellClick=".onCellClick" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
             <t:columns>
               <t:Column width="3.5rem">
                 <Label text="{i18n>colItem}"/>

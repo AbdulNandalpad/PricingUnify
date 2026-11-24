@@ -1,8 +1,10 @@
 sap.ui.define([
   "./BaseController",
   "sap/ui/model/json/JSONModel",
-  "sap/ui/core/Fragment"
-], function (BaseController, JSONModel, Fragment) {
+  "sap/ui/core/Fragment",
+  "sap/ui/model/Filter",
+  "sap/ui/model/FilterOperator"
+], function (BaseController, JSONModel, Fragment, Filter, FilterOperator) {
   "use strict";
 
   /**
@@ -22,7 +24,7 @@ sap.ui.define([
         busy: false,
         hasResults: false,
         showAdvanced: false,
-        itemCount: 0,
+        itemCount: 0, search: "", shownCount: 0,
         selectedCount: 0,
         orderTotal: "",
         message: "",
@@ -74,6 +76,24 @@ sap.ui.define([
     },
 
     /** Row selectors / the header checkbox -> drives the visibility of "Remove selected". */
+    /** Search over the lines already in the grid (product, description, supplier, customer part, item no.). */
+    onSearchItems: function (oEvent) {
+      var q = String(oEvent.getParameter("newValue") !== undefined ? oEvent.getParameter("newValue") : oEvent.getParameter("query") || "").trim();
+      this._vm().setProperty("/search", q);
+      var binding = this.byId("itemTable").getBinding("rows");
+      if (!q) { binding.filter([]); return; }
+      var contains = function (path) { return new Filter(path, FilterOperator.Contains, q); };
+      binding.filter([new Filter({
+        filters: [contains("partNumber"), contains("description"), contains("supplier"), contains("supplierName"), contains("customerPartNumber"), contains("productCategory"),
+          new Filter({ path: "itemNo", test: function (v) { return String(v).indexOf(q) !== -1; } })],
+        and: false
+      })]);
+    },
+    onRowsUpdated: function () {
+      var binding = this.byId("itemTable").getBinding("rows");
+      this._vm().setProperty("/shownCount", binding ? binding.getLength() : 0);
+    },
+
     onSelectionChange: function () {
       this._vm().setProperty("/selectedCount", this.byId("itemTable").getSelectedIndices().length);
     },
@@ -225,10 +245,11 @@ sap.ui.define([
       var bundle = this.getView().getModel("i18n").getResourceBundle();
       if (selected.length === 0) { return; }
       var items = this._vm().getProperty("/items");
-      selected.slice().sort(function (a, b) { return b - a; }).forEach(function (i) {
-        if (i >= 0 && i < items.length) { items.splice(i, 1); }
-      });
-      var removed = selected.length;
+      // Selected indices are positions in the (possibly search-FILTERED) table, not in the array:
+      // resolve each to the row it shows and remove that row by identity.
+      var doomed = selected.map(function (i) { var c = table.getContextByIndex(i); return c ? c.getObject() : null; }).filter(Boolean);
+      items = items.filter(function (row) { return doomed.indexOf(row) === -1; });
+      var removed = doomed.length;
       if (items.length === 0) { items.push(this._newRow()); }
       table.clearSelection();
       this._vm().setProperty("/items", this._renumber(items));
