@@ -66,11 +66,17 @@ function seedRegionConfig() {
     // so the percentages then apply on the base cost alone.
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
-      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.047, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'SCM_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.048, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
       { id: 'FREIGHT', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'freight', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
       { id: 'DUTY', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'duty', when: ["item.stockClass === 'NonMTS'", "item.includeLandedCost !== false"], provenance: HUMAN_PROVENANCE },
       { id: 'TARIFF', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP'], rateRef: 'tariff', when: "item.includeTariff !== false", provenance: HUMAN_PROVENANCE },
-      { id: 'PICK_CHARGE', type: 'PER_LINE', amountRef: 'pickCharge', when: "item.includePick !== false", provenance: HUMAN_PROVENANCE },
+      // Owner 2026-11-24, after the real BI sample ("[AddCost 1] .0219 EUR x 1.048 (SCM Markup)
+      // x 1.01 (Landed Cost Factor) + 6% (Anticipated Cost Increase) + 21 EUR (Pick Charge)"):
+      // markup 4.8 %, a 6 % "Anticipated Cost Increase" on the running total (cost + markup +
+      // landed costs), and a 21 EUR pick charge per order. The anticipated increase follows the
+      // markup's Additional Cost switch (flag 0 hands the cost back 1:1).
+      { id: 'ANTICIPATED_COST_INCREASE', type: 'FACTOR', basis: ['BASE_COST', 'SCM_MARKUP', 'FREIGHT', 'DUTY', 'TARIFF'], rate: 0.06, when: "item.includeMarkup !== false", provenance: HUMAN_PROVENANCE },
+      { id: 'PICK_CHARGE', type: 'PER_LINE', amount: 21, when: "item.includePick !== false", provenance: HUMAN_PROVENANCE },
     ],
     constraints: [
       { id: 'MOLV', type: 'CONSTRAINT', kind: 'FLOOR', minRef: 'molv', provenance: HUMAN_PROVENANCE },
@@ -279,6 +285,17 @@ function seedSupplierConfigs() {
         US01: { freight: '0.25', duty: '0.15', tariff: '0.2' },
         CN01: { freight: '0.3', duty: '0.2', tariff: '0.28' },
         IN01: { freight: '0.22', duty: '0.12', tariff: '0.15' },
+      },
+    },
+    {
+      // The real supplier of the BI sample part (OR1600810-V9005, Siliconiton S.r.l.), shipping to
+      // the SAP warehouse 1020. Freight + duty are split so together they equal the BI's single
+      // 1 % landed-cost factor (0.6 % + 0.4 %); no tariff inside the EU. Demo terms — replace
+      // with the real ones in the Suppliers config.
+      supplier: 'X_SIL',
+      supplierCountry: 'IT',
+      warehouses: {
+        '1020': { freight: '0.006', duty: '0.004', tariff: '0' },
       },
     },
     {

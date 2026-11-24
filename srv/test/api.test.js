@@ -57,9 +57,9 @@ test('an authenticated pricing request prices against the seeded EUROPE config',
   const [line] = body.items;
   assert.equal(line.status, 'PRICED');
   // Topic 4 (Appendix A): P-10023 is MTS, so freight+duty no longer apply -- just BASE(100) +
-  // SCM_MARKUP(4.7) + PICK_CHARGE(21/10=2.1) = 106.8. (Was 113.8 before topic 4's stock-class
+  // SCM_MARKUP(4.8) x 6% anticipated cost increase + PICK_CHARGE(21/10=2.1) = 113.19. (Was 113.8 before topic 4's stock-class
   // split; that number included freight+duty, which Europe's real MTS formula never applies.)
-  assert.equal(line.result.unitPrice, '106.8');
+  assert.equal(line.result.unitPrice, '113.19');
   assert.equal(line.trace.stockClass, 'MTS'); // P-10023's recorded raw code "MTS" resolves via EUROPE's stockClassMap
   assert.equal(body.config.version, '2026.08.0');
   assert.equal(body.requestedBy, 'alice');
@@ -162,7 +162,7 @@ test('a business user typing a hypothetical MROQ for an OOD=SMA part switches to
   assert.equal(line.status, 'PRICED');
   // qty 60 falls in the "50+" break (12.84), not the default 18.49 — the override wins via
   // engine-core's existing "explicit user selection always wins" precedence.
-  assert.equal(line.result.unitPrice, '13.79');
+  assert.equal(line.result.unitPrice, '14.61');
   assert.equal(line.trace.costCandidate.selectedBy, 'USER');
   assert.equal(line.trace.costCandidate.value, '12.84');
 });
@@ -334,26 +334,26 @@ test('topic 10: the Additional Cost flag (0-4) picks which elements apply, indep
   assert.equal(opt0.result.unitPrice, '100'); // "0 - Nothing to add" -- base cost only
 
   const opt1 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 1 });
-  assert.equal(opt1.result.unitPrice, '148.78'); // "1 - Landed cost & Markup": 100 + 4.7 + 10.47 + 5.235 + 8.376 + 20
+  assert.equal(opt1.result.unitPrice, '157.64'); // "1 - Landed cost & Markup": 100 + 4.7 + 10.47 + 5.235 + 8.376 + 20
 
   const noFlag = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1 });
-  assert.equal(noFlag.result.unitPrice, '148.78'); // never setting the flag prices identically to option 1 for a NonMTS part
+  assert.equal(noFlag.result.unitPrice, '157.64'); // never setting the flag prices identically to option 1 for a NonMTS part
 
   const opt2 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 2 });
-  assert.equal(opt2.result.unitPrice, '104.7'); // "2 - Markup only": 100 + 4.7
+  assert.equal(opt2.result.unitPrice, '111.09'); // "2 - Markup only": 100 + 4.7
 
   const opt3 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 3 });
-  assert.equal(opt3.result.unitPrice, '113.08'); // "3 - No Landed cost and Pick": 100 + 4.7(markup) + 8.376(tariff 8% of 104.7, not named so stays included)
+  assert.equal(opt3.result.unitPrice, '119.98'); // "3 - No Landed cost and Pick": 100 + 4.7(markup) + 8.376(tariff 8% of 104.7, not named so stays included)
 
   const opt4 = await priceRegion('EUROPE', { partNumber: 'P-90700', quantity: 1, additionalCost: 4 });
-  assert.equal(opt4.result.unitPrice, '140.41'); // "4 - Landed cost & Markup, No tariff": 100 + 4.7 + 10.47 + 5.235 + 20
+  assert.equal(opt4.result.unitPrice, '148.75'); // "4 - Landed cost & Markup, No tariff": 100 + 4.7 + 10.47 + 5.235 + 20
 });
 
 test('topic 10: additionalCost never forces freight/duty onto an MTS part -- stock class and the flag both have to allow it', async () => {
   // P-10023 is MTS -- freight/duty are excluded by stock class regardless of the flag.
   const line = await priceRegion('EUROPE', { partNumber: 'P-10023', quantity: 10, additionalCost: 1 });
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.unitPrice, '106.8'); // identical to the no-flag MTS price (topic 4) -- freight/duty still don't apply
+  assert.equal(line.result.unitPrice, '113.19'); // identical to the no-flag MTS price (topic 4) -- freight/duty still don't apply
 });
 
 test('topic 10: an unrecognized additionalCost value is a typed MISSING, not a guess', async () => {
@@ -428,7 +428,7 @@ test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the
     body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 10 }] } }),
   }).then((r) => r.json());
   assert.equal(withoutSupplier.items[0].status, 'PRICED');
-  assert.equal(withoutSupplier.items[0].result.unitPrice, '172.03'); // generic rates: 157.05 + 157.05*(0.06+0.022+0) + 21/10
+  assert.equal(withoutSupplier.items[0].result.unitPrice, '182.4'); // generic rates: 157.05 + 157.05*(0.06+0.022+0) + 21/10
 
   const withAcme = await fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
@@ -436,7 +436,7 @@ test('a supplier override changes freight/duty/tariff/MOLV/MOQ, applied over the
     body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'EU01' }] } }),
   }).then((r) => r.json());
   assert.equal(withAcme.items[0].status, 'PRICED');
-  assert.equal(withAcme.items[0].result.unitPrice, '219.78'); // ACME's EU01-warehouse rates (18%/9.5%/12% on 157.05), quantity above the part's MOQ so no constraint fires
+  assert.equal(withAcme.items[0].result.unitPrice, '233.15'); // ACME's EU01-warehouse rates (18%/9.5%/12% on 157.05), quantity above the part's MOQ so no constraint fires
   assert.equal(withAcme.items[0].trace.constraintPasses.length, 0);
 });
 
@@ -444,13 +444,13 @@ test('freight/duty/tariff are per-warehouse, not supplier-wide -- the same suppl
   // P-70200: base 150, NonMTS (CMT), qty 30 -> basis = base+4.7% = 157.05, pick 21/30 = 0.7;
   // freight/duty/tariff are RATES on that basis.
   const noWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME' });
-  assert.equal(noWarehouse.result.unitPrice, '170.63'); // no warehouse named -- falls back to the generic API6 rates (6%/2.2%/0), same as no supplier at all
+  assert.equal(noWarehouse.result.unitPrice, '181'); // no warehouse named -- falls back to the generic API6 rates (6%/2.2%/0), same as no supplier at all
 
   const euWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(euWarehouse.result.unitPrice, '219.78'); // ACME's EU01 rates (18%/9.5%/12%)
+  assert.equal(euWarehouse.result.unitPrice, '233.15'); // ACME's EU01 rates (18%/9.5%/12%)
 
   const usWarehouse = await priceRegion('EUROPE', { partNumber: 'P-70200', quantity: 30, supplier: 'ACME', warehouse: 'US01' });
-  assert.equal(usWarehouse.result.unitPrice, '251.98'); // same supplier, US01 rates (25%/15%/20%) -- a genuinely different landed cost for the same goods, same supplier
+  assert.equal(usWarehouse.result.unitPrice, '267.31'); // same supplier, US01 rates (25%/15%/20%) -- a genuinely different landed cost for the same goods, same supplier
 });
 
 test('a below-MOQ, below-MOLV order surfaces both constraints without silently failing -- MOLV from the supplier, MOQ from the part\'s own facts', async () => {
@@ -670,12 +670,12 @@ test('a PricingAdmin can save supplier-config, region-route, and party-config di
 // Verification parts: one per region, all with a STATIC 100.00 base cost and round charge
 // values, so every factor the config applies is directly readable in the result. These are
 // the numbers the owner verifies the config against by hand.
-test('EU-T100: 100 + 4.7% markup + 10%/5%/8% freight/duty/tariff on 104.7 + 20/10 pick = 130.78 EUR', async () => {
+test('EU-T100: 100 + 4.8% markup + 10%/5%/8% freight/duty/tariff on 104.8, +6% anticipated cost increase, + 21/10 pick = 138.74 EUR', async () => {
   const line = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
   assert.equal(line.status, 'PRICED');
   assert.equal(line.trace.costCandidate.value, '100.00');
   assert.equal(line.trace.stockClass, 'NonMTS');
-  assert.equal(line.result.unitPrice, '130.78');
+  assert.equal(line.result.unitPrice, '138.74');
 });
 
 test('CN-T100: JDE China route = 100 × 1.032 = 103.2 CNY; SAP route (US supplier country) = 136.22 CNY', async () => {
@@ -727,27 +727,27 @@ test('listSuppliers returns every supplier globally, independent of region', asy
 test('same part shipped to the same warehouse via three different suppliers — three different landed costs, driven by the supplier\'s per-warehouse terms, not the region', async () => {
   // EU-T100 qty 10, NonMTS: 100 + 4.7 markup + supplier freight + duty + tariff + 2 pick.
   const acme = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(acme.result.unitPrice, '148.06'); // 104.7 * (0.18+0.095+0.12) = 41.36
+  assert.equal(acme.result.unitPrice, '157.07'); // 104.7 * (0.18+0.095+0.12) = 41.36
 
   const globex = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'GLOBEX', warehouse: 'EU01' });
-  assert.equal(globex.result.unitPrice, '124.5'); // 104.7 * (0.08+0.04+0.05) = 17.8
+  assert.equal(globex.result.unitPrice, '132.07'); // 104.7 * (0.08+0.04+0.05) = 17.8
 
   const initech = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'INITECH', warehouse: 'EU01' });
-  assert.equal(initech.result.unitPrice, '146.49'); // 104.7 * (0.12+0.06+0.2) = 39.79
+  assert.equal(initech.result.unitPrice, '155.4'); // 104.7 * (0.12+0.06+0.2) = 39.79
 
   const none = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10 });
-  assert.equal(none.result.unitPrice, '130.78'); // no supplier -> the part's own generic rates (10%/5%/8%)
+  assert.equal(none.result.unitPrice, '138.74'); // no supplier -> the part's own generic rates (10%/5%/8%)
 });
 
 test('the same supplier (ACME) prices the same part differently depending on the destination warehouse', async () => {
   const toEurope = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'EU01' });
-  assert.equal(toEurope.result.unitPrice, '148.06'); // ACME's EU01 rates (18%/9.5%/12%)
+  assert.equal(toEurope.result.unitPrice, '157.07'); // ACME's EU01 rates (18%/9.5%/12%)
 
   const toAmericas = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', warehouse: 'US01' });
-  assert.equal(toAmericas.result.unitPrice, '169.52'); // same ACME, US01 rates (25%/15%/20%) -- ships the same goods, different landed cost
+  assert.equal(toAmericas.result.unitPrice, '179.84'); // same ACME, US01 rates (25%/15%/20%) -- ships the same goods, different landed cost
 
   const noWarehouse = await priceRegion('EUROPE', { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME' });
-  assert.equal(noWarehouse.result.unitPrice, '130.78'); // ACME named but no warehouse -- falls back to the part's own generic rates
+  assert.equal(noWarehouse.result.unitPrice, '138.74'); // ACME named but no warehouse -- falls back to the part's own generic rates
 });
 
 test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by a PricingAdmin', async () => {
@@ -784,7 +784,7 @@ test('PRICE_LIST sources the cost from the supplier price list; the normal build
   // Price-list cost 90.00 (ACME list, minQty-1 tier) replaces the ERP/CCD 100.00, then the
   // normal NonMTS build-up applies: 90 + 4.7% = 94.23, + freight 10% + duty 5% + tariff 8%
   // of 94.23 (= 9.423 + 4.7115 + 7.5384), + pick 20/10 = 2 -> 117.9029 -> 117.9.
-  assert.equal(line.result.unitPrice, '117.9');
+  assert.equal(line.result.unitPrice, '125.07');
   assert.equal(line.trace.costCandidate.source.system, 'PRICE_LIST');
   assert.equal(line.trace.costCandidate.source.field, 'SUPPLIER:ACME'); // which key matched -- never silent
   assert.equal(line.trace.costCandidate.selectedBy, 'USER'); // explicit per-line selection, same precedence as always
@@ -802,7 +802,7 @@ test('PRICE_LIST falls back from supplier to product category for the lookup key
   assert.equal(line.status, 'PRICED');
   // Category list cost 80.00; P-10023 is MTS so no freight/duty/tariff:
   // 80 + 4.7% (3.76) + pick 21/1 (21) = 104.76.
-  assert.equal(line.result.unitPrice, '104.76');
+  assert.equal(line.result.unitPrice, '109.87');
   assert.equal(line.trace.costCandidate.source.field, 'CATEGORY:SEALS');
 });
 
@@ -837,7 +837,7 @@ test('an unsupported pricing type is a typed MISSING; unset defaults to COST_PLU
   assert.equal(variant.missing.reason, 'PRICING_TYPE_UNSUPPORTED');
   assert.match(variant.missing.detail, /VARIANT/);
   assert.equal(plain.status, 'PRICED');
-  assert.equal(plain.result.unitPrice, '106.8'); // byte-identical to the pre-pricing-type behavior
+  assert.equal(plain.result.unitPrice, '113.19'); // byte-identical to the pre-pricing-type behavior
 });
 
 test('an OPPORTUNITY is cost only: the result carries landedCost and never a price or margin', async () => {
@@ -852,7 +852,7 @@ test('an OPPORTUNITY is cost only: the result carries landedCost and never a pri
   assert.equal(body.costOnly, true);
   const [line] = body.items;
   assert.equal(line.status, 'PRICED');
-  assert.equal(line.result.landedCost, '130.78');
+  assert.equal(line.result.landedCost, '138.74');
   assert.equal(line.result.unitPrice, undefined);
   assert.equal(line.result.price, undefined);
   assert.equal(line.result.margin, undefined);
@@ -918,7 +918,7 @@ test('a PricingAdmin has everything the viewer has: bob can price', async () => 
   });
   assert.equal(res.status, 200);
   const [line] = (await res.json()).items;
-  assert.equal(line.result.unitPrice, '106.8');
+  assert.equal(line.result.unitPrice, '113.19');
 });
 
 // --- Phase 3 backend hooks: /me for UI routing, read-only price-list lookup for the Admin tab ---
@@ -993,15 +993,16 @@ test('getCustomerPriceList accepts the raw ABSL payload and answers the calculat
   const [l10, l20, l30] = body.calculatedPriceList;
 
   assert.equal(l10.lineId, '10');
-  assert.equal(l10.costPlusUnitAmt, '148.06');
+  assert.equal(l10.costPlusUnitAmt, '157.07');
   assert.equal(l10.costFechedFrom, 'CCD');
   assert.equal(l10.messageCode, 'M1'); // the ABSL's own "cost from CCD" convention
-  assert.match(l10.explainCostDesc, /SCM_MARKUP \+4\.70/);
+  assert.match(l10.explainCostDesc, /SCM_MARKUP \+4\.80/);
+  assert.match(l10.explainCostDesc, /ANTICIPATED_COST_INCREASE \+8\.77/); // 6 % of 146.196 (cost + markup + freight + duty + tariff)
   assert.match(l10.explainCostDesc, /config 2026\.08\.0/);
 
-  assert.equal(l20.costPlusUnitAmt, '106.8');
+  assert.equal(l20.costPlusUnitAmt, '113.19');
   assert.equal(l20.c4cPriceMultipliedAmt, '155.00'); // never destroys an existing C4C price
-  assert.equal(l20.gpamt, '0.311');
+  assert.equal(l20.gpamt, '0.2697');
 
   assert.equal(l30.costPlusUnitAmt, '0');
   assert.match(l30.explainCostDesc, /NO_CANDIDATES/);
@@ -1198,7 +1199,7 @@ test('a cost the host already holds (hostCost, the BI contract\'s "Cost Handed O
   // Flag 1: additions apply to the C4C cost: 80 + 4.7 % markup, then freight 10 % / duty 5 % / tariff 8 % of (80+3.76), + pick 20/10 = 105.02
   const one = await price('1');
   assert.equal(one.status, 'PRICED');
-  assert.equal(one.result.unitPrice, '105.02');
+  assert.equal(one.result.unitPrice, '111.41');
   assert.equal(one.trace.costCandidate.source.system, 'C4C'); // beat the recorded CCD cost (100) — explicit selection wins
   assert.equal(one.trace.costCandidate.selectedBy, 'USER');
   assert.equal(one.trace.costCandidate.basis, 'MANUAL');
@@ -1223,5 +1224,23 @@ test('price/cost unit: priceUnit 100 returns the amount per 100 pieces (rounded 
   const per100 = await run({ priceUnit: 100 });
   assert.equal(per100.status, 'PRICED');
   assert.equal(per100.result.priceUnit, '100');
-  assert.equal(per100.result.unitPrice, String(Number(perPiece.result.unitPrice) * 100)); // 106.8 -> 10680 (no precision lost here)
+  // per piece 113.188 -> rounded 113.19; per 100 it is 11318.8 (scaled BEFORE rounding, so 0.012 per piece is not lost)
+  assert.equal(per100.result.unitPrice, '11318.8');
+});
+
+// The owner's real BI/C4C line: "[AddCost 1] .0219 EUR (Unit Cost) x 1 (Qty) x 1.048 (SCM Markup) x 1.01
+// (Landed Cost Factor) + 6% (Anticipated Cost Increase) + 21 EUR (Pick Charge); cost taken from Central
+// Cost Database" -- C4C shows 2,102.46 EUR per 100 PC for it. Hand: (0.0219 + 0.0219*0.048 = 0.0229512)
+// x 1.01 (supplier X_SIL -> warehouse 1020: freight 0.6 % + duty 0.4 %, tariff 0) = 0.02318 -> x 1.06
+// = 0.0245709 -> + 21 pick / qty 1 = 21.0245709 per piece -> x 100 = 2102.457 -> 2102.46.
+test('the real BI sample line (0.0219 EUR, qty 1, price unit 100) reproduces C4C\'s 2,102.46 EUR', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', items: [{ partNumber: 'BI-SAMPLE-0219', quantity: 1, priceUnit: 100, stockClass: 'NonMTS', supplier: 'X_SIL', warehouse: '1020' }] } }),
+  });
+  const l = (await res.json()).items[0];
+  assert.equal(l.status, 'PRICED');
+  assert.equal(l.result.unitPrice, '2102.46');
+  assert.equal(l.result.priceUnit, '100');
 });

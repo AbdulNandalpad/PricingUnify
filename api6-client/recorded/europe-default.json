@@ -236,6 +236,25 @@
           "confidence": "EXACT"
         }
       ]
+    },
+    "BI-SAMPLE-0219": {
+      "default": "PIR_1",
+      "candidates": [
+        {
+          "value": "0.0219",
+          "currency": "EUR",
+          "basis": "SUPPLIER_CATALOG",
+          "source": {
+            "system": "CCD",
+            "table": "EINE",
+            "field": "NETPR",
+            "key": "PIR_1"
+          },
+          "validFrom": "2026-08-01",
+          "retrievedAt": "2026-08-20T00:00:00Z",
+          "confidence": "EXACT"
+        }
+      ]
     }
   },
   "elements": {
@@ -426,15 +445,33 @@
     "bySupplier": {
       "ACME": {
         "EU-T100": [
-          { "minQty": 1, "value": "90.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null },
-          { "minQty": 50, "value": "85.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null }
+          {
+            "minQty": 1,
+            "value": "90.00",
+            "currency": "EUR",
+            "validFrom": "2026-01-01",
+            "validTo": null
+          },
+          {
+            "minQty": 50,
+            "value": "85.00",
+            "currency": "EUR",
+            "validFrom": "2026-01-01",
+            "validTo": null
+          }
         ]
       }
     },
     "byCategory": {
       "SEALS": {
         "P-10023": [
-          { "minQty": 1, "value": "80.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null }
+          {
+            "minQty": 1,
+            "value": "80.00",
+            "currency": "EUR",
+            "validFrom": "2026-01-01",
+            "validTo": null
+          }
         ]
       }
     }
