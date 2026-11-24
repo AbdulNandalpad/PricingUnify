@@ -42,6 +42,8 @@ function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses }
   const rows = (warehouses || []).filter((w) => w.partNumber === part && stripZeros(w.ood) === ood);
   const preferred = rows.find((w) => w.preferred);
   const wh = preferred || rows.find((w) => w.stockClassRaw && (!knownStockClasses || knownStockClasses.has(w.stockClassRaw))) || null;
+  const prefRow = rows.find((w) => w.preferred);
+  if (prefRow) out.preferredWarehouse = prefRow.warehouseId;
   if (!wh) {
     out.warehouseNote = rows.length === 0 ? 'NO_WAREHOUSE_IN_C4C' : 'NO_USABLE_STOCK_CLASS';
   } else {
@@ -84,6 +86,30 @@ function stockClassFromPicked(picked, map, { rules, ood } = {}) {
 }
 
 /**
+ * The warehouse a line gets (owner rule): the part's PREFERRED warehouse from its Origin-of-Data
+ * record, otherwise the region's configured default (Europe: 1020). Pure. No preferred warehouse
+ * and no default = nothing (never invented).
+ */
+function warehouseFromPicked(picked, defaultWarehouse) {
+  if (picked && picked.preferredWarehouse) return { warehouse: picked.preferredWarehouse, warehouseBy: 'PREFERRED' };
+  if (defaultWarehouse) return { warehouse: String(defaultWarehouse), warehouseBy: 'DEFAULT' };
+  return {};
+}
+
+/** The default warehouse of the region that OWNS the line's Origin of Data (SAP -> EUROPE),
+ *  falling back to the pricing region's own — same lookup as the stock-class rules. */
+function defaultWarehouseForOod({ store, ood, pricingDefault, date }) {
+  try {
+    const key = stripZeros(ood);
+    const route = key ? store.getEffectiveRegionRoute(key, '*', date) : null;
+    const owner = route ? store.getEffectiveAsOf(route.region, '*', date) : null;
+    return (owner && owner.defaultWarehouse) || pricingDefault || null;
+  } catch (e) {
+    return pricingDefault || null;
+  }
+}
+
+/**
  * The stock-class rules that apply to a line: those of the region that OWNS the line's Origin
  * of Data (via region-route, e.g. SAP -> EUROPE), so a China / Americas / India quote buying a
  * SAP-sourced part gets the Europe answer; falling back to the pricing region's own rules.
@@ -99,4 +125,4 @@ function stockClassRulesForOod({ store, ood, pricingRules, date }) {
   }
 }
 
-module.exports = { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod };
+module.exports = { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod, warehouseFromPicked, defaultWarehouseForOod };

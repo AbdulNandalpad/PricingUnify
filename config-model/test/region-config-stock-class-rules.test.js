@@ -22,3 +22,8 @@ test('listOodsForRegion returns the Origins of Data routed to a region (used to 
   assert.deepEqual(store.listOodsForRegion('EUROPE', '2026-11-24').sort(), ['SAP', 'SME']); // ambiguous -> srv leaves the origin blank
   assert.deepEqual(store.listOodsForRegion('INDIA', '2026-11-24'), []);
 });
+
+test('defaultWarehouse is an optional non-empty string on region-config', () => {
+  assert.equal(validateRegionConfig(europeConfig({ defaultWarehouse: '1020' })), true);
+  assert.throws(() => validateRegionConfig(europeConfig({ defaultWarehouse: '' })));
+});

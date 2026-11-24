@@ -42,6 +42,8 @@ function seedRegionConfig() {
     stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
     // Owner's golden rule (2026-11-24): origin SAP + strategy Z4 = MTS, SAP + anything else = NonMTS. Applies to SAP-sourced parts in every region; other origins are untouched.
     stockClassRules: { rules: [{ ood: 'SAP', strategyCode: 'Z4', stockClass: 'MTS' }], default: 'NonMTS' },
+    // Owner rule (2026-11-24): a line's warehouse = the part's preferred warehouse, otherwise 1020.
+    defaultWarehouse: '1020',
     // Topic 10: the host UI's line-level "Additional Cost" selector (0-4) picks which of
     // these elements apply for that one line, independent of stock class — e.g. "2 - Markup
     // only" means markup fires but freight/duty/tariff/pick don't, even for an otherwise

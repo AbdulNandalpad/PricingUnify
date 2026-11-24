@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { pickOriginOfData, stockClassFromPicked } = require('../lib/origin-of-data');
+const { pickOriginOfData, stockClassFromPicked, warehouseFromPicked } = require('../lib/origin-of-data');
 
 const sup = (o) => ({ partNumber: 'P1', ood: 'SMA', parentOod: 'SMA', supplierId: 'X_TUI', externalId: '113955', name: 'Tuico Products SJC', isDefault: false, ...o });
 const wh = (o) => ({ partNumber: 'P1', ood: 'SMA', warehouseId: 'LG01', stockClassRaw: 'OMT', leadTime: '14', country: 'US', preferred: false, ...o });
@@ -82,4 +82,19 @@ test('region stockClassRules (owner rule): origin SAP + strategy Z4 = MTS, SAP +
   assert.equal(sc({ stockClassWarehouse: '1', stockClassRaw: 'MTS' }, 'IN').stockClass, 'MTS'); // no strategy group -> raw class via the region map
   assert.equal(sc(picked('Z4'), '000SAP').stockClass, 'MTS'); // leading zeros stripped like C4C
   assert.deepEqual(sc({ strategyGroupCode: 'Z4' }), {}); // no warehouse record -> nothing to classify, never the default
+});
+
+test('warehouse (owner rule): the part\'s PREFERRED warehouse, otherwise the configured default — never invented', () => {
+  const two = { suppliers: [], warehouses: [wh({ warehouseId: '1020' }), wh({ warehouseId: '1030', preferred: true })] };
+  assert.equal(pickOriginOfData(two, { partNumber: 'P1', ood: 'SAP' }).preferredWarehouse, undefined); // rows are SMA in this fixture
+  const sap = { suppliers: [], warehouses: [wh({ ood: 'SAP', warehouseId: '1020' }), wh({ ood: 'SAP', warehouseId: '1030', preferred: true })] };
+  const picked = pickOriginOfData(sap, { partNumber: 'P1', ood: 'SAP' });
+  assert.equal(picked.preferredWarehouse, '1030');
+  assert.deepEqual(warehouseFromPicked(picked, '1020'), { warehouse: '1030', warehouseBy: 'PREFERRED' });
+
+  // the real part: warehouses 1020 and 1030, NONE preferred -> the default 1020
+  const none = { suppliers: [], warehouses: [wh({ ood: 'SAP', warehouseId: '1020' }), wh({ ood: 'SAP', warehouseId: '1030' })] };
+  assert.deepEqual(warehouseFromPicked(pickOriginOfData(none, { partNumber: 'P1', ood: 'SAP' }), '1020'), { warehouse: '1020', warehouseBy: 'DEFAULT' });
+  // no preferred and no default configured -> nothing, not a guess
+  assert.deepEqual(warehouseFromPicked({}, null), {});
 });

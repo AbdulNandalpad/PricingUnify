@@ -259,7 +259,7 @@ sap.ui.define([
       var rowIdx = [];
       rows.forEach(function (r, i) {
         if (!(r.partNumber || "").trim()) { return; }
-        if ((r.supplier || "").trim() && (r.supplierExternalId || "").trim() && r.stockClassSel) { return; }
+        if ((r.supplier || "").trim() && (r.supplierExternalId || "").trim() && r.stockClassSel && (r.warehouse || "").trim()) { return; }
         lines.push({ partNumber: r.partNumber.trim(), ood: (r.ood || "").trim(), warehouse: (r.warehouse || "").trim() });
         rowIdx.push(i);
       });
@@ -282,6 +282,7 @@ sap.ui.define([
             if (!r) { return; }
             // A line that had no Origin of Data gets its region's own (shown in the column).
             if (o.ood && !(r.ood || "").trim()) { r.ood = o.ood; }
+            if (o.warehouse && !(r.warehouse || "").trim()) { r.warehouse = o.warehouse; }
             if (o.supplier) {
               if (!(r.supplier || "").trim()) { r.supplier = o.supplier.id || ""; }
               if (!(r.supplierExternalId || "").trim()) { r.supplierExternalId = o.supplier.externalId || ""; }

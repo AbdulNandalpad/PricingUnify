@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { store } = require('../lib/store');
 const { seed } = require('../lib/seed');
-const { stockClassRulesForOod, stockClassFromPicked } = require('../lib/origin-of-data');
+const { stockClassRulesForOod, stockClassFromPicked, defaultWarehouseForOod } = require('../lib/origin-of-data');
 
 seed();
 const TODAY = '2026-11-24';
@@ -38,4 +38,13 @@ test('Europe pricing a part from ANOTHER origin (China, India, SMA) is not touch
     assert.equal(r.stockClass, undefined, `${ood}: no class from the SAP rule`);
     assert.match(r.note, /^STRATEGY_GROUP_RULE_PENDING:Z8/, `${ood}: typed pending note instead`);
   }
+});
+
+test('the default warehouse (1020) belongs to the part\'s Origin of Data too: a SAP-sourced part gets it in every pricing region; other origins have none configured', () => {
+  assert.equal(store.getEffectiveAsOf('EUROPE', '*', TODAY).defaultWarehouse, '1020');
+  for (const pricingRegion of ['CHINA', 'AMERICAS', 'INDIA', 'EUROPE']) {
+    const pricingDefault = store.getEffectiveAsOf(pricingRegion, '*', TODAY).defaultWarehouse || null;
+    assert.equal(defaultWarehouseForOod({ store, ood: 'SAP', pricingDefault, date: TODAY }), '1020', pricingRegion);
+  }
+  assert.equal(defaultWarehouseForOod({ store, ood: 'CN', pricingDefault: null, date: TODAY }), null); // CHINA has none -> stays blank
 });
