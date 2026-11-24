@@ -10,4 +10,14 @@ const { seed } = require('./lib/seed');
 
 seed();
 
+// Serve the SAPUI5 app (app-c4c/webapp) same-origin at /app-c4c in local dev, so the UI can
+// call /rest/* with no CORS and CAP's mocked basic auth just works in the browser. In CF the
+// approuter owns routing/auth and serves the html5 module instead (Phase 4) — this mount is
+// a dev convenience, not the deployment path.
+const cds = require('@sap/cds');
+cds.on('bootstrap', (app) => {
+  const express = require('express');
+  app.use('/app-c4c', express.static(path.join(__dirname, '..', 'app-c4c', 'webapp')));
+});
+
 require('@sap/cds/server')();

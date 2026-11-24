@@ -40,6 +40,12 @@ service ConfigService {
   @requires: 'PricingAdmin'
   function listPartyConfigVersions(customerId: String) returns Map;
 
+  // Read-only browser over what the WSO2 price-list endpoint serves (owner decision
+  // 2026-11-24: price lists are maintained at the source, not in our config store — this
+  // tab looks, it never writes).
+  @requires: 'PricingAdmin'
+  function lookupPriceList(region: String, supplier: String, productCategory: String, partNumber: String, quantity: Double, asOf: String) returns Map;
+
   @requires: 'PricingAdmin'
   action saveRegionConfig(payload: Map) returns Map;
 

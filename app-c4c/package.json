@@ -1,0 +1,6 @@
+{
+  "name": "@tss-pricing/app-c4c",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SAPUI5 freestyle pricing app for C4C embedding (and standalone). No build step: plain webapp/ served same-origin by srv in dev (http://localhost:4004/app-c4c/) and by the approuter in CF. BAS-compatible via ui5.yaml (`ui5 serve` works too)."
+}

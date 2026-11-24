@@ -1,0 +1,62 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+  <Dialog title="{i18n>traceTitle} — {trace>/partNumber}" contentWidth="46rem" draggable="true" resizable="true">
+    <content>
+      <VBox class="sapUiSmallMargin">
+
+        <MessageStrip text="{trace>/missing}" type="Error" showIcon="true" visible="{= !!${trace>/missing} }" class="sapUiTinyMarginBottom"/>
+
+        <Panel headerText="{i18n>traceCost}" expandable="false" visible="{= !!${trace>/candidate} }" class="sapUiTinyMarginBottom">
+          <ObjectStatus text="{trace>/candidate/value} {trace>/candidate/currency}" state="Information" class="sapUiTinyMarginEnd"/>
+          <Text text="{i18n>traceCostFrom}: {trace>/candidate/system} ({trace>/candidate/basis})"/>
+          <Text text="{i18n>traceSelectedBy}: {trace>/candidate/selectedBy}" visible="{= !!${trace>/candidate/selectedBy} }"/>
+          <Text text="{i18n>traceMatchedKey}: {trace>/candidate/field}" visible="{= !!${trace>/candidate/field} }"/>
+          <Text text="{i18n>stockClass}: {trace>/stockClass}" visible="{= !!${trace>/stockClass} }"/>
+        </Panel>
+
+        <Panel headerText="{i18n>traceRouting}" expandable="true" expanded="false" visible="{= ${trace>/routingCalls}.length > 0 }" class="sapUiTinyMarginBottom">
+          <List items="{trace>/routingCalls}">
+            <StandardListItem title="{trace>system} — {trace>endpoint}"
+              info="{= ${trace>found} > 0 ? 'cost found' : 'no cost' }"
+              infoState="{= ${trace>found} > 0 ? 'Success' : 'None' }"/>
+          </List>
+        </Panel>
+
+        <Panel headerText="{i18n>traceSteps}" expandable="false" visible="{= ${trace>/steps}.length > 0 }" class="sapUiTinyMarginBottom">
+          <Table items="{trace>/steps}" inset="false">
+            <columns>
+              <Column><Text text="{i18n>traceStep}"/></Column>
+              <Column><Text text="{i18n>traceType}"/></Column>
+              <Column hAlign="End"><Text text="{i18n>traceDelta}"/></Column>
+              <Column hAlign="End"><Text text="{i18n>traceRunning}"/></Column>
+              <Column><Text text=""/></Column>
+            </columns>
+            <items>
+              <ColumnListItem>
+                <cells>
+                  <Text text="{trace>id}"/>
+                  <Text text="{trace>type}"/>
+                  <Text text="{path: 'trace>delta', formatter: '.formatter.fmt2'}"/>
+                  <Text text="{path: 'trace>running', formatter: '.formatter.fmt2'}"/>
+                  <Text text="{trace>note}" class="traceNote"/>
+                </cells>
+              </ColumnListItem>
+            </items>
+          </Table>
+        </Panel>
+
+        <Panel headerText="{i18n>traceConstraints}" expandable="true" expanded="true" visible="{= ${trace>/constraints}.length > 0 }">
+          <List items="{trace>/constraints}">
+            <StandardListItem title="{trace>id}" description="{trace>from} → {trace>to}"/>
+          </List>
+        </Panel>
+
+        <Text text="{i18n>traceConfigVersion}: {trace>/configVersion}" class="sapUiTinyMarginTop"/>
+      </VBox>
+    </content>
+    <endButton>
+      <Button text="{i18n>close}" press=".onCloseTrace"/>
+    </endButton>
+  </Dialog>
+</core:FragmentDefinition>

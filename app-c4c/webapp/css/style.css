@@ -1,0 +1,5 @@
+/* Light touches only — theming is UI5's job (sap_horizon by default, host-controlled). */
+.traceNote {
+  color: var(--sapNeutralTextColor, #6a6d70);
+  font-style: italic;
+}

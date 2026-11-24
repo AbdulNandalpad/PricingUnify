@@ -17,4 +17,11 @@ service PricingService {
 
   @requires: 'PricingViewer'
   action fetchItemAttributes(payload: Map) returns Map;
+
+  // Who am I + which of the two roles do I hold — the UI routes to the Viewer or Admin view
+  // from this (app-c4c/'s Component.js). Deliberately open to any authenticated user: a user
+  // with neither role still needs the answer to be told they have no access (the service-level
+  // 403s above stay the actual enforcement — this endpoint only describes, it never grants).
+  @requires: 'authenticated-user'
+  function me() returns Map;
 }

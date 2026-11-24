@@ -1,0 +1,50 @@
+{
+  "_version": "1.59.0",
+  "sap.app": {
+    "id": "com.tss.pricing.c4c",
+    "type": "application",
+    "title": "TSS Pricing",
+    "description": "TSS Pricing Engine — C4C mashup UI (Viewer + Admin)",
+    "applicationVersion": { "version": "1.0.0" },
+    "i18n": "i18n/i18n.properties"
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": false }
+  },
+  "sap.ui5": {
+    "rootView": { "viewName": "com.tss.pricing.c4c.view.App", "type": "XML", "id": "app", "async": true },
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": { "sap.m": {}, "sap.ui.core": {}, "sap.ui.table": {}, "sap.ui.layout": {} }
+    },
+    "contentDensities": { "compact": true, "cozy": false },
+    "handleValidation": false,
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": { "bundleName": "com.tss.pricing.c4c.i18n.i18n" }
+      }
+    },
+    "resources": { "css": [{ "uri": "css/style.css" }] },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "type": "View",
+        "viewType": "XML",
+        "path": "com.tss.pricing.c4c.view",
+        "controlId": "app",
+        "controlAggregation": "pages",
+        "async": true
+      },
+      "routes": [
+        { "name": "pricing", "pattern": "", "target": "pricing" },
+        { "name": "admin", "pattern": "admin", "target": "admin" }
+      ],
+      "targets": {
+        "pricing": { "viewId": "pricing", "viewName": "Pricing" },
+        "admin": { "viewId": "admin", "viewName": "Admin" }
+      }
+    }
+  }
+}

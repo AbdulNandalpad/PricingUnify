@@ -920,3 +920,29 @@ test('a PricingAdmin has everything the viewer has: bob can price', async () => 
   const [line] = (await res.json()).items;
   assert.equal(line.result.unitPrice, '106.8');
 });
+
+// --- Phase 3 backend hooks: /me for UI routing, read-only price-list lookup for the Admin tab ---
+
+test('me returns the caller identity and both role flags, for any authenticated user', async () => {
+  const me = (user) => fetch(`${BASE}/rest/pricing/me`, { headers: { Authorization: basicAuthHeader(user) } }).then((r) => r.json());
+  assert.deepEqual((await me('alice')).roles, { PricingViewer: true, PricingAdmin: false });
+  assert.deepEqual((await me('bob')).roles, { PricingViewer: true, PricingAdmin: true });
+  assert.deepEqual((await me('carol')).roles, { PricingViewer: false, PricingAdmin: false });
+  const unauthenticated = await fetch(`${BASE}/rest/pricing/me`);
+  assert.equal(unauthenticated.status, 401);
+});
+
+test('lookupPriceList is a read-only browser over the WSO2 price-list lookup, PricingAdmin only', async () => {
+  const hit = await fetch(`${BASE}/rest/config/lookupPriceList?region=EUROPE&supplier=ACME&partNumber=EU-T100&quantity=60`, {
+    headers: { Authorization: basicAuthHeader('bob') },
+  });
+  assert.equal(hit.status, 200);
+  const body = await hit.json();
+  assert.equal(body.matchedBy, 'SUPPLIER:ACME');
+  assert.equal(body.entry.value, '85.00'); // qty 60 -> the minQty-50 tier
+
+  const asViewer = await fetch(`${BASE}/rest/config/lookupPriceList?region=EUROPE&supplier=ACME&partNumber=EU-T100&quantity=60`, {
+    headers: { Authorization: basicAuthHeader('alice') },
+  });
+  assert.equal(asViewer.status, 403);
+});

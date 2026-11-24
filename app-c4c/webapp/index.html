@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSS Pricing</title>
+  <script>
+    // Theme is host-controlled via URL (?sap-theme=... as C4C/FLP pass it, or ?sap-ui-theme=...),
+    // default sap_horizon. Sanitized to theme-name characters before it reaches the bootstrap tag.
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var theme = (params.get("sap-theme") || params.get("sap-ui-theme") || "sap_horizon").replace(/[^\w-]/g, "");
+      document.write('<script src="https://ui5.sap.com/1.120.30/resources/sap-ui-core.js"' +
+        ' id="sap-ui-bootstrap"' +
+        ' data-sap-ui-theme="' + theme + '"' +
+        ' data-sap-ui-libs="sap.m,sap.ui.table,sap.ui.layout"' +
+        ' data-sap-ui-compatVersion="edge"' +
+        ' data-sap-ui-async="true"' +
+        ' data-sap-ui-resourceroots=\'{"com.tss.pricing.c4c": "./"}\'' +
+        ' data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"><\/script>');
+    })();
+  </script>
+</head>
+<!-- Compact density: this app is desktop/mouse-first inside a C4C iframe. No shell header. -->
+<body class="sapUiBody sapUiSizeCompact" id="content">
+  <div data-sap-ui-component data-name="com.tss.pricing.c4c" data-id="container" data-settings='{"id":"tssPricing"}'></div>
+</body>
+</html>

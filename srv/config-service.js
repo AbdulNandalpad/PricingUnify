@@ -1,5 +1,6 @@
 const { suggestConfigChange, applySuggestion, rejectSuggestion, ConfigValidationError } = require('@tss-pricing/config-model');
 const { store } = require('./lib/store');
+const { api6 } = require('./lib/api6');
 const { getAiClientOrNull } = require('./lib/ai');
 
 function todayIso() {
@@ -113,6 +114,21 @@ module.exports = (srv) => {
     const { customerId } = req.data;
     if (!customerId) return req.reject(400, 'customerId is required.');
     return { versions: store.listPartyConfigVersions(customerId) };
+  });
+
+  srv.on('lookupPriceList', async (req) => {
+    const { region, supplier, productCategory, partNumber, quantity, asOf } = req.data;
+    if (!region || !partNumber) return req.reject(400, 'region and partNumber are required.');
+    if (!supplier && !productCategory) return req.reject(400, 'Provide a supplier or a productCategory to look up.');
+    const result = await api6.fetchPriceListCost({
+      region,
+      partNumber,
+      supplier: supplier || undefined,
+      productCategory: productCategory || undefined,
+      quantity: quantity || '1',
+      priceDate: asOf || todayIso(),
+    });
+    return result;
   });
 
   srv.on('saveRegionConfig', (req) => {

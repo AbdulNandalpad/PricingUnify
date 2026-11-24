@@ -535,6 +535,14 @@ module.exports = (srv) => {
     };
   });
 
+  srv.on('me', (req) => ({
+    id: req.user.id,
+    roles: {
+      PricingViewer: req.user.is('PricingViewer'),
+      PricingAdmin: req.user.is('PricingAdmin'),
+    },
+  }));
+
   /**
    * Real-world flow: a user adds the items to price, the host system calls C4C to resolve
    * each item's attributes (supplier, stock class, supplier country, warehouse), shows them
