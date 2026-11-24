@@ -1,3 +1,4 @@
+const { DEFAULT_REQUEST_MAPPING } = require('@tss-pricing/api6-client');
 const { suggestConfigChange, applySuggestion, rejectSuggestion, ConfigValidationError } = require('@tss-pricing/config-model');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
@@ -133,6 +134,7 @@ module.exports = (srv) => {
         priceListEndpoint: api6.priceListEndpoint,
         biPriceListEndpoint: api6.biPriceListEndpoint,
         requestMapping: (conn && conn.api6 && conn.api6.requestMapping) || null, // kept as saved; edited as data, not in this form
+        itemTypeDesc: ((conn && conn.api6 && conn.api6.requestMapping && conn.api6.requestMapping.defaultItemTypeDesc !== undefined) ? conn.api6.requestMapping.defaultItemTypeDesc : DEFAULT_REQUEST_MAPPING.defaultItemTypeDesc), // the item type sent to the BI when a line has none
         maintainedVia: 'Editable here (saved as a versioned connection-config). Environment defaults: API6_MODE, API6_BASE_URL (default: the TSS APIM QUA gateway). Credentials (Basic auth) are environment-owned ONLY: API6_USERNAME and API6_PASSWORD — never saved here. The cost source ORDER stays pricing config (Cost Rules tab).',
       },
       c4c: {

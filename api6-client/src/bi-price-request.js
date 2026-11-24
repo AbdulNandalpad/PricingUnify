@@ -26,12 +26,14 @@ const DEFAULT_REQUEST_MAPPING = Object.freeze({
   stockClassOverrides: [
     { customerCountry: 'US', warehouseCode: '1020', supplierMainGroupCode: 'L_LCE', stockClassGroupCode: 'MTS' },
   ],
-  // The neutral request does not carry C4C's item type. The BI's itemTypeDesc is the item's
-  // PROCESSING TYPE CODE (retrivePriceBI sends it.ProcessingTypeCode; the real samples carry
-  // "AGN" — the C4C screen shows it as "AGN - Product"). Without ANY item type the CPI rule
-  // below blanks the supplier code + country, which starves the cost lookup — so it is defaulted
-  // here, visibly, and editable as data.
-  defaultItemTypeDesc: 'AGN',
+  // The neutral request does not carry C4C's item type. Without ANY item type the CPI rule below
+  // blanks the supplier code + country, which starves the cost lookup — so it is defaulted here,
+  // visibly, and editable (Connections tab). The real C4C samples carry the processing type CODE
+  // "AGN" (retrivePriceBI sends it.ProcessingTypeCode) — but with the sparse request we can build
+  // for a hand-added line, "AGN" made the gateway answer "Cost was neither handed over nor found
+  // in price list", while "AGN - Product" (the C4C screen's label) returned the CCD cost. So the
+  // default is the value that was seen to work; change it on the Connections tab to test others.
+  defaultItemTypeDesc: 'AGN - Product',
   clearSupplierWithoutItemTypeOrOpportunity: true,
   zeroCostPlusFlagForOpportunity: true,
   stripLeadingZerosFrom: ['supplierExternalID'],

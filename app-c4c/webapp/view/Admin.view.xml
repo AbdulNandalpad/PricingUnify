@@ -329,6 +329,10 @@
                     <Input value="{vm>/connections/api6/priceListEndpoint}" width="18rem"/>
                   </HBox>
                   <HBox alignItems="Center" class="sapUiTinyMarginTop">
+                    <Label text="{i18n>connItemType}" class="sapUiTinyMarginEnd" tooltip="{i18n>connItemTypeTip}"/>
+                    <Input value="{vm>/connections/api6/itemTypeDesc}" width="14rem" placeholder="AGN - Product" tooltip="{i18n>connItemTypeTip}"/>
+                  </HBox>
+                  <HBox alignItems="Center" class="sapUiTinyMarginTop">
                     <Label text="{i18n>connBiPriceEndpoint}" class="sapUiTinyMarginEnd"/>
                     <Input value="{vm>/connections/api6/biPriceListEndpoint}" width="24rem" placeholder="/core/price/rest/v1/getPriceList"/>
                   </HBox>

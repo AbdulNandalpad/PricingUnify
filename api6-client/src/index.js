@@ -22,7 +22,7 @@ const DEFAULT_COST_SOURCE_ENDPOINTS = {
   CCD: '/costs/ccd',
   CCP: '/costs/ccp',
 };
-const { buildBiPriceRequest, parseBiPriceResponse } = require('./bi-price-request');
+const { buildBiPriceRequest, parseBiPriceResponse, DEFAULT_REQUEST_MAPPING } = require('./bi-price-request');
 const DEFAULT_BI_PRICE_LIST_ENDPOINT = '/core/price/rest/v1/getPriceList';
 const DEFAULT_PRICE_LIST_ENDPOINT = '/costs/price-list';
 
@@ -204,4 +204,4 @@ function createApi6Client({
   };
 }
 
-module.exports = { createApi6Client, createConnector, buildBiPriceRequest, parseBiPriceResponse, ...authStrategies };
+module.exports = { createApi6Client, createConnector, buildBiPriceRequest, parseBiPriceResponse, DEFAULT_REQUEST_MAPPING, ...authStrategies };

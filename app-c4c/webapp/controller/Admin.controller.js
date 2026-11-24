@@ -201,7 +201,9 @@ sap.ui.define([
           costSourceEndpoints: costSourceEndpoints,
           priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
           biPriceListEndpoint: (conn.api6.biPriceListEndpoint || "").trim() || null,
-          requestMapping: conn.api6.requestMapping || null, // not edited in this form — passed through so a save never drops it
+          // The rest of the request mapping is not edited here — passed through so a save never drops it;
+          // only the default item type is editable (it decides whether the gateway finds a cost).
+          requestMapping: Object.assign({}, conn.api6.requestMapping || {}, { defaultItemTypeDesc: String(conn.api6.itemTypeDesc === undefined ? "" : conn.api6.itemTypeDesc).trim() }),
         },
         c4c: {
           url: (conn.c4c.url || "").trim() || null,

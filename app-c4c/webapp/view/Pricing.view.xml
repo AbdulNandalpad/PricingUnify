@@ -124,7 +124,7 @@
         </headerToolbar>
         <content>
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
-            visibleRowCountMode="Auto" minAutoRowCount="5" rowHeight="36" alternateRowColors="true"
+            visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 20) }" rowHeight="36" alternateRowColors="true"
             rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" cellClick=".onCellClick" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
             <t:columns>
               <t:Column width="3.5rem">
