@@ -153,7 +153,11 @@
               </t:Column>
               <t:Column width="9rem">
                 <Label text="{i18n>colItemType}" tooltip="{i18n>colItemTypeTip}"/>
-                <t:template><Input value="{vm>itemType}" placeholder="{i18n>itemTypeDefault}" tooltip="{i18n>colItemTypeTip}"/></t:template>
+                <t:template>
+                  <Select selectedKey="{vm>itemType}" width="100%" tooltip="{i18n>colItemTypeTip}" items="{path: 'vm>/itemTypes'}">
+                    <core:Item key="{vm>key}" text="{vm>text}"/>
+                  </Select>
+                </t:template>
               </t:Column>
               <t:Column width="8.5rem">
                 <Label text="{i18n>colStockType}"/>

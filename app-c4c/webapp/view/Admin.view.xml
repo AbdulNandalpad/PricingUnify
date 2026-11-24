@@ -330,7 +330,7 @@
                   </HBox>
                   <HBox alignItems="Center" class="sapUiTinyMarginTop">
                     <Label text="{i18n>connItemType}" class="sapUiTinyMarginEnd" tooltip="{i18n>connItemTypeTip}"/>
-                    <Input value="{vm>/connections/api6/itemTypeDesc}" width="14rem" placeholder="AGN - Product" tooltip="{i18n>connItemTypeTip}"/>
+                    <Input value="{vm>/connections/api6/itemTypeDesc}" width="14rem" placeholder="AGN" tooltip="{i18n>connItemTypeTip}"/>
                   </HBox>
                   <HBox alignItems="Center" class="sapUiTinyMarginTop">
                     <Label text="{i18n>connBiPriceEndpoint}" class="sapUiTinyMarginEnd"/>

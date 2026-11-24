@@ -1298,11 +1298,11 @@ test('CHINA predefined margin from the customer business segment: AUT 35 %, IND 
 test('getConnections exposes the item type sent to the gateway (default "AGN - Product"), editable via saveConnections.requestMapping', async () => {
   const auth = { Authorization: basicAuthHeader('bob'), 'Content-Type': 'application/json' };
   const before = await (await fetch(`${BASE}/rest/config/getConnections`, { headers: auth })).json();
-  assert.equal(before.api6.itemTypeDesc, 'AGN - Product');
-  const save = await fetch(`${BASE}/rest/config/saveConnections`, { method: 'POST', headers: auth, body: JSON.stringify({ payload: { api6: { mode: 'recorded', requestMapping: { defaultItemTypeDesc: 'AGN' } } } }) });
+  assert.equal(before.api6.itemTypeDesc, 'AGN');
+  const save = await fetch(`${BASE}/rest/config/saveConnections`, { method: 'POST', headers: auth, body: JSON.stringify({ payload: { api6: { mode: 'recorded', requestMapping: { defaultItemTypeDesc: 'ZSRV' } } } }) });
   assert.equal(save.status, 200);
   const after = await (await fetch(`${BASE}/rest/config/getConnections`, { headers: auth })).json();
-  assert.equal(after.api6.itemTypeDesc, 'AGN');
+  assert.equal(after.api6.itemTypeDesc, 'ZSRV');
   // restore so later tests see the default
-  await fetch(`${BASE}/rest/config/saveConnections`, { method: 'POST', headers: auth, body: JSON.stringify({ payload: { api6: { mode: 'recorded', requestMapping: { defaultItemTypeDesc: 'AGN - Product' } } } }) });
+  await fetch(`${BASE}/rest/config/saveConnections`, { method: 'POST', headers: auth, body: JSON.stringify({ payload: { api6: { mode: 'recorded', requestMapping: { defaultItemTypeDesc: 'AGN' } } } }) });
 });

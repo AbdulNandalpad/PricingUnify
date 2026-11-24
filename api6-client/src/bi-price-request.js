@@ -28,12 +28,13 @@ const DEFAULT_REQUEST_MAPPING = Object.freeze({
   ],
   // The neutral request does not carry C4C's item type. Without ANY item type the CPI rule below
   // blanks the supplier code + country, which starves the cost lookup — so it is defaulted here,
-  // visibly, and editable (Connections tab). The real C4C samples carry the processing type CODE
-  // "AGN" (retrivePriceBI sends it.ProcessingTypeCode) — but with the sparse request we can build
-  // for a hand-added line, "AGN" made the gateway answer "Cost was neither handed over nor found
-  // in price list", while "AGN - Product" (the C4C screen's label) returned the CCD cost. So the
-  // default is the value that was seen to work; change it on the Connections tab to test others.
-  defaultItemTypeDesc: 'AGN - Product',
+  // visibly, and editable (Connections tab). C4C sends the processing type CODE (retrivePriceBI:
+  // it.ProcessingTypeCode) and its default is AGN (owner: "default is AGN for item type, and the user
+  // can choose": AGN Product, ZCOM Kit Components, ZKIT Kit, ZPRB Price Break, ZSMP Sample, ZSRV
+  // Service, ZTOL Tool). NOTE: one live run with a sparse hand-built request got "no cost" with
+  // "AGN" and a cost with "AGN - Product" — unexplained; the pricing screen now sends the code
+  // the user's dropdown holds, so any type can be tried per line.
+  defaultItemTypeDesc: 'AGN',
   clearSupplierWithoutItemTypeOrOpportunity: true,
   zeroCostPlusFlagForOpportunity: true,
   stripLeadingZerosFrom: ['supplierExternalID'],

@@ -25,6 +25,11 @@ sap.ui.define([
         hasResults: false,
         showAdvanced: false,
         itemCount: 0, search: "", shownCount: 0,
+        // C4C's own item (processing) types — the code is what the gateway receives, the label is what the user reads.
+        itemTypes: [
+          { key: "AGN", text: "AGN - Product" }, { key: "ZCOM", text: "ZCOM - Kit Components" }, { key: "ZKIT", text: "ZKIT - Kit" },
+          { key: "ZPRB", text: "ZPRB - Price Break" }, { key: "ZSMP", text: "ZSMP - Sample" }, { key: "ZSRV", text: "ZSRV - Service" }, { key: "ZTOL", text: "ZTOL - Tool" }
+        ],
         selectedCount: 0,
         orderTotal: "",
         message: "",
@@ -36,7 +41,7 @@ sap.ui.define([
 
     _newRow: function () {
       return {
-        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", itemType: "", priceUnit: "100", // C4C's own default: prices and costs are per 100 pieces
+        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", itemType: "AGN", priceUnit: "100", // C4C item types: default AGN (Product), the user can choose // C4C's own default: prices and costs are per 100 pieces
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
@@ -498,12 +503,7 @@ sap.ui.define([
             if (!row) { return; }
             row.line = line;
             row.status = line.status;
-            // Show the item type that was actually sent to the gateway (the default when none was typed).
-            if (!(row.itemType || "").trim() && line.trace && line.trace.costRouting) {
-              var rt = [].concat(line.trace.costRouting)[0];
-              var used = rt && rt.calls && rt.calls[0] && rt.calls[0].payload && rt.calls[0].payload.request && rt.calls[0].payload.request.item && rt.calls[0].payload.request.item.itemTypeDesc;
-              if (used) { row.itemType = used; }
-            }
+
             var cc = (line.trace && line.trace.costCandidate) || null;
             row.confidence = cc ? cc.confidence : "";
             row.sourceErp = cc && cc.source ? cc.source.system : "";
@@ -753,6 +753,12 @@ sap.ui.define([
             value = value === "MTS" ? "MTS" : (/^non.?mts$/i.test(value) ? "NonMTS" : "");
             if (!value) { return; } // raw ERP codes stay auto — the backend normalizes via config
             row.stockClassHow = "Imported";
+          }
+          if (field === "itemType") {
+            // "AGN - Product" / "agn" -> the code; only C4C's known item types are taken, anything else keeps the AGN default
+            var code = String(value).split(" - ")[0].trim().toUpperCase();
+            if (["AGN", "ZCOM", "ZKIT", "ZPRB", "ZSMP", "ZSRV", "ZTOL"].indexOf(code) === -1) { return; }
+            value = code;
           }
           if (field === "pricingType") { value = /price.?list/i.test(value) ? "PRICE_LIST" : "COST_PLUS"; }
           if (field === "priceBreak") { value = /^(x|true|yes|✓|1)$/i.test(String(value).trim()); }
