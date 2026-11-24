@@ -8,7 +8,7 @@
  *  - Every result carries a full trace.
  */
 const { price } = require('./kernel');
-const { CONFIDENCE, BASIS, PURPOSE } = require('./cost');
+const { CONFIDENCE, BASIS, PURPOSE, resolveAccessSequence } = require('./cost');
 const { ELEMENT_TYPES } = require('./elements');
 
-module.exports = { price, CONFIDENCE, BASIS, PURPOSE, ELEMENT_TYPES };
+module.exports = { price, CONFIDENCE, BASIS, PURPOSE, ELEMENT_TYPES, resolveAccessSequence };

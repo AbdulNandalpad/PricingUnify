@@ -14,12 +14,12 @@ const STATUS_LABEL = {
 /** The business's confirmed list of 5 pricing techniques (see CLAUDE.md Parked).
  *  Only cost-plus/landed-cost is implemented today — the rest are shown so the
  *  roadmap is visible, but can't be selected until they're actually built. */
+// Owner decision 2026-11-24: supported pricing types reduced to exactly these two. This React
+// app is frozen (the per-line PRICE_LIST selector ships in app-c4c/, the SAPUI5 app), so
+// PRICE_LIST stays non-selectable here.
 const PRICING_TYPES = [
   { id: 'COST_PLUS', label: 'Cost-plus / Landed cost', available: true },
   { id: 'PRICE_LIST', label: 'Price list', available: false },
-  { id: 'VARIANT', label: 'Variant pricing', available: false },
-  { id: 'VALUE_BASED', label: 'Value-based', available: false },
-  { id: 'AI_PROPOSED', label: 'AI-proposed costs', available: false },
 ];
 
 // Purpose (INDICATIVE|BINDING|REPRICE|SIMULATION) stays an engine/API concept — the host

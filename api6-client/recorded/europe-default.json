@@ -421,5 +421,22 @@
     ]
   },
   "fx": {},
-  "itemAttributes": {}
+  "itemAttributes": {},
+  "priceLists": {
+    "bySupplier": {
+      "ACME": {
+        "EU-T100": [
+          { "minQty": 1, "value": "90.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null },
+          { "minQty": 50, "value": "85.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null }
+        ]
+      }
+    },
+    "byCategory": {
+      "SEALS": {
+        "P-10023": [
+          { "minQty": 1, "value": "80.00", "currency": "EUR", "validFrom": "2026-01-01", "validTo": null }
+        ]
+      }
+    }
+  }
 }

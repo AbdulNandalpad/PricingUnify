@@ -1,5 +1,5 @@
 const Decimal = require('decimal.js');
-const { price } = require('@tss-pricing/engine-core');
+const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
 
@@ -8,6 +8,14 @@ const { api6 } = require('./lib/api6');
 // Pricing sheet), and India has no kit mechanism in the reference docs at all. A kit item
 // requested for any other region is a typed MISSING, not a silent (wrong) price.
 const KIT_SUPPORTED_REGIONS = ['AMERICAS', 'CHINA'];
+
+// Owner decision 2026-11-24: supported pricing types reduced to exactly these two. COST_PLUS
+// is the default (the normal landed-cost build-up over the resolved ERP cost); PRICE_LIST is
+// an explicit per-line user selection that sources the COST from a configured price list
+// (supplier-keyed, else product-category-keyed) via WSO2 — the same build-up (markup etc.)
+// still applies on top, per the owner: "we could use the price list and as usual apply the
+// margin to calculate selling price."
+const PRICING_TYPES = ['COST_PLUS', 'PRICE_LIST'];
 
 const SUPPLIER_WAREHOUSE_ADDER_FIELDS = ['freight', 'duty', 'tariff'];
 // MOQ is deliberately not here — it's a property of the order/part, not the supplier
@@ -206,6 +214,132 @@ function applyQuantityBreakCost(facts, items) {
 }
 
 /**
+ * Validates each line's pricing type against the two supported types (owner decision
+ * 2026-11-24). Unset defaults to COST_PLUS — the overwhelmingly normal case, and exactly how
+ * every line priced before pricing types existed on the request at all. An explicitly-set but
+ * unsupported value is a typed MISSING (engine-core short-circuits on pricingTypeError), never
+ * a silent fall-back to COST_PLUS — same pattern as additionalCost/stock class.
+ */
+function applyPricingTypes(items) {
+  for (const item of items) {
+    if (item.pricingType === undefined || item.pricingType === null || item.pricingType === '') {
+      item.pricingType = 'COST_PLUS';
+      continue;
+    }
+    if (!PRICING_TYPES.includes(item.pricingType)) {
+      item.pricingTypeError = `PRICING_TYPE_UNSUPPORTED:${item.pricingType} (supported: ${PRICING_TYPES.join(', ')})`;
+    }
+  }
+}
+
+/**
+ * PRICE_LIST lines get their COST from the WSO2 price-list lookup (supplier-keyed first, else
+ * product-category-keyed — owner decision 2026-11-24), injected as one more cost candidate and
+ * explicitly selected via item.selectedCostId, reusing engine-core's "an explicit selection
+ * always wins" precedence — the same mechanism as the quantity-break cost. The normal build-up
+ * (markup, freight/duty/tariff, pick, constraints) then applies unchanged on top. A line whose
+ * caller already picked a specific candidate (selectedCostId set) is left alone — the most
+ * explicit choice wins. A lookup miss is a typed MISSING naming every key tried.
+ */
+async function applyPriceListCosts(facts, items, { region, salesOrg, priceDate }) {
+  for (const item of items) {
+    if (item.pricingType !== 'PRICE_LIST' || item.pricingTypeError || item.selectedCostId) continue;
+    if (!item.supplier && !item.productCategory) {
+      item.priceListError = 'NO_SUPPLIER_OR_PRODUCT_CATEGORY';
+      continue;
+    }
+
+    const { entry, matchedBy, tried } = await api6.fetchPriceListCost({
+      region,
+      salesOrg,
+      partNumber: item.partNumber,
+      supplier: item.supplier,
+      productCategory: item.productCategory,
+      quantity: item.quantity,
+      priceDate,
+    });
+
+    if (!entry) {
+      item.priceListError = `TRIED:${tried.join(',')}`;
+      continue;
+    }
+
+    const candidateKey = `PRICE_LIST_${item.partNumber}_${entry.minQty}`;
+    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
+    facts.costs[item.partNumber] = {
+      ...existing,
+      candidates: [
+        ...existing.candidates,
+        {
+          value: entry.value,
+          currency: entry.currency,
+          basis: 'SUPPLIER_CATALOG',
+          source: { system: 'PRICE_LIST', table: 'WSO2', field: matchedBy, key: candidateKey },
+          validFrom: entry.validFrom || null,
+          retrievedAt: entry.retrievedAt || null,
+          confidence: 'EXACT',
+        },
+      ],
+    };
+    item.selectedCostId = candidateKey;
+  }
+}
+
+/**
+ * Per-source cost routing (owner decision 2026-11-24): where a region configures a cost access
+ * sequence, the sequence doesn't just pick among already-fetched candidates — it drives WHICH
+ * WSO2/API6 endpoints get called, in order, stopping at the first source that has a cost.
+ * The walk itself is recorded ({system, endpoint, found} per call) and attached to the line's
+ * trace as costRouting, so a fallback is always visible, never silent.
+ *
+ * Deliberately skipped for: lines with an explicit selectedCostId (the full candidate set must
+ * stay available for the user's pick — including the PRICE_LIST/qty-break candidates injected
+ * above, whose source systems aren't in any sequence); lines already carrying a typed error
+ * (they short-circuit in the kernel before cost resolution); and regions with no sequence
+ * configured (legacy single-payload candidates, unchanged). A walk that finds nothing leaves
+ * the original facts untouched so engine-core's existing default-candidate fallback still
+ * applies — identical outcomes to the pre-routing behavior, with the exhausted walk still
+ * recorded.
+ */
+async function applySequenceRouting(facts, items, config, { region, salesOrg }) {
+  const routingByPart = {};
+  const walked = new Set();
+
+  for (const item of items) {
+    if (item.selectedCostId || item.stockClassError || item.pricingTypeError || item.priceListError) continue;
+    const sequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);
+    if (!sequence) continue;
+
+    const walkKey = `${item.partNumber}|${sequence.join(',')}`;
+    if (walked.has(walkKey)) continue;
+    walked.add(walkKey);
+
+    const { candidates, routing } = await api6.fetchCostsBySequence({
+      region,
+      salesOrg,
+      partNumber: item.partNumber,
+      quantity: item.quantity,
+      sequence,
+    });
+
+    routingByPart[item.partNumber] = [...(routingByPart[item.partNumber] || []), { sequence, calls: routing }];
+
+    // The engine's own resolveCandidate() walks the same sequence over whatever candidates it
+    // gets, so when the pricing-facts payload already carries this part's candidates the walk
+    // here changes nothing about selection — it exists to make the endpoint routing visible in
+    // the trace and to bound live-mode HTTP calls. Only when the payload carried NO candidates
+    // for the part (the real live-WSO2 shape, where costs come exclusively through per-source
+    // endpoints) do the routed candidates become the part's cost facts.
+    const existing = facts.costs[item.partNumber];
+    if (candidates.length > 0 && (!existing || !Array.isArray(existing.candidates) || existing.candidates.length === 0)) {
+      facts.costs[item.partNumber] = { default: null, candidates };
+    }
+  }
+
+  return routingByPart;
+}
+
+/**
  * Kit/BOM (topic 8): a kit header item (item.components: [{partNumber, quantity, ...}]) is
  * quoted as ONE line to the customer, priced as the sum of its components — each priced
  * through its own full, normal landed-cost build-up (a component can have its own supplier,
@@ -219,7 +353,7 @@ function applyQuantityBreakCost(facts, items) {
  * stock class, quantity-break cost) and a single price() call cover components exactly the
  * same way they cover any other line — no separate code path for "component pricing."
  */
-function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) {
+async function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) {
   const items = request.items;
   const kitIndices = [];
   items.forEach((it, i) => {
@@ -243,9 +377,18 @@ function priceWithKits({ region, salesOrg, priceDate, facts, config, request }) 
   applySupplierOverrides(facts, flatItems, priceDate);
   applyStockClassNormalization(facts, flatItems, config);
   applyAdditionalCostFlags(flatItems, config);
+  applyPricingTypes(flatItems);
+  // PRICE_LIST before the automatic quantity-break cost: both select via selectedCostId, and
+  // an explicit user choice of PRICE_LIST outranks the automatic qty-break mechanism.
+  await applyPriceListCosts(facts, flatItems, { region, salesOrg, priceDate });
   applyQuantityBreakCost(facts, flatItems);
+  const routingByPart = await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
 
   const flatResult = flatItems.length ? price({ request: { ...request, items: flatItems }, facts, config }) : { items: [] };
+  for (const line of flatResult.items) {
+    const walks = routingByPart[line.partNumber];
+    if (walks && line.trace) line.trace.costRouting = walks.length === 1 ? walks[0] : walks;
+  }
   const nonKitLines = flatResult.items.slice(0, nonKitItems.length);
   const componentLines = flatResult.items.slice(nonKitItems.length);
 
@@ -367,13 +510,27 @@ module.exports = (srv) => {
       instructions,
     };
 
-    const result = priceWithKits({ region, salesOrg, priceDate, facts, config, request });
+    const result = await priceWithKits({ region, salesOrg, priceDate, facts, config, request });
+
+    // An OPPORTUNITY is cost-only (owner spec 2026-11-24): the build-up result is returned as
+    // landedCost and no price or margin field ever appears — nor will one ever be written back
+    // to C4C for an opportunity (Phase 5). The trace stays: it's the cost derivation.
+    const costOnly = (hostObjectType || 'QUOTE') === 'OPPORTUNITY';
+    if (costOnly) {
+      for (const line of result.items) {
+        if (line.result) {
+          const { unitPrice, ...rest } = line.result;
+          line.result = { landedCost: unitPrice, ...rest };
+        }
+      }
+    }
 
     return {
       config: { region: config.region, salesOrg: config.salesOrg, version: config.version, status: config.status },
       region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
       priceDate,
       requestedBy: req.user.id,
+      ...(costOnly ? { costOnly: true } : {}),
       ...result,
     };
   });

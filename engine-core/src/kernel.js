@@ -81,6 +81,32 @@ function priceItem(item, request, facts, config) {
     };
   }
 
+  // Supported pricing types are COST_PLUS and PRICE_LIST only (owner decision 2026-11-24).
+  // The caller (srv) validates item.pricingType and sets pricingTypeError for anything else —
+  // same resolved-before-the-kernel pattern as stockClassError/additionalCostError, so the
+  // kernel itself stays free of pricing-type branching (PRICE_LIST only changes WHICH cost
+  // candidate arrives, selected upstream; the build-up is identical either way).
+  if (item.pricingTypeError) {
+    return {
+      partNumber: item.partNumber,
+      status: 'MISSING',
+      missing: { reason: 'PRICING_TYPE_UNSUPPORTED', detail: item.pricingTypeError },
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [] }),
+    };
+  }
+
+  // A PRICE_LIST line whose price-list lookup (by supplier, then product category) found no
+  // cost is a typed MISSING naming what was tried — never a silent fall-back to COST_PLUS,
+  // since the user explicitly asked for the price list.
+  if (item.priceListError) {
+    return {
+      partNumber: item.partNumber,
+      status: 'MISSING',
+      missing: { reason: 'PRICE_LIST_COST_NOT_FOUND', detail: item.priceListError },
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }),
+    };
+  }
+
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
   const accessSequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);

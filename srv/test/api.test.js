@@ -767,3 +767,116 @@ test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any au
   assert.equal(partyBody.customerOod, 'SAP');
   assert.equal(partyBody.territory, 'DACH');
 });
+
+// --- Pricing types (owner decision 2026-11-24): COST_PLUS and PRICE_LIST only ---
+
+test('PRICE_LIST sources the cost from the supplier price list; the normal build-up still applies on top', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [
+      { partNumber: 'EU-T100', quantity: 10, supplier: 'ACME', pricingType: 'PRICE_LIST' },
+    ] } }),
+  });
+  assert.equal(res.status, 200);
+  const [line] = (await res.json()).items;
+  assert.equal(line.status, 'PRICED');
+  // Price-list cost 90.00 (ACME list, minQty-1 tier) replaces the ERP/CCD 100.00, then the
+  // normal NonMTS build-up applies: 90 + 4.7% = 94.23, + freight 10% + duty 5% + tariff 8%
+  // of 94.23 (= 9.423 + 4.7115 + 7.5384), + pick 20/10 = 2 -> 117.9029 -> 117.9.
+  assert.equal(line.result.unitPrice, '117.9');
+  assert.equal(line.trace.costCandidate.source.system, 'PRICE_LIST');
+  assert.equal(line.trace.costCandidate.source.field, 'SUPPLIER:ACME'); // which key matched -- never silent
+  assert.equal(line.trace.costCandidate.selectedBy, 'USER'); // explicit per-line selection, same precedence as always
+});
+
+test('PRICE_LIST falls back from supplier to product category for the lookup key', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [
+      { partNumber: 'P-10023', quantity: 1, productCategory: 'SEALS', pricingType: 'PRICE_LIST' },
+    ] } }),
+  });
+  const [line] = (await res.json()).items;
+  assert.equal(line.status, 'PRICED');
+  // Category list cost 80.00; P-10023 is MTS so no freight/duty/tariff:
+  // 80 + 4.7% (3.76) + pick 21/1 (21) = 104.76.
+  assert.equal(line.result.unitPrice, '104.76');
+  assert.equal(line.trace.costCandidate.source.field, 'CATEGORY:SEALS');
+});
+
+test('a PRICE_LIST line with no matching list is a typed MISSING naming every key tried -- never a silent fall-back to COST_PLUS', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [
+      { partNumber: 'P-20045', quantity: 1, supplier: 'GLOBEX', pricingType: 'PRICE_LIST' },
+      { partNumber: 'P-20045', quantity: 1, pricingType: 'PRICE_LIST' },
+    ] } }),
+  });
+  const [withSupplier, withNoKey] = (await res.json()).items;
+  assert.equal(withSupplier.status, 'MISSING');
+  assert.equal(withSupplier.missing.reason, 'PRICE_LIST_COST_NOT_FOUND');
+  assert.equal(withSupplier.missing.detail, 'TRIED:SUPPLIER:GLOBEX');
+  assert.equal(withNoKey.status, 'MISSING');
+  assert.equal(withNoKey.missing.detail, 'NO_SUPPLIER_OR_PRODUCT_CATEGORY');
+});
+
+test('an unsupported pricing type is a typed MISSING; unset defaults to COST_PLUS unchanged', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [
+      { partNumber: 'P-10023', quantity: 10, pricingType: 'VARIANT' },
+      { partNumber: 'P-10023', quantity: 10 },
+    ] } }),
+  });
+  const [variant, plain] = (await res.json()).items;
+  assert.equal(variant.status, 'MISSING');
+  assert.equal(variant.missing.reason, 'PRICING_TYPE_UNSUPPORTED');
+  assert.match(variant.missing.detail, /VARIANT/);
+  assert.equal(plain.status, 'PRICED');
+  assert.equal(plain.result.unitPrice, '106.8'); // byte-identical to the pre-pricing-type behavior
+});
+
+test('an OPPORTUNITY is cost only: the result carries landedCost and never a price or margin', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', hostObjectType: 'OPPORTUNITY', items: [
+      { partNumber: 'EU-T100', quantity: 10 },
+    ] } }),
+  });
+  const body = await res.json();
+  assert.equal(body.costOnly, true);
+  const [line] = body.items;
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.landedCost, '130.78');
+  assert.equal(line.result.unitPrice, undefined);
+  assert.equal(line.result.price, undefined);
+  assert.equal(line.result.margin, undefined);
+});
+
+test('the configured cost access sequence drives per-source WSO2 endpoint calls, and the walk is visible in the trace', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [
+      { partNumber: 'P-50099', quantity: 5 },
+    ] } }),
+  });
+  const [line] = (await res.json()).items;
+  assert.equal(line.status, 'PRICED');
+  // P-50099 has no C4C or ERP cost on file -- the walk must show both endpoints tried and
+  // empty before CCD answered, and must stop there (CCP never called).
+  assert.deepEqual(line.trace.costRouting, {
+    sequence: ['C4C', 'ERP', 'CCD', 'CCP'],
+    calls: [
+      { system: 'C4C', endpoint: '/costs/c4c', found: 0 },
+      { system: 'ERP', endpoint: '/costs/erp', found: 0 },
+      { system: 'CCD', endpoint: '/costs/ccd', found: 1 },
+    ],
+  });
+  assert.equal(line.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:CCD');
+});
