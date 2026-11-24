@@ -29,6 +29,7 @@
         </Panel>
 
         <Panel headerText="{i18n>traceSteps}" expandable="false" visible="{= ${trace>/steps}.length > 0 }" class="sapUiTinyMarginBottom">
+          <Text text="{trace>/unitNote}" visible="{= !!${trace>/unitNote} }" class="sapUiTinyMarginBottom"/>
           <Table items="{trace>/steps}" inset="false">
             <columns>
               <Column><Text text="{i18n>traceStep}"/></Column>

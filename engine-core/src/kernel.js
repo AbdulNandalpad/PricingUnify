@@ -107,6 +107,19 @@ function priceItem(item, request, facts, config) {
     };
   }
 
+  if (item.priceUnit !== undefined && item.priceUnit !== null) {
+    let valid = false;
+    try { const u = new Decimal(item.priceUnit); valid = u.isFinite() && u.gt(0); } catch (e) { valid = false; }
+    if (!valid) {
+      return {
+        partNumber: item.partNumber,
+        status: 'MISSING',
+        missing: { reason: 'PRICE_UNIT_INVALID', detail: String(item.priceUnit) },
+        trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }),
+      };
+    }
+  }
+
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
   const costFacts = facts.costs && facts.costs[item.partNumber];
   const accessSequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);
@@ -189,12 +202,17 @@ function priceItem(item, request, facts, config) {
     }
   }
 
-  running = roundTotal(running, config.rounding);
+  // Price/cost unit (C4C's c4cMultiplyAmnt, 100 = "per 100 pieces"): everything above is
+  // computed per piece at full decimal precision; the unit is applied only HERE, just before the
+  // declared rounding, so cents-level parts keep their precision (0.0364 per piece -> 3.64 per
+  // 100 instead of rounding to 0.04 per piece first). Unset = 1 = unchanged behaviour.
+  const priceUnit = new Decimal(item.priceUnit === undefined || item.priceUnit === null ? 1 : item.priceUnit);
+  running = roundTotal(running.times(priceUnit), config.rounding);
 
   return {
     partNumber: item.partNumber,
     status: 'PRICED',
-    result: { unitPrice: running.toString(), currency: chosen.currency, quantity },
+    result: { unitPrice: running.toString(), currency: chosen.currency, quantity, ...(priceUnit.eq(1) ? {} : { priceUnit: priceUnit.toString() }) },
     trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
   };
 }

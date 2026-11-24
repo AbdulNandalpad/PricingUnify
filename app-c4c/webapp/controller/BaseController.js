@@ -78,6 +78,7 @@ sap.ui.define([
           system: cc.source ? cc.source.system : "", key: cc.source ? cc.source.key : "",
           field: cc.source ? cc.source.field : "", selectedBy: cc.selectedBy || ""
         } : null,
+        unitNote: (line.result && line.result.priceUnit) ? ("Steps below are per piece at full precision; the final amount is multiplied by the price/cost unit (" + line.result.priceUnit + ") and then rounded.") : "",
         routingCalls: routingCalls,
         biPayload: (routingCalls.length && routingCalls[0].payload) ? JSON.stringify(routingCalls[0].payload, null, 2) : "",
         steps: steps,

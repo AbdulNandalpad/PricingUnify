@@ -34,7 +34,7 @@ sap.ui.define([
 
     _newRow: function () {
       return {
-        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "",
+        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", priceUnit: "100", // C4C's own default: prices and costs are per 100 pieces
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
@@ -365,6 +365,7 @@ sap.ui.define([
         var part = (row.partNumber || "").trim();
         if (!part) { return; }
         var item = { partNumber: part, quantity: Number(row.quantity) || 1, pricingType: row.pricingType || "COST_PLUS" };
+        if (String(row.priceUnit || "").trim() !== "") { item.priceUnit = Number(row.priceUnit); }
         if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
         if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
         if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
@@ -387,7 +388,8 @@ sap.ui.define([
       var totals = {};
       rows.forEach(function (row) {
         if (!row.line || row.line.status !== "PRICED") { return; }
-        var unit = Number(row.price || row.landedCost);
+        var perUnit = Number(row.line.result.priceUnit) || 1; // price/cost unit: the amount is per N pieces
+        var unit = Number(row.price || row.landedCost) / perUnit;
         var qty = Number(row.line.result.quantity);
         var currency = row.line.result.currency;
         if (!Number.isFinite(unit) || !Number.isFinite(qty) || !currency) { return; }
@@ -462,13 +464,15 @@ sap.ui.define([
             var cc = (line.trace && line.trace.costCandidate) || null;
             row.confidence = cc ? cc.confidence : "";
             row.sourceErp = cc && cc.source ? cc.source.system : "";
-            row.cost = cc ? cc.value : "";
+            var rowUnit = Number(row.priceUnit) || 1; // what was sent for this line
+            // The cost candidate is per piece; show it per price unit, like the landed cost / price.
+            row.cost = cc ? (rowUnit === 1 ? cc.value : String(parseFloat((Number(cc.value) * rowUnit).toPrecision(12)))) : "";
             if (line.trace && line.trace.stockClass && !row.stockClassSel) { row.stockClassSel = line.trace.stockClass; row.stockClassHow = "Resolved by the calculation"; }
             if (line.status === "PRICED") {
               priced++;
               var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
               row.landedCost = amount;
-              var lv = Number(amount) * Number(line.result.quantity);
+              var lv = Number(amount) / rowUnit * Number(line.result.quantity);
               row.lineValue = Number.isFinite(lv)
                 ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 : "";
@@ -672,6 +676,7 @@ sap.ui.define([
         "product description": "description", "description": "description",
         "quantity": "quantity", "qty": "quantity",
         "uom": "uom", "unit": "uom", "quantity uom": "uom",
+        "price/cost unit": "priceUnit", "price unit": "priceUnit", "cost unit": "priceUnit", "price per": "priceUnit",
         "customer part number": "customerPartNumber", "customer part no": "customerPartNumber",
         "origin of data": "ood", "data origin": "ood", "ood": "ood",
         "warehouse id": "warehouse", "warehouse": "warehouse",

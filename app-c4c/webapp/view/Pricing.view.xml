@@ -146,6 +146,10 @@
                 <Label text="{i18n>colUom}"/>
                 <t:template><Input value="{vm>uom}"/></t:template>
               </t:Column>
+              <t:Column width="6rem" hAlign="End">
+                <Label text="{i18n>colPriceUnit}" tooltip="{i18n>colPriceUnitTip}"/>
+                <t:template><Input value="{vm>priceUnit}" type="Number" textAlign="End"/></t:template>
+              </t:Column>
               <t:Column width="8.5rem">
                 <Label text="{i18n>colStockType}"/>
                 <t:template>

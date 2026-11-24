@@ -1207,3 +1207,21 @@ test('a cost the host already holds (hostCost, the BI contract\'s "Cost Handed O
   const zero = await price('0');
   assert.equal(zero.result.unitPrice, '80');
 });
+
+test('price/cost unit: priceUnit 100 returns the amount per 100 pieces (rounded after scaling) and says so; absent = per piece', async () => {
+  const run = async (extra) => {
+    const res = await fetch(`${BASE}/rest/pricing/price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+      body: JSON.stringify({ payload: { region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 10, ...extra }] } }),
+    });
+    return (await res.json()).items[0];
+  };
+  const perPiece = await run({});
+  assert.equal(perPiece.status, 'PRICED');
+  assert.equal(perPiece.result.priceUnit, undefined);
+  const per100 = await run({ priceUnit: 100 });
+  assert.equal(per100.status, 'PRICED');
+  assert.equal(per100.result.priceUnit, '100');
+  assert.equal(per100.result.unitPrice, String(Number(perPiece.result.unitPrice) * 100)); // 106.8 -> 10680 (no precision lost here)
+});
