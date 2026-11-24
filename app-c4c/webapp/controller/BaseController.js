@@ -77,6 +77,7 @@ sap.ui.define([
           field: cc.source ? cc.source.field : "", selectedBy: cc.selectedBy || ""
         } : null,
         routingCalls: routingCalls,
+        biPayload: (routingCalls.length && routingCalls[0].payload) ? JSON.stringify(routingCalls[0].payload, null, 2) : "",
         steps: steps,
         constraints: trace.constraintPasses || [],
         configVersion: trace.configVersion || ""

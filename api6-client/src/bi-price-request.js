@@ -13,6 +13,8 @@
  *   2. uom mapping                 (MMT -> mm, CMT -> cm, INH -> in)
  *   3. blank item cost currency    -> the customer's currency
  *   4. stock-class override rules  (US customer + warehouse 1020 + supplier L_LCE -> MTS)
+ *   4b. (ours) blank itemTypeDesc -> mapping.defaultItemTypeDesc, so rule 5 doesn't fire for lines
+ *       whose host never supplied an item type
  *   5. no itemTypeDesc AND no opportunityId -> flag "0", supplier code + country cleared
  *   6. opportunityId present       -> flag "0"
  *   7. strip leading zeros         (supplierExternalID 0001025397 -> 1025397)
@@ -24,6 +26,11 @@ const DEFAULT_REQUEST_MAPPING = Object.freeze({
   stockClassOverrides: [
     { customerCountry: 'US', warehouseCode: '1020', supplierMainGroupCode: 'L_LCE', stockClassGroupCode: 'MTS' },
   ],
+  // The neutral request does not carry C4C's item type; a standard quote product line is
+  // "AGN - Product" in C4C (TO CONFIRM against the BI's own itemTypeDesc values). Without ANY
+  // item type the CPI rule below blanks the supplier code + country, which starves the cost
+  // lookup — so the item type is defaulted here, visibly, and editable as data.
+  defaultItemTypeDesc: 'AGN - Product',
   clearSupplierWithoutItemTypeOrOpportunity: true,
   zeroCostPlusFlagForOpportunity: true,
   stripLeadingZerosFrom: ['supplierExternalID'],
@@ -57,6 +64,9 @@ function buildBiPriceRequest(c4cBody, mappingOverride) {
         && text(item.supplierMainGroupCode) === rule.supplierMainGroupCode) {
         item.stockClassGroupCode = rule.stockClassGroupCode;
       }
+    }
+    if (mapping.defaultItemTypeDesc && blank(item.itemTypeDesc) && !hasOpportunity) {
+      item.itemTypeDesc = mapping.defaultItemTypeDesc;
     }
     if (mapping.clearSupplierWithoutItemTypeOrOpportunity && blank(item.itemTypeDesc) && !hasOpportunity) {
       item.useCostPlusFlag = '0';

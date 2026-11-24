@@ -41,3 +41,19 @@ test('a failed BI call leaves every line without a cost and says why', () => {
   assert.equal(its[0].selectedCostId, undefined);
   assert.match(routing.get(its[0])[0].calls[0].note, /FAILED: HTTP 401/);
 });
+
+test('hand-added lines fall back to their own Origin of Data for the BI customer block, and the trace carries the payload', () => {
+  const its = [{ partNumber: 'P', quantity: 1, ood: 'SAP' }, { partNumber: 'P', quantity: 5, ood: 'SAP' }];
+  assert.equal(buildBiBody({ items: its }).customer.originOfData, 'SAP');
+  assert.equal(buildBiBody({ items: its, customerOod: 'CN' }).customer.originOfData, 'CN'); // explicit wins
+  const mixed = [{ partNumber: 'P', ood: 'SAP' }, { partNumber: 'Q', ood: 'CN' }];
+  assert.equal(buildBiBody({ items: mixed }).customer.originOfData, ''); // never guessed when they disagree
+
+  const bi = { status: 'OK', endpoint: '/x', request: buildBiBody({ items: its }), raw: { calculatedPriceList: [{ lineId: '1', costPlusUnitAmt: 0 }, { lineId: '2', costPlusUnitAmt: 0 }] },
+    candidates: { 1: { found: false, note: 'no cost returned' }, 2: { found: false, note: 'no cost returned' } } };
+  const routing = applyBiCandidates({ costs: {} }, its, bi);
+  const payload = routing.get(its[0])[0].calls[0].payload;
+  assert.equal(payload.request.item.itemLongNumber, 'P');
+  assert.equal(payload.request.customer.originOfData, 'SAP');
+  assert.equal(payload.answer.lineId, '1');
+});

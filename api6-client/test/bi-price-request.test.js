@@ -33,7 +33,7 @@ test('US customer + warehouse 1020 + supplier L_LCE -> stock class MTS (any othe
 });
 
 test('no item type and no opportunity: flag 0 and supplier code + country cleared — AFTER the stock-class override read the supplier (script order)', () => {
-  const out = buildBiPriceRequest(req([item({ itemTypeDesc: '', supplierMainGroupCode: 'L_LCE' })], { countryCode: 'US' })).body.item[0];
+  const out = buildBiPriceRequest(req([item({ itemTypeDesc: '', supplierMainGroupCode: 'L_LCE' })], { countryCode: 'US' }), { defaultItemTypeDesc: '' }).body.item[0]; // default item type switched off = the CPI's literal behaviour
   assert.equal(out.stockClassGroupCode, 'MTS'); // override saw L_LCE first
   assert.equal(out.useCostPlusFlag, '0');
   assert.equal(out.supplierMainGroupCode, '');
@@ -129,4 +129,14 @@ test('fetchBiCosts (TEMPORARY cost source): every line is sent with flag 0 and z
 
   const down = createApi6Client({ mode: 'live', baseUrl: 'https://x', fetchImpl: async () => ({ ok: false, status: 500, statusText: 'err' }) });
   assert.equal((await down.fetchBiCosts(req([item()]))).status, 'FAILED');
+});
+
+test('a line with no item type gets the default item type, so the supplier is NOT cleared', () => {
+  const { buildBiPriceRequest } = require('../src/bi-price-request');
+  const { body } = buildBiPriceRequest({ customer: {}, item: [{ lineId: '1', supplierMainGroupCode: 'X_SIL', supplierCountryCode: 'IT' }] });
+  assert.equal(body.item[0].itemTypeDesc, 'AGN - Product');
+  assert.equal(body.item[0].supplierMainGroupCode, 'X_SIL');
+  // an explicit empty default restores the CPI's literal behaviour
+  const cleared = buildBiPriceRequest({ customer: {}, item: [{ lineId: '1', supplierMainGroupCode: 'X_SIL' }] }, { defaultItemTypeDesc: '' });
+  assert.equal(cleared.body.item[0].supplierMainGroupCode, '');
 });

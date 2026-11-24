@@ -24,6 +24,10 @@
           </List>
         </Panel>
 
+        <Panel headerText="{i18n>tracePayload}" expandable="true" expanded="false" visible="{= !!${trace>/biPayload} }" class="sapUiTinyMarginBottom">
+          <TextArea value="{trace>/biPayload}" editable="false" rows="14" width="100%" growing="false"/>
+        </Panel>
+
         <Panel headerText="{i18n>traceSteps}" expandable="false" visible="{= ${trace>/steps}.length > 0 }" class="sapUiTinyMarginBottom">
           <Table items="{trace>/steps}" inset="false">
             <columns>

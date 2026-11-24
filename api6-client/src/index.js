@@ -64,9 +64,9 @@ function createApi6Client({
       }
       try {
         const res = await connector.call(null, { method: 'POST', path: biPriceListEndpoint, body });
-        return { endpoint: biPriceListEndpoint, context, ...parseBiPriceResponse(res) };
+        return { endpoint: biPriceListEndpoint, context, request: body, raw: res, ...parseBiPriceResponse(res) };
       } catch (err) {
-        return { status: 'FAILED', endpoint: biPriceListEndpoint, context, message: err.message, lines: [] };
+        return { status: 'FAILED', endpoint: biPriceListEndpoint, context, request: body, message: err.message, lines: [] };
       }
     },
 
@@ -110,7 +110,7 @@ function createApi6Client({
           costAvailableFromQty: l.costAvailableFromQty,
         };
       }
-      return { status: 'OK', endpoint: res.endpoint, candidates };
+      return { status: 'OK', endpoint: res.endpoint, candidates, request: res.request, raw: res.raw };
     },
 
     /** Returns { costs, elements, fx } shaped exactly like engine-core's `facts` — quantity

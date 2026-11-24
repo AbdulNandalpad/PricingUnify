@@ -20,11 +20,15 @@ function biStockClass(stockClass) {
  */
 function buildBiBody({ items, customerId, customerOod, customer, hostObjectId, userId }) {
   const c = customer || {};
+  // A line added by hand has no customer master behind it; the BI routes on the customer's
+  // Origin of Data, so fall back to the lines' own (when they agree) rather than send blank.
+  const lineOods = [...new Set(items.map((it) => str(it.ood)).filter(Boolean))];
+  const originOfData = str(customerOod) || (lineOods.length === 1 ? lineOods[0] : '');
   return {
     customer: {
       customerId: str(customerId),
       salesTerritory: str(c.salesTerritory),
-      originOfData: str(customerOod),
+      originOfData,
       countryCode: str(c.countryCode),
       custcurrency: str(c.currency),
       priceGroup: str(c.priceGroup),
@@ -62,6 +66,11 @@ function applyBiCandidates(facts, items, bi) {
   items.forEach((item, i) => {
     const lineId = String(i + 1);
     const note = { system: 'BI_PRICE_LIST', endpoint: bi.endpoint || null, found: false };
+    // The exact payload for this line and the gateway's raw answer, so "why no cost?" can be
+    // read straight off the trace (credentials never appear: they are headers, not body).
+    const sent = bi.request && Array.isArray(bi.request.item) ? bi.request.item.find((x) => String(x.lineId) === lineId) : null;
+    const answered = bi.raw && Array.isArray(bi.raw.calculatedPriceList) ? bi.raw.calculatedPriceList.find((x) => String(x.lineId) === lineId) : null;
+    note.payload = { request: { customer: bi.request ? bi.request.customer : null, item: sent }, answer: answered || (bi.raw && bi.raw.status) || (bi.message ? { message: bi.message } : null) };
     routingByItem.set(item, [{ sequence: ['BI_PRICE_LIST'], calls: [note] }]);
     if (bi.status !== 'OK') { note.note = `${bi.status}${bi.message ? `: ${bi.message}` : ''}`; return; }
     const cand = bi.candidates && bi.candidates[lineId];

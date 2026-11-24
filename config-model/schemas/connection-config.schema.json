@@ -45,6 +45,7 @@
                 }
               }
             },
+            "defaultItemTypeDesc": { "type": "string" },
             "clearSupplierWithoutItemTypeOrOpportunity": { "type": "boolean" },
             "zeroCostPlusFlagForOpportunity": { "type": "boolean" },
             "stripLeadingZerosFrom": { "type": "array", "items": { "type": "string" } }
