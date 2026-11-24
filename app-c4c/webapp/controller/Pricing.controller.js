@@ -493,8 +493,10 @@ sap.ui.define([
           vm.setProperty("/orderTotal", that._orderTotal(rows));
           if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
           var bundle = that.getView().getModel("i18n").getResourceBundle();
-          that._message(bundle.getText(fillPrices ? "pricedSummary" : "costedSummary", [priced, (res.items || []).length]),
-            priced === (res.items || []).length ? "Success" : "Warning");
+          var summary = bundle.getText(fillPrices ? "pricedSummary" : "costedSummary", [priced, (res.items || []).length]);
+          var recorded = res.api6Mode === "recorded";
+          if (recorded) { summary += " " + bundle.getText("recordedModeNote"); }
+          that._message(summary, (priced === (res.items || []).length && !recorded) ? "Success" : "Warning");
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })
         .finally(function () { vm.setProperty("/busy", false); });

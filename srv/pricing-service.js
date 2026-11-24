@@ -606,6 +606,7 @@ async function runPricing({ payload, userId }) {
       config: { region: config.region, salesOrg: config.salesOrg, version: config.version, status: config.status },
       region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
       priceDate,
+      api6Mode: api6.mode, // so the UI can say plainly when costs come from demo data, not the gateway
       requestedBy: userId,
       ...(costOnly ? { costOnly: true } : {}),
       ...result,
