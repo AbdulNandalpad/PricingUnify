@@ -151,6 +151,10 @@
                 <Label text="{i18n>colPriceUnit}" tooltip="{i18n>colPriceUnitTip}"/>
                 <t:template><Input value="{vm>priceUnit}" type="Number" textAlign="End"/></t:template>
               </t:Column>
+              <t:Column width="9rem">
+                <Label text="{i18n>colItemType}" tooltip="{i18n>colItemTypeTip}"/>
+                <t:template><Input value="{vm>itemType}" placeholder="{i18n>itemTypeDefault}" tooltip="{i18n>colItemTypeTip}"/></t:template>
+              </t:Column>
               <t:Column width="8.5rem">
                 <Label text="{i18n>colStockType}"/>
                 <t:template>

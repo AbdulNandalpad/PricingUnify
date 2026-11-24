@@ -45,6 +45,7 @@ function buildBiBody({ items, customerId, customerOod, customer, hostObjectId, u
       unitCode: str(it.uom),
       uom: str(it.uom),
       itemCategoryCode: str(it.productCategory),
+      itemTypeDesc: str(it.itemType), // blank -> the request mapping's default item type is applied by the client
       c4cUnitCostAmt: 0,
       c4cPickCount: 0,
       useCostPlusFlag: '0',

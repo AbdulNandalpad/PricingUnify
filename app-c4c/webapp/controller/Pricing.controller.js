@@ -36,7 +36,7 @@ sap.ui.define([
 
     _newRow: function () {
       return {
-        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", priceUnit: "100", // C4C's own default: prices and costs are per 100 pieces
+        itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", itemType: "", priceUnit: "100", // C4C's own default: prices and costs are per 100 pieces
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
@@ -396,6 +396,7 @@ sap.ui.define([
         if (row.costManual && String(row.cost || "").trim() !== "" && row.currency) {
           item.hostCost = { value: String(parseFloat((Number(row.cost) / (Number(row.priceUnit) || 1)).toPrecision(12))), currency: row.currency };
         }
+        if ((row.itemType || "").trim()) { item.itemType = row.itemType.trim(); }
         if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
         if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
         if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
@@ -497,6 +498,12 @@ sap.ui.define([
             if (!row) { return; }
             row.line = line;
             row.status = line.status;
+            // Show the item type that was actually sent to the gateway (the default when none was typed).
+            if (!(row.itemType || "").trim() && line.trace && line.trace.costRouting) {
+              var rt = [].concat(line.trace.costRouting)[0];
+              var used = rt && rt.calls && rt.calls[0] && rt.calls[0].payload && rt.calls[0].payload.request && rt.calls[0].payload.request.item && rt.calls[0].payload.request.item.itemTypeDesc;
+              if (used) { row.itemType = used; }
+            }
             var cc = (line.trace && line.trace.costCandidate) || null;
             row.confidence = cc ? cc.confidence : "";
             row.sourceErp = cc && cc.source ? cc.source.system : "";
@@ -717,6 +724,7 @@ sap.ui.define([
         "product description": "description", "description": "description",
         "quantity": "quantity", "qty": "quantity",
         "uom": "uom", "unit": "uom", "quantity uom": "uom",
+        "item type": "itemType", "item type description": "itemType", "processing type": "itemType", "itemtypedesc": "itemType",
         "price/cost unit": "priceUnit", "price unit": "priceUnit", "cost unit": "priceUnit", "price per": "priceUnit",
         "customer part number": "customerPartNumber", "customer part no": "customerPartNumber",
         "origin of data": "ood", "data origin": "ood", "ood": "ood",

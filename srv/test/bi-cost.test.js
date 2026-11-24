@@ -17,6 +17,8 @@ test('buildBiBody asks for the cost alone (flag 0, zero picks) with customer blo
   assert.equal(b.item[1].stockClassGroupCode, 'MTS');
   assert.equal(b.item[0].supplierMainGroupCode, 'X_SIL');
   assert.equal(b.item[0].salesQuantity, 10);
+  assert.equal(b.item[0].itemTypeDesc, ''); // no item type typed -> blank, the client applies the configured default
+  assert.equal(buildBiBody({ items: [{ partNumber: 'P', quantity: 1, itemType: 'AGN' }] }).item[0].itemTypeDesc, 'AGN');
   assert.ok(b.item.every((i) => i.useCostPlusFlag === '0' && i.c4cPickCount === 0));
 });
 
