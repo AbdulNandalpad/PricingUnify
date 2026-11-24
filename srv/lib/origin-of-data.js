@@ -9,9 +9,10 @@ const stripZeros = (v) => String(v === undefined || v === null ? '' : v).trim().
  * whose own Origin of Data equals it) and never guesses: ambiguity comes back as a typed note.
  *   suppliers:  [{partNumber, ood, parentOod, supplierId, externalId, name, isDefault}]
  *   warehouses: [{partNumber, ood, warehouseId, stockClassRaw, leadTime, country, preferred}]
- *   line:       { partNumber, ood, warehouse }
+ *   line:       { partNumber, ood }   (the line's warehouse plays no part in stock class)
+ *   knownStockClasses: optional Set of raw classes the region's stockClassMap knows
  */
-function pickOriginOfData({ suppliers, warehouses }, line) {
+function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses } = {}) {
   const part = String(line.partNumber || '').trim();
   const ood = stripZeros(line.ood);
   const out = {};
@@ -33,21 +34,18 @@ function pickOriginOfData({ suppliers, warehouses }, line) {
     if (chosen) out.supplier = { id: chosen.supplierId, externalId: chosen.externalId, name: chosen.name };
   }
 
-  // ---- warehouse (stock class, lead time, country) ----
+  // ---- stock class (and lead time / country) from the node's warehouse ----
+  // Exactly as C4C's retrivePriceBI does: the PREFERRED warehouse of the Origin-of-Data node,
+  // else the first warehouse carrying a usable stock class. The LINE's own warehouse is NOT
+  // used for this (the script ignores it; it only defaults that field by country). "Usable" =
+  // a raw class the region's stockClassMap knows (config), so no class codes live in code.
   const rows = (warehouses || []).filter((w) => w.partNumber === part && stripZeros(w.ood) === ood);
-  const wanted = stripZeros(line.warehouse);
-  let wh = null;
-  if (wanted) {
-    wh = rows.find((w) => stripZeros(w.warehouseId) === wanted) || null;
-    if (!wh) out.warehouseNote = `WAREHOUSE_NOT_FOUND:${wanted}`;
+  const preferred = rows.find((w) => w.preferred);
+  const wh = preferred || rows.find((w) => w.stockClassRaw && (!knownStockClasses || knownStockClasses.has(w.stockClassRaw))) || null;
+  if (!wh) {
+    out.warehouseNote = rows.length === 0 ? 'NO_WAREHOUSE_IN_C4C' : 'NO_USABLE_STOCK_CLASS';
   } else {
-    const preferred = rows.filter((w) => w.preferred);
-    if (preferred.length === 1) wh = preferred[0];
-    else if (rows.length === 1) wh = rows[0];
-    else out.warehouseNote = rows.length === 0 ? 'NO_WAREHOUSE_IN_C4C' : 'WAREHOUSE_NOT_ON_LINE';
-  }
-  if (wh) {
-    out.warehouseId = wh.warehouseId;
+    out.stockClassWarehouse = wh.warehouseId;
     if (wh.stockClassRaw) out.stockClassRaw = wh.stockClassRaw;
     if (wh.leadTime) out.leadTime = wh.leadTime;
     if (wh.country) out.country = wh.country;

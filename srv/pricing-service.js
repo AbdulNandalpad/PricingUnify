@@ -671,7 +671,7 @@ module.exports = (srv) => {
     let map = null;
     try { map = (region && store.getEffectiveAsOf(region, salesOrg || '*', todayIso()) || {}).stockClassMap || null; } catch (e) { map = null; }
     const results = lines.map((line) => {
-      const picked = pickOriginOfData(rows, line);
+      const picked = pickOriginOfData(rows, line, { knownStockClasses: map ? new Set(Object.keys(map)) : null });
       const res = { partNumber: line.partNumber, ...picked };
       // Raw ERP stock class -> canonical through the region's own map (same rule as ProductSales).
       if (picked.stockClassRaw) {
