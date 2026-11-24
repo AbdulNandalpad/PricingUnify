@@ -77,7 +77,7 @@ const DEFAULT_FIELD_MAP = {
     accountOod: 'ExternalSystem',
     accountOodRouting: 'OOD_Routing_KUT',
     accountClass: 'CustomerABCClassificationCode',
-    accountSegment: 'BUS_SEG_CDE_KUT', // customer business segment (AUT / IND ...) -> China's predefined margin; TO CONFIRM the OData spelling
+    accountSegment: 'BUS_SEG_CDE_KUT', // customer business segment (AUT / IND ...) -> China's predefined margin; spelling CONFIRMED by the owner 2026-11-24
     accountCountry: 'CountryCode',
     accountTerritory: 'SALESTERRITORYDETCODE',
     accountCurrency: 'CURRENCY_KUT',
