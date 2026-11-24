@@ -1,42 +1,43 @@
 /**
  * Config API. Thin REST surface over config-model's ConfigStore + AI-suggestion pipeline.
- * Read actions are open to any authenticated user; anything that can change a live config —
- * a direct human edit (saveRegionConfig/saveSupplierConfig/saveRegionRoute/savePartyConfig)
- * or the AI-suggestion pipeline (requesting, approving, rejecting) — requires the
- * PricingAdmin role. A direct save always creates a brand-new version (config is never
- * mutated in place, per the versioning non-negotiable); provenance is always stamped
- * HUMAN/the calling user server-side, never trusted from the payload.
+ * The ENTIRE service — reads included — requires PricingAdmin (Phase 2, owner spec
+ * 2026-11-24: a PricingViewer sees only the pricing view; no config endpoint is reachable
+ * for them, 403). Writes (direct saves and the AI-suggestion pipeline) were always
+ * PricingAdmin. A direct save always creates a brand-new version (config is never mutated
+ * in place, per the versioning non-negotiable); provenance is always stamped HUMAN/the
+ * calling user server-side, never trusted from the payload. Enforced here at the service
+ * level — UI hiding is NOT security.
  */
 @protocol: 'rest'
 service ConfigService {
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function getEffectiveConfig(region: String, salesOrg: String, asOf: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listVersions(region: String, salesOrg: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listSuggestions(region: String, status: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function getEffectiveSupplierConfig(supplier: String, asOf: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listSuppliers(asOf: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listSupplierConfigVersions(supplier: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function getEffectiveRegionRoute(ood: String, salesOrg: String, asOf: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listRegionRouteVersions(ood: String, salesOrg: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function getEffectivePartyConfig(customerId: String, asOf: String) returns Map;
 
-  @requires: 'authenticated-user'
+  @requires: 'PricingAdmin'
   function listPartyConfigVersions(customerId: String) returns Map;
 
   @requires: 'PricingAdmin'

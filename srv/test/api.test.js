@@ -479,9 +479,9 @@ test('an unknown region/salesOrg with no effective config is a clear 422, not a 
   assert.equal(res.status, 422);
 });
 
-test('getEffectiveConfig is readable by any authenticated user', async () => {
+test('getEffectiveConfig is readable by a PricingAdmin (and by no one else -- see the role-model tests)', async () => {
   const res = await fetch(`${BASE}/rest/config/getEffectiveConfig?region=EUROPE&salesOrg=*`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   });
   assert.equal(res.status, 200);
   const config = await res.json();
@@ -629,7 +629,7 @@ test('a PricingAdmin can save a brand-new region-config version, and pricing pic
 
 test('saveRegionConfig rejects an invalid document (FACTOR with no basis) with a clear 422, and never touches the store', async () => {
   const before = await fetch(`${BASE}/rest/config/listVersions?region=EUROPE&salesOrg=DE98`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   }).then((r) => r.json());
   assert.equal(before.versions.length, 0);
 
@@ -642,7 +642,7 @@ test('saveRegionConfig rejects an invalid document (FACTOR with no basis) with a
   assert.equal(status, 422);
 
   const after = await fetch(`${BASE}/rest/config/listVersions?region=EUROPE&salesOrg=DE98`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   }).then((r) => r.json());
   assert.equal(after.versions.length, 0, 'a rejected save leaves the store completely untouched');
 });
@@ -711,7 +711,7 @@ test('US-T100: US supplier = 100 + 6.7% LCA + 10%/5%/8% f/d/t on 106.7 + 34/10 p
 
 test('listSuppliers returns every supplier globally, independent of region', async () => {
   const res = await fetch(`${BASE}/rest/config/listSuppliers`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   });
   assert.equal(res.status, 200);
   const { suppliers } = await res.json();
@@ -750,9 +750,9 @@ test('the same supplier (ACME) prices the same part differently depending on the
   assert.equal(noWarehouse.result.unitPrice, '130.78'); // ACME named but no warehouse -- falls back to the part's own generic rates
 });
 
-test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any authenticated user', async () => {
+test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by a PricingAdmin', async () => {
   const route = await fetch(`${BASE}/rest/config/getEffectiveRegionRoute?ood=SAP&salesOrg=*`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   });
   assert.equal(route.status, 200);
   const routeBody = await route.json();
@@ -760,7 +760,7 @@ test('getEffectiveRegionRoute and getEffectivePartyConfig are readable by any au
   assert.equal(routeBody.entityLabel, 'TSS Germany');
 
   const party = await fetch(`${BASE}/rest/config/getEffectivePartyConfig?customerId=CUST-DE-001`, {
-    headers: { Authorization: basicAuthHeader('alice') },
+    headers: { Authorization: basicAuthHeader('bob') },
   });
   assert.equal(party.status, 200);
   const partyBody = await party.json();
@@ -879,4 +879,44 @@ test('the configured cost access sequence drives per-source WSO2 endpoint calls,
     ],
   });
   assert.equal(line.trace.costCandidate.selectedBy, 'ACCESS_SEQUENCE:CCD');
+});
+
+// --- Phase 2 role model (owner spec 2026-11-24): PricingViewer = pricing only, PricingAdmin = + config ---
+
+test('a PricingViewer gets 403 on EVERY config endpoint, reads included', async () => {
+  for (const url of [
+    `${BASE}/rest/config/getEffectiveConfig?region=EUROPE&salesOrg=*`,
+    `${BASE}/rest/config/listSuppliers`,
+    `${BASE}/rest/config/listVersions?region=EUROPE&salesOrg=*`,
+  ]) {
+    const res = await fetch(url, { headers: { Authorization: basicAuthHeader('alice') } });
+    assert.equal(res.status, 403, `${url} must be unreachable for a viewer`);
+  }
+});
+
+test('an authenticated user with NEITHER role gets 403 on the pricing API too -- service-level enforcement, not UI hiding', async () => {
+  const priced = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 1 }] } }),
+  });
+  assert.equal(priced.status, 403);
+
+  const attrs = await fetch(`${BASE}/rest/pricing/fetchItemAttributes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 1 }] } }),
+  });
+  assert.equal(attrs.status, 403);
+});
+
+test('a PricingAdmin has everything the viewer has: bob can price', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('bob') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items: [{ partNumber: 'P-10023', quantity: 10 }] } }),
+  });
+  assert.equal(res.status, 200);
+  const [line] = (await res.json()).items;
+  assert.equal(line.result.unitPrice, '106.8');
 });

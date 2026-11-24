@@ -2,28 +2,53 @@
   "name": "tss-pricing-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "TSS Pricing Engine — AI pricing workspace. Landed cost from ERP facts + regional config, explainable, CRM-agnostic.",
-  "workspaces": ["engine-core", "config-model", "api6-client", "srv", "app", "mcp-server"],
+  "description": "TSS Pricing Engine \u2014 AI pricing workspace. Landed cost from ERP facts + regional config, explainable, CRM-agnostic.",
+  "workspaces": [
+    "engine-core",
+    "config-model",
+    "api6-client",
+    "srv",
+    "app",
+    "mcp-server"
+  ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "test:golden": "node tests/run-golden.js",
     "start:srv": "node srv/server.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "cds": {
     "requires": {
       "auth": {
         "kind": "mocked",
         "users": {
-          "alice": { "roles": ["PricingViewer"] },
-          "bob": { "roles": ["PricingAdmin", "PricingViewer"] }
+          "alice": {
+            "roles": [
+              "PricingViewer"
+            ]
+          },
+          "bob": {
+            "roles": [
+              "PricingAdmin",
+              "PricingViewer"
+            ]
+          },
+          "carol": {
+            "roles": []
+          }
         },
-        "[production]": { "kind": "xsuaa" }
+        "[production]": {
+          "kind": "xsuaa"
+        }
       }
     },
     "server": {
       "cors": true,
-      "[production]": { "cors": false }
+      "[production]": {
+        "cors": false
+      }
     }
   }
 }

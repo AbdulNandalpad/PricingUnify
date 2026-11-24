@@ -337,7 +337,11 @@ function LineDetail({ line }) {
  *  to the backend, and a results table you drill into per line. Facts are resolved by the
  *  backend's API6 client (recorded payload today) — not entered by hand. */
 function BatchWorkspace({ region, setRegion, goToConfig }) {
-  const [globals, setGlobals] = useState({ user: 'alice', salesOrg: '*', purpose: PURPOSE.INDICATIVE, pricingType: 'COST_PLUS' });
+  // Default demo user is bob since Phase 2's role tightening: every ConfigService endpoint
+  // (the supplier list included) now requires PricingAdmin — as alice this page still prices,
+  // but the supplier dropdown and the Configuration tab would 403. Not a new feature, just
+  // keeping the frozen demo app usable.
+  const [globals, setGlobals] = useState({ user: 'bob', salesOrg: '*', purpose: PURPOSE.INDICATIVE, pricingType: 'COST_PLUS' });
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [bulkText, setBulkText] = useState('');
   const [showBulk, setShowBulk] = useState(false);
@@ -360,7 +364,7 @@ function BatchWorkspace({ region, setRegion, goToConfig }) {
   // is empty), retry again after any successful backend call, and say so on screen while the
   // list isn't loaded rather than degrading silently.
   function refreshSuppliers() {
-    listSuppliers({ user: 'alice' })
+    listSuppliers({ user: 'bob' })
       .then((res) => setKnownSuppliers(res.suppliers || []))
       .catch(() => {});
   }
