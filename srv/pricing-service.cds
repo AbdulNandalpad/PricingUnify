@@ -18,6 +18,16 @@ service PricingService {
   @requires: 'PricingViewer'
   action fetchItemAttributes(payload: Map) returns Map;
 
+  // C4C-compatible facade: the exact contract C4C's retrivePriceBI / getPricePoints ABSL
+  // already speaks to the BI price service (see CLAUDE.md decision log 2026-11-24) — the
+  // raw body IS the ABSL payload, not wrapped in `payload`. PricingViewer, same as price:
+  // the WSO2 technical user gets the Viewer role collection.
+  @requires: 'PricingViewer'
+  action getCustomerPriceList(requestorId: String, customer: Map, item: array of Map) returns Map;
+
+  @requires: 'PricingViewer'
+  action getPricePoints(requestorId: String, originOfData: String, priceTypeCode: String, supplierMainCde: String, itemLongNumber: String, unitCode: String, currencyCode: String) returns Map;
+
   // Write the results of a pricing run back to the C4C host object (Phase 5). A Viewer
   // capability per the owner's role spec. QUOTE items get cost/landed cost/price/margin/
   // pricing type; OPPORTUNITY items get cost fields only (price is never written — enforced

@@ -3,6 +3,7 @@ const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
 const { createC4cClient } = require('./lib/c4c-client');
+const { translateCustomerPriceListRequest, renderCalculatedPriceList, buildPricePoints } = require('./lib/c4c-facade');
 
 const c4c = createC4cClient();
 
@@ -28,6 +29,10 @@ const SUPPLIER_WIDE_ADDER_FIELDS = ['molv'];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isNonEmpty(v) {
+  return v !== undefined && v !== null && String(v).trim() !== '';
 }
 
 /**
@@ -467,75 +472,117 @@ function resolveRegion({ region, salesOrg, customerOod, priceDate }) {
   return { region: route.region, derivedBy: `ROUTE:${customerOod}`, entityLabel: route.entityLabel };
 }
 
-module.exports = (srv) => {
-  srv.on('price', async (req) => {
-    const payload = req.data.payload || {};
-    const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod } = payload;
-    const priceDate = payload.priceDate || todayIso();
+/**
+ * The whole pricing run as a plain function, shared by the neutral `price` action and the
+ * C4C-compatible facade (`getCustomerPriceList`): returns { error: {status, message} } for
+ * request-level problems or { body } with the normal response. Behavior is byte-identical
+ * to the original handler — this is extraction, not change.
+ */
+async function runPricing({ payload, userId }) {
+  const { salesOrg = '*', purpose = 'INDICATIVE', items, instructions, hostSystem, hostObjectType, hostObjectId, customerId, customerOod } = payload;
+  const priceDate = payload.priceDate || todayIso();
 
-    if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+  if (!Array.isArray(items) || items.length === 0) return { error: { status: 400, message: 'payload.items must be a non-empty array.' } };
 
-    // party-config is customerId's master data (territory/country/currency/ood); an explicit
-    // payload.customerOod overrides its stored customerOod, same precedence pattern as every
-    // other override in this file.
-    const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
-    const resolvedCustomerOod = customerOod || (partyConfig && partyConfig.customerOod) || null;
+  // party-config is customerId's master data (territory/country/currency/ood); an explicit
+  // payload.customerOod overrides its stored customerOod, same precedence pattern as every
+  // other override in this file.
+  const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
+  const resolvedCustomerOod = customerOod || (partyConfig && partyConfig.customerOod) || null;
 
-    const { region, derivedBy: regionDerivedBy, entityLabel, reason: regionUnresolvedReason } =
-      resolveRegion({ region: payload.region, salesOrg, customerOod: resolvedCustomerOod, priceDate });
-    if (!region) {
-      return req.reject(400, `payload.region is required (or provide customerId/customerOod that resolves via region-route) — ${regionUnresolvedReason}.`);
-    }
+  const { region, derivedBy: regionDerivedBy, entityLabel, reason: regionUnresolvedReason } =
+    resolveRegion({ region: payload.region, salesOrg, customerOod: resolvedCustomerOod, priceDate });
+  if (!region) {
+    return { error: { status: 400, message: `payload.region is required (or provide customerId/customerOod that resolves via region-route) — ${regionUnresolvedReason}.` } };
+  }
 
-    const config = store.getEffectiveAsOf(region, salesOrg, priceDate);
-    if (!config) {
-      return req.reject(422, `No effective config for region "${region}" / salesOrg "${salesOrg}" as of ${priceDate}.`);
-    }
+  const config = store.getEffectiveAsOf(region, salesOrg, priceDate);
+  if (!config) {
+    return { error: { status: 422, message: `No effective config for region "${region}" / salesOrg "${salesOrg}" as of ${priceDate}.` } };
+  }
 
-    // Kit components need their own facts too (they're priced as full lines in their own
-    // right), so fetch for every part number that will actually be priced, not just the
-    // top-level request items.
-    const allPartNumbers = items.flatMap((it) => (Array.isArray(it.components) ? it.components : [it]));
-    const facts = await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
+  // Kit components need their own facts too (they're priced as full lines in their own
+  // right), so fetch for every part number that will actually be priced, not just the
+  // top-level request items.
+  const allPartNumbers = items.flatMap((it) => (Array.isArray(it.components) ? it.components : [it]));
+  const facts = await api6.getPricingFacts({ region, salesOrg, items: allPartNumbers });
 
-    const request = {
-      context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
-      party: {
-        customerId,
-        salesOrg,
-        ood: resolvedCustomerOod,
-        territory: partyConfig ? partyConfig.territory : null,
-        country: partyConfig ? partyConfig.customerCountry : null,
-        currency: partyConfig ? partyConfig.customerCurrency : null,
-      },
-      items,
-      priceDate,
-      instructions,
-    };
+  const request = {
+    context: { hostSystem: hostSystem || 'API', hostObjectType: hostObjectType || 'QUOTE', hostObjectId, purpose },
+    party: {
+      customerId,
+      salesOrg,
+      ood: resolvedCustomerOod,
+      territory: partyConfig ? partyConfig.territory : null,
+      country: partyConfig ? partyConfig.customerCountry : null,
+      currency: partyConfig ? partyConfig.customerCurrency : null,
+    },
+    items,
+    priceDate,
+    instructions,
+  };
 
-    const result = await priceWithKits({ region, salesOrg, priceDate, facts, config, request });
+  const result = await priceWithKits({ region, salesOrg, priceDate, facts, config, request });
 
-    // An OPPORTUNITY is cost-only (owner spec 2026-11-24): the build-up result is returned as
-    // landedCost and no price or margin field ever appears — nor will one ever be written back
-    // to C4C for an opportunity (Phase 5). The trace stays: it's the cost derivation.
-    const costOnly = (hostObjectType || 'QUOTE') === 'OPPORTUNITY';
-    if (costOnly) {
-      for (const line of result.items) {
-        if (line.result) {
-          const { unitPrice, ...rest } = line.result;
-          line.result = { landedCost: unitPrice, ...rest };
-        }
+  // An OPPORTUNITY is cost-only (owner spec 2026-11-24): the build-up result is returned as
+  // landedCost and no price or margin field ever appears — nor will one ever be written back
+  // to C4C for an opportunity. The trace stays: it's the cost derivation.
+  const costOnly = (hostObjectType || 'QUOTE') === 'OPPORTUNITY';
+  if (costOnly) {
+    for (const line of result.items) {
+      if (line.result) {
+        const { unitPrice, ...rest } = line.result;
+        line.result = { landedCost: unitPrice, ...rest };
       }
     }
+  }
 
-    return {
+  return {
+    body: {
       config: { region: config.region, salesOrg: config.salesOrg, version: config.version, status: config.status },
       region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
       priceDate,
-      requestedBy: req.user.id,
+      requestedBy: userId,
       ...(costOnly ? { costOnly: true } : {}),
       ...result,
-    };
+    },
+  };
+}
+
+module.exports = (srv) => {
+  srv.on('price', async (req) => {
+    const out = await runPricing({ payload: req.data.payload || {}, userId: req.user.id });
+    if (out.error) return req.reject(out.error.status, out.error.message);
+    return out.body;
+  });
+
+  /**
+   * C4C facade (owner decision 2026-11-24): the exact request/response contract the quote
+   * and opportunity `retrivePriceBI` ABSL scripts already speak to the BI price service —
+   * served here so PricingUnify can replace that service with only a WSO2 route change.
+   * Top-level body is the raw ABSL payload ({requestorId, customer, item[]}), NOT wrapped
+   * in `payload`. Errors come back as {status:"FAILED", message} with HTTP 200, matching
+   * the ABSL's own Content-based error branches.
+   */
+  srv.on('getCustomerPriceList', async (req) => {
+    const translated = translateCustomerPriceListRequest(req.data || {}, { store, priceDate: todayIso() });
+    if (translated.error) return { status: 'FAILED', message: translated.error };
+    const out = await runPricing({ payload: translated.payload, userId: req.user.id });
+    if (out.error) return { status: 'FAILED', message: out.error.message };
+    return { status: 'SUCCESS', calculatedPriceList: renderCalculatedPriceList(out.body.items, translated.meta) };
+  });
+
+  srv.on('getPricePoints', async (req) => {
+    const { originOfData, itemLongNumber, unitCode } = req.data || {};
+    if (!isNonEmpty(originOfData) || !isNonEmpty(itemLongNumber)) {
+      return { status: 'FAILED', message: 'originOfData and itemLongNumber are required.' };
+    }
+    const priceDate = todayIso();
+    const route = store.getEffectiveRegionRoute(String(originOfData).trim(), '*', priceDate);
+    if (!route) return { status: 'FAILED', message: `Cannot resolve a region from originOfData "${originOfData}".` };
+    const partNumber = String(itemLongNumber).trim();
+    const facts = await api6.getPricingFacts({ region: route.region, salesOrg: '*', items: [{ partNumber }] });
+    return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
   });
 
   srv.on('writeBackToC4C', async (req) => {

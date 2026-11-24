@@ -966,3 +966,70 @@ test('writeBackToC4C is a Viewer capability and answers typed C4C_NOT_CONFIGURED
   });
   assert.equal(noRole.status, 403);
 });
+
+// --- C4C facade: the exact contract the ABSL retrivePriceBI / getPricePoints scripts speak ---
+
+test('getCustomerPriceList accepts the raw ABSL payload and answers the calculatedPriceList contract', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/getCustomerPriceList`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') }, // Viewer role is enough
+    body: JSON.stringify({
+      requestorId: 'X_WSO2_READ',
+      customer: { customerId: '100233', originOfData: 'SAP', countryCode: 'DE', custcurrency: 'EUR', quoteId: '140981' },
+      item: [
+        // OOD SAP -> EUROPE via region-route; OMT -> NonMTS via EUROPE's stockClassMap;
+        // supplier+warehouse terms apply -> the long-pinned ACME@EU01 value.
+        { lineId: '10', itemLongNumber: 'EU-T100', salesQuantity: '10', stockClassGroupCode: 'OMT', supplierExternalID: 'ACME', supplierCountryCode: 'DE', warehouseCode: 'EU01', c4cUnitPriceAmt: '', priceCurrencyCode: 'EUR' },
+        // Existing C4C price must be PRESERVED (no margin rule in the engine yet), margin computed against it.
+        { lineId: '20', itemLongNumber: 'P-10023', salesQuantity: '10', stockClassGroupCode: 'MTS', c4cUnitPriceAmt: '155.00', priceCurrencyCode: 'EUR' },
+        // Unknown part -> typed miss, zeros on cost, nothing invented.
+        { lineId: '30', itemLongNumber: 'NO-SUCH-PART', salesQuantity: '1', stockClassGroupCode: 'MTS' },
+      ],
+    }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.status, 'SUCCESS'); // the ABSL's success check is Content.Contains("SUCCESS")
+  const [l10, l20, l30] = body.calculatedPriceList;
+
+  assert.equal(l10.lineId, '10');
+  assert.equal(l10.costPlusUnitAmt, '148.06');
+  assert.equal(l10.costFechedFrom, 'CCD');
+  assert.equal(l10.messageCode, 'M1'); // the ABSL's own "cost from CCD" convention
+  assert.match(l10.explainCostDesc, /SCM_MARKUP \+4\.70/);
+  assert.match(l10.explainCostDesc, /config 2026\.08\.0/);
+
+  assert.equal(l20.costPlusUnitAmt, '106.8');
+  assert.equal(l20.c4cPriceMultipliedAmt, '155.00'); // never destroys an existing C4C price
+  assert.equal(l20.gpamt, '0.311');
+
+  assert.equal(l30.costPlusUnitAmt, '0');
+  assert.match(l30.explainCostDesc, /NO_CANDIDATES/);
+});
+
+test('getCustomerPriceList answers FAILED (HTTP 200) for an unroutable originOfData — the ABSL error branch, not a 4xx', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/getCustomerPriceList`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ customer: { originOfData: 'XX' }, item: [{ lineId: '10', itemLongNumber: 'EU-T100', salesQuantity: '1' }] }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.status, 'FAILED');
+  assert.match(body.message, /region-route/);
+});
+
+test('getPricePoints serves the quantity-break and price-list points with their source, per the ABSL contract', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/getPricePoints`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ requestorId: 'X', originOfData: 'SAP', priceTypeCode: 'COST', supplierMainCde: '', itemLongNumber: 'EU-T100', unitCode: 'EA', currencyCode: 'EUR' }),
+  });
+  const body = await res.json();
+  assert.equal(body.status, 'SUCCESS');
+  assert.deepEqual(
+    body.pricePoints.map((p) => [p.priceListCde, p.quantity, p.price]),
+    [['SUPPLIER:ACME', '1', '90.00'], ['SUPPLIER:ACME', '50', '85.00']],
+  );
+  assert.equal(body.pricePoints[0].tssArticleNumber, 'EU-T100');
+});
