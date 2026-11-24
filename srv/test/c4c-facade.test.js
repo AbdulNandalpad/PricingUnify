@@ -44,3 +44,10 @@ test('useCostPlusFlag is the Additional Cost flag — mapped only for regions th
   assert.equal(us.region, 'AMERICAS');
   assert.equal(us.payload.items[0].additionalCost, undefined); // AMERICAS has no map -> flag is not forwarded
 });
+
+test('a non-zero c4cUnitCostAmt becomes hostCost (needs its currency); a zero or currency-less cost adds nothing', () => {
+  const t = (o) => translateCustomerPriceListRequest(body({}, [line(o)]), { store, priceDate: '2026-11-24' }).payload.items[0].hostCost;
+  assert.deepEqual(t({ c4cUnitCostAmt: '0.03180000', costCurrencyCode: 'EUR' }), { value: '0.03180000', currency: 'EUR' });
+  assert.equal(t({ c4cUnitCostAmt: '0.000000', costCurrencyCode: 'EUR' }), undefined); // the real line 40: cost 0 -> CCD lookup
+  assert.equal(t({ c4cUnitCostAmt: '0.0318', costCurrencyCode: '' }), undefined); // a currency is never guessed
+});

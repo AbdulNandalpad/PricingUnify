@@ -64,6 +64,11 @@ function translateCustomerPriceListRequest(c4cPayload, { store, priceDate }) {
       }
     }
 
+    // The cost C4C already holds on the line ("Cost Handed Over"); only with a currency.
+    if (isGiven(it.c4cUnitCostAmt) && Number(it.c4cUnitCostAmt) > 0 && isGiven(it.costCurrencyCode)) {
+      item.hostCost = { value: String(it.c4cUnitCostAmt).trim(), currency: String(it.costCurrencyCode).trim() };
+    }
+
     // useCostPlusFlag is C4C's Additional Cost flag (0..4). It goes through the region's own
     // additionalCostMap — only for regions that declare one, so a flag a region has no rules
     // for can never turn into a spurious ADDITIONAL_COST_UNRESOLVED.

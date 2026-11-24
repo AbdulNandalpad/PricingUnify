@@ -1184,3 +1184,23 @@ test('fetchC4cOriginOfData answers typed C4C_CREDENTIALS_MISSING in dev, empty l
   assert.deepEqual(await (await call('alice', { items: [] })).json(), { status: 'OK', results: [] });
   assert.equal((await call('carol', { items: [] })).status, 403);
 });
+
+test('a cost the host already holds (hostCost, the BI contract\'s "Cost Handed Over") is the explicitly selected C4C candidate; the Additional Cost flag decides whether anything is added on top', async () => {
+  const price = async (additionalCost) => (await (await fetch(`${BASE}/rest/pricing/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { region: 'EUROPE', items: [{ partNumber: 'EU-T100', quantity: 10, additionalCost, hostCost: { value: '80.00', currency: 'EUR' } }] } }),
+  })).json()).items[0];
+
+  // Flag 1: additions apply to the C4C cost: 80 + 4.7 % markup, then freight 10 % / duty 5 % / tariff 8 % of (80+3.76), + pick 20/10 = 105.02
+  const one = await price('1');
+  assert.equal(one.status, 'PRICED');
+  assert.equal(one.result.unitPrice, '105.02');
+  assert.equal(one.trace.costCandidate.source.system, 'C4C'); // beat the recorded CCD cost (100) — explicit selection wins
+  assert.equal(one.trace.costCandidate.selectedBy, 'USER');
+  assert.equal(one.trace.costCandidate.basis, 'MANUAL');
+
+  // Flag 0 ("Nothing to add"): C4C's cost comes back 1:1 — no markup, no landed cost, no pick.
+  const zero = await price('0');
+  assert.equal(zero.result.unitPrice, '80');
+});

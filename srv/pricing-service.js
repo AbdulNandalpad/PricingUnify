@@ -249,6 +249,34 @@ function applyPricingTypes(items) {
  * caller already picked a specific candidate (selectedCostId set) is left alone — the most
  * explicit choice wins. A lookup miss is a typed MISSING naming every key tried.
  */
+/**
+ * A cost the HOST already holds on the line (C4C's c4cUnitCostAmt, the BI contract's "Cost
+ * Handed Over") becomes an explicitly selected MANUAL candidate from system C4C — in the real
+ * BI service a non-zero C4C cost wins over a CCD lookup (sample, quote 235616: lines with a C4C
+ * cost used it, the line with cost 0 fell through to CCD). Explicit selection beats the
+ * configured access sequence, same precedence as everywhere else; no cost/currency given =
+ * nothing added (a currency is never guessed). Whether markup etc. is then added on top is the
+ * Additional Cost flag's job (0 = hand it back 1:1, 1 = add), not this step's.
+ */
+function applyHostProvidedCosts(facts, items) {
+  for (const item of items) {
+    const hc = item.hostCost;
+    if (!hc || item.selectedCostId) continue;
+    if (!(Number(hc.value) > 0) || !hc.currency) continue;
+    const key = `C4C_INPUT_${item.partNumber}`;
+    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
+    facts.costs[item.partNumber] = {
+      ...existing,
+      candidates: [
+        ...existing.candidates,
+        { value: String(hc.value), currency: String(hc.currency), basis: 'MANUAL',
+          source: { system: 'C4C', table: 'REQUEST', field: 'c4cUnitCostAmt', key }, confidence: 'EXACT' },
+      ],
+    };
+    item.selectedCostId = key;
+  }
+}
+
 async function applyPriceListCosts(facts, items, { region, salesOrg, priceDate }) {
   for (const item of items) {
     if (item.pricingType !== 'PRICE_LIST' || item.pricingTypeError || item.selectedCostId) continue;
@@ -388,6 +416,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   applyPricingTypes(flatItems);
   // PRICE_LIST before the automatic quantity-break cost: both select via selectedCostId, and
   // an explicit user choice of PRICE_LIST outranks the automatic qty-break mechanism.
+  applyHostProvidedCosts(facts, flatItems);
   await applyPriceListCosts(facts, flatItems, { region, salesOrg, priceDate });
   applyQuantityBreakCost(facts, flatItems);
   const routingByPart = await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
