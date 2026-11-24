@@ -68,10 +68,13 @@ const DEFAULT_FIELD_MAP = {
     productCategory: 'ProductCategoryID',
     priceBreak: 'PriceBreakIndicator_KUT',
     alternativeToLine: 'AlternativeToItemID',
-    // Product master search (the Add-item type-ahead; not yet confirmed live):
+    // Product master (Add-item type-ahead + blank-field enrichment). Confirmed against the
+    // tenant's $metadata: entity set ProductCollection, Product.ID / .Description /
+    // .UnitOfMeasureCode (ShortNumber and JDEMaterialNo_KUT also exist on it).
     productCollection: 'ProductCollection',
-    productId: 'InternalID',
+    productId: 'ID',
     productDescription: 'Description',
+    productUom: 'UnitOfMeasureCode',
   },
 };
 
@@ -377,7 +380,7 @@ function createC4cClient({
         if (!id) continue;
         products[id] = {
           description: row[r.productDescription] !== undefined && row[r.productDescription] !== null ? String(row[r.productDescription]) : '',
-          uom: row.BaseMeasureUnitCode !== undefined && row.BaseMeasureUnitCode !== null ? String(row.BaseMeasureUnitCode) : '',
+          uom: row[r.productUom] !== undefined && row[r.productUom] !== null ? String(row[r.productUom]) : '',
         };
       }
       return { status: 'OK', products };

@@ -193,8 +193,8 @@ test('searchProducts queries the material collection and maps id/description; ty
   const fetchImpl = async (url, init) => {
     calls.push(url);
     return jsonRes({ d: { results: [
-      { InternalID: 'EU-T100', Description: 'Verification part' },
-      { InternalID: 'EU-T200', Description: null },
+      { ID: 'EU-T100', Description: 'Verification part' },
+      { ID: 'EU-T200', Description: null },
     ] } });
   };
   const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl });
@@ -205,7 +205,7 @@ test('searchProducts queries the material collection and maps id/description; ty
     { id: 'EU-T100', description: 'Verification part' },
     { id: 'EU-T200', description: '' },
   ]);
-  assert.match(calls[0], /ProductCollection\?\$filter=startswith\(InternalID,'EU-T'\)/);
+  assert.match(calls[0], /ProductCollection\?\$filter=startswith\(ID,'EU-T'\)/);
 
   const offline = createC4cClient({ resolveDestination: () => null, fetchImpl: () => { throw new Error('no'); } });
   assert.equal((await offline.searchProducts({ query: 'EU-T' })).status, 'C4C_NOT_CONFIGURED');
@@ -216,8 +216,8 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   const fetchImpl = async (url) => {
     calls.push(url);
     return jsonRes({ d: { results: [
-      { InternalID: 'ORAR00125-N7H07', Description: 'O-Rings', BaseMeasureUnitCode: 'EA' },
-      { InternalID: 'EU-T100', Description: 'Verification part', BaseMeasureUnitCode: null },
+      { ID: 'ORAR00125-N7H07', Description: 'O-Rings', UnitOfMeasureCode: 'EA' },
+      { ID: 'EU-T100', Description: 'Verification part', UnitOfMeasureCode: null },
     ] } });
   };
   const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl });
@@ -229,7 +229,7 @@ test('fetchProductDetails looks up a set of parts in one or-filtered call and ma
   });
   // One call, duplicates/blanks dropped, or-joined filter against the material collection.
   assert.equal(calls.length, 1);
-  assert.match(calls[0], /ProductCollection\?\$filter=InternalID eq 'ORAR00125-N7H07' or InternalID eq 'EU-T100'/);
+  assert.match(calls[0], /ProductCollection\?\$filter=ID eq 'ORAR00125-N7H07' or ID eq 'EU-T100'/);
 
   // No parts -> nothing called, empty OK. Unconfigured -> typed, nothing called.
   assert.deepEqual(await client.fetchProductDetails({ partNumbers: [] }), { status: 'OK', products: {} });
