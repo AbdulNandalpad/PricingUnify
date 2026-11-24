@@ -2,6 +2,9 @@ const Decimal = require('decimal.js');
 const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
+const { createC4cClient } = require('./lib/c4c-client');
+
+const c4c = createC4cClient();
 
 // Topic 8: kit/BOM header-cost-is-sum-of-components only has a real API6 path for Americas
 // (JDE E1) and China (JDE) — Europe's BOM explosion is handled natively inside S4 (see the S4
@@ -533,6 +536,18 @@ module.exports = (srv) => {
       ...(costOnly ? { costOnly: true } : {}),
       ...result,
     };
+  });
+
+  srv.on('writeBackToC4C', async (req) => {
+    const payload = req.data.payload || {};
+    const { objectType, objectId, items } = payload;
+    if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+    return c4c.writeBack({
+      objectType: objectType === 'OPPORTUNITY' ? 'OPPORTUNITY' : 'QUOTE',
+      objectId,
+      items,
+      user: req.user.id, // PricedBy_SDK is always the logged-in user, never caller-supplied
+    });
   });
 
   srv.on('me', (req) => ({

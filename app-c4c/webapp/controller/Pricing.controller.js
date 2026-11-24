@@ -202,10 +202,15 @@ sap.ui.define([
         }
       })
         .then(function (res) {
+          var bundle = that.getView().getModel("i18n").getResourceBundle();
           if (res && res.status === "C4C_NOT_CONFIGURED") {
             that._message(res.message, "Warning");
+          } else if (res && res.status === "C4C_CONFLICT") {
+            that._message(bundle.getText("writeBackConflict"), "Error");
+          } else if (res && res.status === "C4C_ERROR") {
+            that._message(res.message, "Error");
           } else {
-            that._message(that.getView().getModel("i18n").getResourceBundle().getText("writeBackDone", [res.written]), "Success");
+            that._message(bundle.getText("writeBackDone", [res.written]), "Success");
           }
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })

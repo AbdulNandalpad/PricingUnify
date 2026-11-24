@@ -18,6 +18,15 @@ service PricingService {
   @requires: 'PricingViewer'
   action fetchItemAttributes(payload: Map) returns Map;
 
+  // Write the results of a pricing run back to the C4C host object (Phase 5). A Viewer
+  // capability per the owner's role spec. QUOTE items get cost/landed cost/price/margin/
+  // pricing type; OPPORTUNITY items get cost fields only (price is never written — enforced
+  // in the adapter); both get the ExternallyPriced_SDK/PricedBy_SDK/PricedOn_SDK audit
+  // fields on the header. ETag-guarded: a concurrent C4C change answers C4C_CONFLICT
+  // ("Object changed in C4C, reload"), never a blind overwrite.
+  @requires: 'PricingViewer'
+  action writeBackToC4C(payload: Map) returns Map;
+
   // Who am I + which of the two roles do I hold — the UI routes to the Viewer or Admin view
   // from this (app-c4c/'s Component.js). Deliberately open to any authenticated user: a user
   // with neither role still needs the answer to be told they have no access (the service-level

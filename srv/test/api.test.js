@@ -946,3 +946,23 @@ test('lookupPriceList is a read-only browser over the WSO2 price-list lookup, Pr
   });
   assert.equal(asViewer.status, 403);
 });
+
+// --- Phase 5: C4C write-back endpoint ---
+
+test('writeBackToC4C is a Viewer capability and answers typed C4C_NOT_CONFIGURED in dev (no destination)', async () => {
+  const res = await fetch(`${BASE}/rest/pricing/writeBackToC4C`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
+    body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-1', items: [{ partNumber: 'EU-T100', landedCost: '130.78' }] } }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.status, 'C4C_NOT_CONFIGURED'); // typed, never a faked success
+
+  const noRole = await fetch(`${BASE}/rest/pricing/writeBackToC4C`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('carol') },
+    body: JSON.stringify({ payload: { objectType: 'QUOTE', objectId: 'Q-1', items: [{ partNumber: 'X' }] } }),
+  });
+  assert.equal(noRole.status, 403);
+});
