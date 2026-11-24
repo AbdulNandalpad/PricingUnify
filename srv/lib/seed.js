@@ -132,6 +132,13 @@ function seedChinaRegionConfig() {
       { id: 'RES_SAP_EUROPE_FALLBACK', originOfData: 'SAP', fallback: ['RES_JDE_CHINA'], costBasis: 'SUPPLIER_CATALOG', provenance: HUMAN_PROVENANCE },
     ],
     stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
+    // Predefined margin, from retrivePriceBI's "Default Margin for China and India" (C4C sales unit
+    // TSSCHINA): customer business segment AUT -> 35 %, IND -> 65 %. `item.segment` is the
+    // customer's business segment (payload.customer.segmentCode) — not read from C4C yet.
+    marginRules: [
+      { id: 'CN_SEGMENT_AUT', when: "item.segment === 'AUT'", marginPct: 35, provenance: HUMAN_PROVENANCE },
+      { id: 'CN_SEGMENT_IND', when: "item.segment === 'IND'", marginPct: 65, provenance: HUMAN_PROVENANCE },
+    ],
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       { id: 'ROUTE_JDE_MARKUP', type: 'FACTOR', basis: ['BASE_COST'], rate: 0.032, when: "item.ood === 'CN'", provenance: HUMAN_PROVENANCE },
@@ -177,6 +184,18 @@ function seedIndiaRegionConfig() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_LOCAL', originOfData: 'IN', costBasis: 'STANDARD', provenance: HUMAN_PROVENANCE }],
+    // Predefined margin, from retrivePriceBI's "Default Margin for China and India" (C4C sales unit
+    // TSSINDIA), keyed by product category group and the supplier ("TSSB" = supplier S_BNG):
+    //   group A (PG, PH, ...):  TSSB 90 %, others / imported 58 %
+    //   group B (YV, YU, ...):  TSSB 80 %, others / imported 58 %
+    // PARTIAL: only the rules visible in the ABSL excerpt the owner shared; categories outside these
+    // two groups get no predefined margin until the rest of that script is read and added.
+    marginRules: [
+      { id: 'IN_TSSB_GROUP_A', when: ["item.supplier === 'S_BNG'", "item.productCategory in PG,PH,PS,PT,RG,RS,RT,TG,TJ,PR,RR"], marginPct: 90, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_OTHER_GROUP_A', when: "item.productCategory in PG,PH,PS,PT,RG,RS,RT,TG,TJ,PR,RR", marginPct: 58, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_TSSB_GROUP_B', when: ["item.supplier === 'S_BNG'", "item.productCategory in YV,YU,WA,WD,WK,WM,WN,WS,WX,WW,PD,AP,AD,AR,AW,RH,PQ,RQ,RD,WE,TV,TP,DV,TB,RV,TE,PE,RE,TT,RN,PV,PU,RU"], marginPct: 80, provenance: HUMAN_PROVENANCE },
+      { id: 'IN_OTHER_GROUP_B', when: "item.productCategory in YV,YU,WA,WD,WK,WM,WN,WS,WX,WW,PD,AP,AD,AR,AW,RH,PQ,RQ,RD,WE,TV,TP,DV,TB,RV,TE,PE,RE,TT,RN,PV,PU,RU", marginPct: 58, provenance: HUMAN_PROVENANCE },
+    ],
     buildUp: [
       { id: 'BASE_COST', type: 'BASE', provenance: HUMAN_PROVENANCE },
       // Owner decision (2026-08-26, mockup review): "overseas" means the supplier's actual

@@ -30,6 +30,12 @@ function parseLiteral(raw) {
  *  branches on more than one field at once (e.g. China: origin of data AND supplier AND COO). */
 function evaluateWhen(expr, scope) {
   if (Array.isArray(expr)) return expr.every((e) => evaluateWhen(e, scope));
+  // "path in A,B,C" — list membership (e.g. India's margin by product-category group).
+  const inM = String(expr).match(/^\s*([\w.]+)\s+in\s+(.+?)\s*$/);
+  if (inM) {
+    const left = readPath(scope, inM[1]);
+    return inM[2].split(',').map((v) => parseLiteral(v.trim())).some((v) => v === left);
+  }
   const m = String(expr).match(/^\s*([\w.]+)\s*(===|==|!==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
   if (!m) throw new Error(`Unsupported "when" expression: "${expr}"`);
   const [, path, op, rawValue] = m;
@@ -117,6 +123,34 @@ function priceItem(item, request, facts, config) {
         missing: { reason: 'PRICE_UNIT_INVALID', detail: String(item.priceUnit) },
         trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }),
       };
+    }
+  }
+
+  // Selling price: either a MARGIN (% of the selling price, gross margin) or a MANUAL price the
+  // user typed — validated up front, never guessed. Both are optional; without either the line
+  // is a pure cost (landed cost) result, exactly as before.
+  const hasManualPrice = item.manualPrice !== undefined && item.manualPrice !== null && item.manualPrice !== '';
+  let hasMargin = item.margin && item.margin.marginPct !== undefined && item.margin.marginPct !== null && item.margin.marginPct !== '';
+  // Predefined margin (config: region-config.marginRules, first matching rule wins) — only when
+  // the caller gave neither a margin nor a price: an explicit user/host margin always wins.
+  let marginRule = null;
+  if (!hasManualPrice && !hasMargin && Array.isArray(config.marginRules)) {
+    for (const rule of config.marginRules) {
+      let hit = false;
+      try { hit = !rule.when || evaluateWhen(rule.when, { item }); } catch (e) { hit = false; }
+      if (hit) { marginRule = rule; break; }
+    }
+    if (marginRule) { item = { ...item, margin: { marginPct: marginRule.marginPct } }; hasMargin = true; }
+  }
+  if (hasManualPrice || hasMargin) {
+    let bad = null;
+    try {
+      if (hasManualPrice) { const p = new Decimal(item.manualPrice); if (!(p.isFinite() && p.gt(0))) bad = { reason: 'MANUAL_PRICE_INVALID', detail: String(item.manualPrice) }; }
+      else { const m = new Decimal(item.margin.marginPct); if (!(m.isFinite() && m.gte(0) && m.lt(100))) bad = { reason: 'MARGIN_INVALID', detail: `${item.margin.marginPct} (must be >= 0 and < 100)` }; }
+    } catch (e) { bad = { reason: hasManualPrice ? 'MANUAL_PRICE_INVALID' : 'MARGIN_INVALID', detail: String(hasManualPrice ? item.manualPrice : item.margin.marginPct) }; }
+    if (bad) {
+      return { partNumber: item.partNumber, status: 'MISSING', missing: bad,
+        trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }) };
     }
   }
 
@@ -209,10 +243,23 @@ function priceItem(item, request, facts, config) {
   const priceUnit = new Decimal(item.priceUnit === undefined || item.priceUnit === null ? 1 : item.priceUnit);
   running = roundTotal(running.times(priceUnit), config.rounding);
 
+  // Selling price on top of the landed cost (same per-price-unit basis as `unitPrice`):
+  //   MARGIN: price = landed / (1 - margin%)   (margin is a share of the SELLING price)
+  //   MANUAL: price as typed; the margin it implies = (price - landed) / price
+  let selling = null;
+  if (hasManualPrice) {
+    const p = new Decimal(item.manualPrice);
+    selling = { sellingPrice: p, marginPct: p.minus(running).div(p).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP), priceBy: 'MANUAL' };
+  } else if (hasMargin) {
+    const m = new Decimal(item.margin.marginPct);
+    selling = { sellingPrice: roundTotal(running.div(new Decimal(1).minus(m.div(100))), config.rounding), marginPct: m, priceBy: marginRule ? 'DEFAULT_RULE' : 'MARGIN', ...(marginRule ? { marginRule: marginRule.id || null } : {}) };
+  }
+
   return {
     partNumber: item.partNumber,
     status: 'PRICED',
-    result: { unitPrice: running.toString(), currency: chosen.currency, quantity, ...(priceUnit.eq(1) ? {} : { priceUnit: priceUnit.toString() }) },
+    result: { unitPrice: running.toString(), currency: chosen.currency, quantity, ...(priceUnit.eq(1) ? {} : { priceUnit: priceUnit.toString() }),
+      ...(selling ? { sellingPrice: selling.sellingPrice.toString(), marginPct: selling.marginPct.toString(), priceBy: selling.priceBy, ...(selling.marginRule !== undefined ? { marginRule: selling.marginRule } : {}) } : {}) },
     trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps, constraintPasses, stockClass: item.stockClass }),
   };
 }

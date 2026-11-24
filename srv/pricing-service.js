@@ -578,7 +578,9 @@ async function runPricing({ payload, userId }) {
       priceGroup: (customer && customer.priceGroup) || null,
       classCode: (customer && customer.classCode) || null,
     },
-    items,
+    // The customer's business segment feeds the predefined-margin rules (China): per line, an
+    // explicit item.segment wins.
+    items: (customer && customer.segmentCode) ? items.map((it) => (it.segment ? it : { ...it, segment: customer.segmentCode })) : items,
     priceDate,
     instructions,
   };
@@ -595,7 +597,7 @@ async function runPricing({ payload, userId }) {
   if (costOnly) {
     for (const line of result.items) {
       if (line.result) {
-        const { unitPrice, ...rest } = line.result;
+        const { unitPrice, sellingPrice, marginPct, priceBy, ...rest } = line.result; // an opportunity never carries a price or margin
         line.result = { landedCost: unitPrice, ...rest };
       }
     }

@@ -41,6 +41,7 @@ sap.ui.define([
         priceBreak: false, alternativeToLine: "",
         supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
+        priceBy: "", marginNote: "", costManual: false, currency: "", // priceBy: "MARGIN" | "PRICE" = what the user typed last; costManual = a typed cost replaces the fetched one
         status: "", confidence: "", line: null
       };
     },
@@ -357,7 +358,7 @@ sap.ui.define([
 
     /** Rows with a part number, in table order, plus the row indexes they came from — results
      *  zip back by position, never by guessing (blank rows are skipped, order is preserved). */
-    _payloadItems: function () {
+    _payloadItems: function (fillPrices) {
       var rows = this._vm().getProperty("/items");
       var payloadItems = [];
       var rowIndexes = [];
@@ -366,6 +367,14 @@ sap.ui.define([
         if (!part) { return; }
         var item = { partNumber: part, quantity: Number(row.quantity) || 1, pricingType: row.pricingType || "COST_PLUS" };
         if (String(row.priceUnit || "").trim() !== "") { item.priceUnit = Number(row.priceUnit); }
+        // Step 2 of the flow (after Fetch Costs): what the user typed decides the selling price.
+        //   typed Price  -> manualPrice (margin is then derived)   typed Margin % -> margin on the landed cost
+        //   typed Cost   -> replaces the fetched cost (explicit manual cost; the build-up still applies per Additional Cost)
+        if (row.priceBy === "PRICE" && String(row.price || "").trim() !== "") { item.manualPrice = Number(row.price); }
+        else if (row.priceBy === "MARGIN" && String(row.marginPct || "").trim() !== "") { item.margin = { marginPct: Number(row.marginPct) }; }
+        if (row.costManual && String(row.cost || "").trim() !== "" && row.currency) {
+          item.hostCost = { value: String(parseFloat((Number(row.cost) / (Number(row.priceUnit) || 1)).toPrecision(12))), currency: row.currency };
+        }
         if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
         if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
         if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
@@ -378,6 +387,11 @@ sap.ui.define([
       });
       return { payloadItems: payloadItems, rowIndexes: rowIndexes };
     },
+
+    /** The user typed in Cost / Price / Margin %: remember WHAT they typed, it drives the next Calculate Prices. */
+    onCostEdit: function (e) { e.getSource().getBindingContext("vm").getModel().setProperty(e.getSource().getBindingContext("vm").getPath() + "/costManual", true); },
+    onPriceEdit: function (e) { e.getSource().getBindingContext("vm").getModel().setProperty(e.getSource().getBindingContext("vm").getPath() + "/priceBy", "PRICE"); },
+    onMarginEdit: function (e) { e.getSource().getBindingContext("vm").getModel().setProperty(e.getSource().getBindingContext("vm").getPath() + "/priceBy", "MARGIN"); },
 
     onFetchCosts: function () { this._runPricing(false); },
     onCalculatePrices: function () { this._runPricing(true); },
@@ -406,7 +420,7 @@ sap.ui.define([
       var that = this;
       var session = this.getSession();
       var vm = this._vm();
-      var built = this._payloadItems();
+      var built = this._payloadItems(fillPrices);
       if (built.payloadItems.length === 0) {
         this._message(this.getView().getModel("i18n").getResourceBundle().getText("noItemsToPrice"), "Warning");
         return;
@@ -448,7 +462,7 @@ sap.ui.define([
           });
           vm.setProperty("/items", rows);
           // Re-build the payload so freshly resolved attributes flow into pricing too.
-          var rebuilt = that._payloadItems();
+          var rebuilt = that._payloadItems(fillPrices);
           return that.callRest("/rest/pricing/price", { body: { payload: Object.assign({}, payload, { items: rebuilt.payloadItems }) } })
             .then(function (res) { return { res: res, rowIndexes: rebuilt.rowIndexes }; });
         })
@@ -456,6 +470,7 @@ sap.ui.define([
           var res = zip.res;
           var rows = vm.getProperty("/items");
           var priced = 0;
+          var pricedWithMargin = 0;
           (res.items || []).forEach(function (line, j) {
             var row = rows[zip.rowIndexes[j]];
             if (!row) { return; }
@@ -472,23 +487,25 @@ sap.ui.define([
               priced++;
               var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
               row.landedCost = amount;
-              var lv = Number(amount) / rowUnit * Number(line.result.quantity);
+              row.currency = line.result.currency || row.currency;
+              var perUnitAmount = line.result.sellingPrice !== undefined ? line.result.sellingPrice : amount;
+              var lv = Number(perUnitAmount) / rowUnit * Number(line.result.quantity);
               row.lineValue = Number.isFinite(lv)
                 ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 : "";
-              if (fillPrices && line.result.unitPrice !== undefined) {
-                row.price = line.result.unitPrice;
-                var p = Number(line.result.unitPrice);
-                var c = Number(row.cost);
-                row.marginPct = (Number.isFinite(p) && Number.isFinite(c) && p > 0) ? (((p - c) / p) * 100).toFixed(1) + " %" : "";
-              } else if (!fillPrices) {
-                row.price = "";
-                row.marginPct = "";
+              if (line.result.sellingPrice !== undefined) {
+                // The engine did the margin math on the fetched cost: selling price + the margin it implies.
+                // Works on the FIRST call too: a typed margin/price, or the region's predefined margin rule.
+                row.price = line.result.sellingPrice;
+                row.marginPct = line.result.marginPct;
+                row.marginNote = line.result.priceBy === "DEFAULT_RULE" ? ("Predefined margin (region rule " + line.result.marginRule + ")") : "";
+                pricedWithMargin++;
+              } else if (row.priceBy === "") {
+                row.price = ""; row.marginPct = ""; row.marginNote = ""; // nothing typed and no predefined rule: cost only
               }
+              // Fetch Costs (or no margin/price typed yet) leaves whatever the user typed untouched.
             } else {
               row.landedCost = "";
-              row.price = "";
-              row.marginPct = "";
               row.lineValue = "";
             }
           });
@@ -499,6 +516,7 @@ sap.ui.define([
           var bundle = that.getView().getModel("i18n").getResourceBundle();
           var summary = bundle.getText(fillPrices ? "pricedSummary" : "costedSummary", [priced, (res.items || []).length]);
           var recorded = res.api6Mode === "recorded";
+          if (priced > 0 && pricedWithMargin === 0) { summary += " " + bundle.getText("enterMarginHint"); }
           if (recorded) { summary += " " + bundle.getText("recordedModeNote"); }
           that._message(summary, (priced === (res.items || []).length && !recorded) ? "Success" : "Warning");
         })

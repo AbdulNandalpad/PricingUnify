@@ -134,7 +134,7 @@ test('fetchBiCosts (TEMPORARY cost source): every line is sent with flag 0 and z
 test('a line with no item type gets the default item type, so the supplier is NOT cleared', () => {
   const { buildBiPriceRequest } = require('../src/bi-price-request');
   const { body } = buildBiPriceRequest({ customer: {}, item: [{ lineId: '1', supplierMainGroupCode: 'X_SIL', supplierCountryCode: 'IT' }] });
-  assert.equal(body.item[0].itemTypeDesc, 'AGN - Product');
+  assert.equal(body.item[0].itemTypeDesc, 'AGN');
   assert.equal(body.item[0].supplierMainGroupCode, 'X_SIL');
   // an explicit empty default restores the CPI's literal behaviour
   const cleared = buildBiPriceRequest({ customer: {}, item: [{ lineId: '1', supplierMainGroupCode: 'X_SIL' }] }, { defaultItemTypeDesc: '' });

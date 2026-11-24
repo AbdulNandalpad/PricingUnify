@@ -26,11 +26,12 @@ const DEFAULT_REQUEST_MAPPING = Object.freeze({
   stockClassOverrides: [
     { customerCountry: 'US', warehouseCode: '1020', supplierMainGroupCode: 'L_LCE', stockClassGroupCode: 'MTS' },
   ],
-  // The neutral request does not carry C4C's item type; a standard quote product line is
-  // "AGN - Product" in C4C (TO CONFIRM against the BI's own itemTypeDesc values). Without ANY
-  // item type the CPI rule below blanks the supplier code + country, which starves the cost
-  // lookup — so the item type is defaulted here, visibly, and editable as data.
-  defaultItemTypeDesc: 'AGN - Product',
+  // The neutral request does not carry C4C's item type. The BI's itemTypeDesc is the item's
+  // PROCESSING TYPE CODE (retrivePriceBI sends it.ProcessingTypeCode; the real samples carry
+  // "AGN" — the C4C screen shows it as "AGN - Product"). Without ANY item type the CPI rule
+  // below blanks the supplier code + country, which starves the cost lookup — so it is defaulted
+  // here, visibly, and editable as data.
+  defaultItemTypeDesc: 'AGN',
   clearSupplierWithoutItemTypeOrOpportunity: true,
   zeroCostPlusFlagForOpportunity: true,
   stripLeadingZerosFrom: ['supplierExternalID'],

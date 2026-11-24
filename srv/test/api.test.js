@@ -1244,3 +1244,22 @@ test('the real BI sample line (0.0219 EUR, qty 1, price unit 100) reproduces C4C
   assert.equal(l.result.unitPrice, '2102.46');
   assert.equal(l.result.priceUnit, '100');
 });
+
+test('margin: typed margin on the FIRST call gives the selling price; typed price gives the implied margin; INDIA predefined rule fires and is named; opportunity never carries them', async () => {
+  const call = async (payload, user = 'alice') => {
+    const res = await fetch(`${BASE}/rest/pricing/price`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader(user) }, body: JSON.stringify({ payload }) });
+    return (await res.json());
+  };
+  const base = (await call({ region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 10 }] })).items[0].result;
+  assert.equal(base.sellingPrice, undefined); // no margin typed, no rule in Europe: pure landed cost
+  const withMargin = (await call({ region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 10, margin: { marginPct: 20 } }] })).items[0].result;
+  assert.equal(withMargin.unitPrice, base.unitPrice); // 113.19
+  assert.equal(withMargin.sellingPrice, '141.49'); // 113.19 / 0.8 = 141.4875 -> 141.49
+  assert.equal(withMargin.priceBy, 'MARGIN');
+  const manual = (await call({ region: 'EUROPE', items: [{ partNumber: 'P-10023', quantity: 10, manualPrice: 155 }] })).items[0].result;
+  assert.equal(manual.marginPct, '26.97'); // (155 - 113.19) / 155
+  const opp = (await call({ region: 'EUROPE', hostObjectType: 'OPPORTUNITY', items: [{ partNumber: 'P-10023', quantity: 10, margin: { marginPct: 20 } }] })).items[0].result;
+  assert.equal(opp.sellingPrice, undefined);
+  assert.equal(opp.marginPct, undefined);
+  assert.equal(opp.landedCost, '113.19');
+});

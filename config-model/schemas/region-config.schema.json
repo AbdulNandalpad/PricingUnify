@@ -34,6 +34,21 @@
       "additionalProperties": { "enum": ["MTS", "NonMTS"] },
       "description": "Maps this region's raw ERP stock-class codes (e.g. China's OMT/SMT/CMT, Americas' MTS-Z/MTS-2C) to the two canonical buckets buildUp/constraint `when` expressions branch on via item.stockClass. Optional — a region whose formulas don't yet vary by stock class (e.g. India, or Europe before Appendix A lands) omits it entirely, and srv skips classification for that region rather than requiring every part to carry a code. Once present, every priced item for that region must resolve to a mapped code or it comes back MISSING(STOCK_CLASS_UNRESOLVED) — silently skipping stock-class-conditioned elements would risk under-pricing."
     },
+    "marginRules": {
+      "type": "array",
+      "description": "PREDEFINED margin (retrivePriceBI's 'Default Margin for China and India'): the first rule whose `when` matches the line gives its marginPct (a share of the SELLING price) when the caller supplied neither a margin nor a price — an explicit user/host margin or price always wins. `when` uses the same grammar as build-up elements, plus `path in A,B,C` list membership. The result says which rule fired (priceBy DEFAULT_RULE, marginRule id).",
+      "items": {
+        "type": "object",
+        "required": ["id", "marginPct"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "when": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+          "marginPct": { "type": ["number", "string"] },
+          "provenance": { "$ref": "provenance.schema.json" }
+        }
+      }
+    },
     "defaultWarehouse": {
       "type": "string",
       "minLength": 1,

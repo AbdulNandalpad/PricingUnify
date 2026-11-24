@@ -225,7 +225,7 @@
               </t:Column>
               <t:Column width="6.5rem" hAlign="End">
                 <Label text="{i18n>colCost}"/>
-                <t:template><Text text="{path: 'vm>cost', formatter: '.formatter.fmt2'}"/></t:template>
+                <t:template><Input value="{vm>cost}" type="Number" textAlign="End" change=".onCostEdit" valueState="{= ${vm>costManual} ? 'Information' : 'None' }" tooltip="{i18n>costEditTip}"/></t:template>
               </t:Column>
               <t:Column width="7rem" hAlign="End">
                 <Label text="{i18n>colLandedCost}"/>
@@ -233,7 +233,7 @@
               </t:Column>
               <t:Column width="6.5rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colPrice}"/>
-                <t:template><Text text="{path: 'vm>price', formatter: '.formatter.fmt2'}"/></t:template>
+                <t:template><Input value="{vm>price}" type="Number" textAlign="End" change=".onPriceEdit" valueState="{= ${vm>priceBy} === 'PRICE' ? 'Information' : 'None' }" tooltip="{i18n>priceEditTip}"/></t:template>
               </t:Column>
               <t:Column width="7rem" hAlign="End">
                 <Label text="{i18n>colLineValue}"/>
@@ -241,7 +241,7 @@
               </t:Column>
               <t:Column width="6rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colMargin}"/>
-                <t:template><Text text="{vm>marginPct}"/></t:template>
+                <t:template><Input value="{vm>marginPct}" type="Number" textAlign="End" change=".onMarginEdit" valueState="{= ${vm>priceBy} === 'MARGIN' ? 'Information' : 'None' }" tooltip="{= ${vm>marginNote} || ${i18n>marginEditTip} }"/></t:template>
               </t:Column>
               <t:Column width="7rem">
                 <Label text="{i18n>colStatus}"/>
