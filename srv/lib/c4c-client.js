@@ -152,6 +152,9 @@ function deepMerge(base, override) {
   return out;
 }
 
+/** OData booleans arrive as true / "true" / "X" / 1 depending on the service — accept all, never guess otherwise. */
+function isTrue(v) { return v === true || v === 1 || /^(true|x|1|yes|y)$/i.test(String(v === undefined || v === null ? '' : v).trim()); }
+
 function createC4cClient({
   destinationName = 'C4C_ODATA',
   resolveDestination = envDestinationResolver,
@@ -549,7 +552,7 @@ function createC4cClient({
           strategyDesc: str(x[r.originStrategyDesc]),
           leadTime: str(x[r.originLeadTime]),
           country: str(x[r.originCountry]),
-          preferred: x[r.originPreferredWarehouse] === true,
+          preferred: isTrue(x[r.originPreferredWarehouse]),
         })),
       };
     } catch (err) {

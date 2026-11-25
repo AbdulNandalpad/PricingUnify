@@ -127,6 +127,8 @@ function seedChinaRegionConfig() {
     supersedes: null,
     validFrom: '2026-08-01',
     validTo: null,
+    // Default warehouse when the part has no PREFERRED warehouse in its Origin-of-Data record (owner rule 2026-11-25).
+    defaultWarehouse: 'CNSHS1',
     resolution: [
       { id: 'RES_JDE_CHINA', originOfData: 'CN', costBasis: 'MOVING_AVG', provenance: HUMAN_PROVENANCE },
       { id: 'RES_SAP_EUROPE_FALLBACK', originOfData: 'SAP', fallback: ['RES_JDE_CHINA'], costBasis: 'SUPPLIER_CATALOG', provenance: HUMAN_PROVENANCE },
@@ -184,6 +186,8 @@ function seedIndiaRegionConfig() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_LOCAL', originOfData: 'IN', costBasis: 'STANDARD', provenance: HUMAN_PROVENANCE }],
+    // Default warehouse when the part has no PREFERRED warehouse in its Origin-of-Data record (owner rule 2026-11-25).
+    defaultWarehouse: 'LCI',
     // Predefined margin = retrivePriceBI's "Default Margin for China and India" (C4C sales unit
     // TSSINDIA), COMPLETE rule set from the C4C export (DEV2605): by product category group, and
     // whether the supplier is "TSSB" (S_BNG). Non-TSSB / imported = 58 % in the TSSB groups; fixed
@@ -256,6 +260,8 @@ function seedAmericasRegionConfig() {
     validFrom: '2025-06-01',
     validTo: null,
     resolution: [{ id: 'RES_JDE_E1', originOfData: 'SMA', costBasis: 'WEIGHTED_AVG', provenance: HUMAN_PROVENANCE }],
+    // Default warehouse when the part has no PREFERRED warehouse in its Origin-of-Data record (owner rule 2026-11-25).
+    defaultWarehouse: 'LG01',
     stockClassMap,
     buildUp: buildUpFor(0.062, 0.10),
     constraints: [],
@@ -271,6 +277,8 @@ function seedAmericasRegionConfig() {
     validFrom: '2026-01-01',
     validTo: null,
     resolution: [{ id: 'RES_JDE_E1', originOfData: 'SMA', costBasis: 'WEIGHTED_AVG', provenance: HUMAN_PROVENANCE }],
+    // Default warehouse when the part has no PREFERRED warehouse in its Origin-of-Data record (owner rule 2026-11-25).
+    defaultWarehouse: 'LG01',
     stockClassMap,
     buildUp: buildUpFor(0.067, 0.105),
     constraints: [],

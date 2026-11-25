@@ -98,3 +98,14 @@ test('warehouse (owner rule): the part\'s PREFERRED warehouse, otherwise the con
   // no preferred and no default configured -> nothing, not a guess
   assert.deepEqual(warehouseFromPicked({}, null), {});
 });
+
+test('the owner\'s real SMA part (ORAR00125-N7H07): warehouses CN01 (not preferred) and LG01 (preferred, strategy group 2) -> LG01 by PREFERRED; with none preferred the SMA default LG01 / CN CNSHS1 / IN LCI applies', () => {
+  const sma = { suppliers: [], warehouses: [
+    wh({ ood: 'SMA', warehouseId: 'CN01', preferred: false, stockClassRaw: 'MTS' }),
+    wh({ ood: 'SMA', warehouseId: 'LG01', preferred: true, stockClassRaw: 'MTS', strategyCode: '2', strategyDesc: 'MTS2' }),
+  ] };
+  const picked = pickOriginOfData(sma, { partNumber: 'P1', ood: 'SMA' });
+  assert.deepEqual(warehouseFromPicked(picked, 'LG01'), { warehouse: 'LG01', warehouseBy: 'PREFERRED' });
+  const nonePreferred = { suppliers: [], warehouses: [wh({ ood: 'CN', warehouseId: 'X1' }), wh({ ood: 'CN', warehouseId: 'X2' })] };
+  assert.deepEqual(warehouseFromPicked(pickOriginOfData(nonePreferred, { partNumber: 'P1', ood: 'CN' }), 'CNSHS1'), { warehouse: 'CNSHS1', warehouseBy: 'DEFAULT' });
+});

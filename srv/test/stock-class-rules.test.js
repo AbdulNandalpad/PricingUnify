@@ -46,5 +46,10 @@ test('the default warehouse (1020) belongs to the part\'s Origin of Data too: a 
     const pricingDefault = store.getEffectiveAsOf(pricingRegion, '*', TODAY).defaultWarehouse || null;
     assert.equal(defaultWarehouseForOod({ store, ood: 'SAP', pricingDefault, date: TODAY }), '1020', pricingRegion);
   }
-  assert.equal(defaultWarehouseForOod({ store, ood: 'CN', pricingDefault: null, date: TODAY }), null); // CHINA has none -> stays blank
+  // Owner rule 2026-11-25: no preferred warehouse -> SMA LG01, CN CNSHS1, IN LCI (each from the region that owns that origin)
+  assert.equal(defaultWarehouseForOod({ store, ood: 'SMA', pricingDefault: null, date: TODAY }), 'LG01');
+  assert.equal(defaultWarehouseForOod({ store, ood: 'CN', pricingDefault: null, date: TODAY }), 'CNSHS1');
+  assert.equal(defaultWarehouseForOod({ store, ood: 'IN', pricingDefault: null, date: TODAY }), 'LCI');
+  // ...and the origin decides, not the quote's region: an AMERICAS quote with a CN-origin part gets CNSHS1
+  assert.equal(defaultWarehouseForOod({ store, ood: 'CN', pricingDefault: 'LG01', date: TODAY }), 'CNSHS1');
 });
