@@ -48,13 +48,14 @@ test('no Origin of Data on the line, or nothing in C4C, is a typed note', () => 
   assert.equal(r.warehouseNote, 'NO_WAREHOUSE_IN_C4C');
 });
 
-test('a strategy group blocks the plain StockClass: the real Z8 part (StockClass MTS, but the BI service sent MTO) stays unresolved, never silently MTS', () => {
-  const rows = { suppliers: [], warehouses: [wh({ stockClassRaw: 'MTS', strategyCode: 'Z8', strategyDesc: 'MTS-Z & QuickSeal' })] };
+test('a NON-SAP origin uses the warehouse raw StockClass through the region map even when it has a strategy group (the C4C script does the same); only SAP is decided by the strategy-group rules', () => {
+  const rows = { suppliers: [], warehouses: [wh({ stockClassRaw: 'MTO', strategyCode: '0', strategyDesc: 'MTO' })] };
   const picked = pickOriginOfData(rows, { partNumber: 'P1', ood: 'SMA' });
-  assert.equal(picked.strategyGroupCode, 'Z8');
+  assert.equal(picked.strategyGroupCode, '0');
   const sc = stockClassFromPicked(picked, { MTS: 'MTS', MTO: 'NonMTS' });
-  assert.equal(sc.stockClass, undefined);
-  assert.equal(sc.note, 'STRATEGY_GROUP_RULE_PENDING:Z8 (MTS-Z & QuickSeal)');
+  assert.deepEqual(sc, { stockClass: 'NonMTS' });
+  // no map for the region -> typed note, never a guess
+  assert.deepEqual(stockClassFromPicked(picked, null), { note: 'NO_STOCK_CLASS_MAP_FOR_REGION' });
 });
 
 test('without a strategy group the stock class resolves through the region map, with typed notes otherwise', () => {
@@ -75,10 +76,10 @@ test('region stockClassRules (owner rule): origin SAP + strategy Z4 = MTS, SAP +
   assert.equal(sc(picked('Z3')).stockClass, 'NonMTS');
   assert.equal(sc(picked('Z7')).stockClass, 'NonMTS');
   assert.equal(sc(picked('')).stockClass, 'NonMTS'); // no strategy group -> the else branch
-  // the golden rule is about SAP-sourced parts only: a part from another origin is NOT touched by it
-  // (its strategy group keeps the typed pending note instead of becoming the default NonMTS)
-  assert.equal(sc(picked('Z4'), 'CN').stockClass, undefined);
-  assert.equal(sc(picked('Z4'), 'CN').note, 'STRATEGY_GROUP_RULE_PENDING:Z4');
+  // the golden rule is about SAP-sourced parts only: a part from another origin is NOT touched by it —
+  // it keeps its own raw class (here MTS) instead of becoming the SAP default NonMTS
+  assert.deepEqual(sc(picked('Z4'), 'CN'), { stockClass: 'MTS' });
+  assert.deepEqual(sc(picked('Z8'), 'CN'), { stockClass: 'MTS' });
   assert.equal(sc({ stockClassWarehouse: '1', stockClassRaw: 'MTS' }, 'IN').stockClass, 'MTS'); // no strategy group -> raw class via the region map
   assert.equal(sc(picked('Z4'), '000SAP').stockClass, 'MTS'); // leading zeros stripped like C4C
   assert.deepEqual(sc({ strategyGroupCode: 'Z4' }), {}); // no warehouse record -> nothing to classify, never the default

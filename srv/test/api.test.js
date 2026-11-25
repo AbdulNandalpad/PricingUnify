@@ -287,7 +287,7 @@ test('topic 8: a kit with an unresolvable component comes back MISSING, not sile
             quantity: 1,
             components: [
               { partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' },
-              { partNumber: 'CN-K002-BAD', quantity: 1, ood: 'CN' }, // deliberately unmapped stock class
+              { partNumber: 'CN-K002-NOCOST', quantity: 1, ood: 'CN' }, // a component with no cost on file at all (China declares a stock-class map only for display, so an unknown class no longer fails a line by itself)
             ],
           },
         ],
@@ -297,7 +297,7 @@ test('topic 8: a kit with an unresolvable component comes back MISSING, not sile
   const line = res.items[0];
   assert.equal(line.status, 'MISSING');
   assert.equal(line.missing.reason, 'KIT_COMPONENT_UNRESOLVED');
-  assert.equal(line.missing.componentPartNumber, 'CN-K002-BAD');
+  assert.equal(line.missing.componentPartNumber, 'CN-K002-NOCOST');
 });
 
 test('topic 8: a kit requested for a region without a real BOM-explosion path (Europe) is a typed MISSING, not a silent wrong price', async () => {

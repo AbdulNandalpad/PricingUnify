@@ -172,8 +172,9 @@ function seedChinaRegionConfig() {
  * the docx's Appendix A figure (+40%) is authoritative over the xlsx India sheet's "1.45%"
  * (almost certainly a x1.45 multiplier written down as "1.45%" by mistake — the two aren't
  * actually describing different rules), and that "OOD is not IN" is what overseas means here.
- * No stock-class split — Appendix A gives India the identical formula for both classes, so no
- * stockClassMap is declared (would only add unnecessary classification risk with no payoff).
+ * No stock-class split in the PRICE — Appendix A gives India the identical formula for both
+ * classes. A stockClassMap is declared anyway (2026-11-25) so the line's Stock type can be shown
+ * from C4C's raw class (MTS / MTO / MTC): India's price build-up does not read it.
  */
 function seedIndiaRegionConfig() {
   if (store.listVersions('INDIA', '*').length > 0) return;
@@ -186,6 +187,7 @@ function seedIndiaRegionConfig() {
     validFrom: '2026-08-01',
     validTo: null,
     resolution: [{ id: 'RES_LOCAL', originOfData: 'IN', costBasis: 'STANDARD', provenance: HUMAN_PROVENANCE }],
+    stockClassMap: { MTS: 'MTS', 'MTS-Z': 'MTS', 'MTS-2C': 'MTS', OMT: 'NonMTS', SMT: 'NonMTS', CMT: 'NonMTS', MTO: 'NonMTS', MTC: 'NonMTS' },
     // Default warehouse when the part has no PREFERRED warehouse in its Origin-of-Data record (owner rule 2026-11-25).
     defaultWarehouse: 'LCI',
     // Predefined margin = retrivePriceBI's "Default Margin for China and India" (C4C sales unit

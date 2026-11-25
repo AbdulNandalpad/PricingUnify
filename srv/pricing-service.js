@@ -95,20 +95,30 @@ function applySupplierOverrides(facts, items, priceDate) {
  * back MISSING(STOCK_CLASS_UNRESOLVED) from engine-core (via item.stockClassError) rather
  * than silently skipping stockClass-conditioned build-up elements — see kernel.js.
  */
+/** Does this region's price actually depend on the stock class? (a `when` reading it, or a stock-class
+ *  keyed cost access sequence). A region that only DECLARES a map for classification / display (India,
+ *  China) must not fail lines whose class is unknown — nothing in its price would use it. */
+function configReadsStockClass(config) {
+  const seq = config.costAccessSequence;
+  if (seq && !Array.isArray(seq)) return true;
+  return JSON.stringify([config.buildUp || [], config.constraints || []]).includes('stockClass');
+}
+
 function applyStockClassNormalization(facts, items, config) {
   if (!config.stockClassMap) return;
+  const needed = configReadsStockClass(config);
   for (const item of items) {
     // Explicit selection always wins, same precedence as cost candidates, supplier country,
     // and region — a caller that already knows the stock class skips ERP-code normalization.
     if (item.stockClass) continue;
     const raw = facts.classification && facts.classification[item.partNumber] && facts.classification[item.partNumber].stockClassRaw;
     if (raw === undefined || raw === null || raw === '') {
-      item.stockClassError = 'STOCK_CLASS_NOT_PROVIDED';
+      if (needed) item.stockClassError = 'STOCK_CLASS_NOT_PROVIDED';
       continue;
     }
     if (Object.prototype.hasOwnProperty.call(config.stockClassMap, raw)) {
       item.stockClass = config.stockClassMap[raw];
-    } else {
+    } else if (needed) {
       item.stockClassError = `STOCK_CLASS_UNMAPPED:${raw}`;
     }
   }

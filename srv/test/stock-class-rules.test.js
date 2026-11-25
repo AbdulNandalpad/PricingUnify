@@ -35,8 +35,8 @@ test('Europe pricing a part from ANOTHER origin (China, India, SMA) is not touch
   for (const ood of ['CN', 'IN', 'SMA']) {
     const rules = stockClassRulesForOod({ store, ood, pricingRules: europe, date: TODAY }); // falls back to Europe's set
     const r = stockClassFromPicked({ stockClassWarehouse: 'W1', strategyGroupCode: 'Z8', stockClassRaw: 'MTS' }, { MTS: 'MTS' }, { rules, ood });
-    assert.equal(r.stockClass, undefined, `${ood}: no class from the SAP rule`);
-    assert.match(r.note, /^STRATEGY_GROUP_RULE_PENDING:Z8/, `${ood}: typed pending note instead`);
+    assert.equal(r.stockClassBy, undefined, `${ood}: not decided by the SAP rule`);
+    assert.equal(r.stockClass, 'MTS', `${ood}: keeps its own raw class (MTS), no SAP default NonMTS leaks onto it`);
   }
 });
 
@@ -52,4 +52,14 @@ test('the default warehouse (1020) belongs to the part\'s Origin of Data too: a 
   assert.equal(defaultWarehouseForOod({ store, ood: 'IN', pricingDefault: null, date: TODAY }), 'LCI');
   // ...and the origin decides, not the quote's region: an AMERICAS quote with a CN-origin part gets CNSHS1
   assert.equal(defaultWarehouseForOod({ store, ood: 'CN', pricingDefault: 'LG01', date: TODAY }), 'CNSHS1');
+});
+
+test('INDIA has a stock-class map (C4C raw MTS / MTO / MTC), so an India-origin part with strategy group 1 / 0 resolves from its raw class', () => {
+  const india = store.getEffectiveAsOf('INDIA', '*', TODAY);
+  assert.equal(india.stockClassMap.MTO, 'NonMTS');
+  const rules = stockClassRulesForOod({ store, ood: 'IN', pricingRules: null, date: TODAY });
+  const r1 = stockClassFromPicked({ stockClassWarehouse: 'LCI', strategyGroupCode: '1', strategyGroupDesc: 'MTS1', stockClassRaw: 'MTS' }, india.stockClassMap, { rules, ood: 'IN' });
+  assert.deepEqual(r1, { stockClass: 'MTS' });
+  const r0 = stockClassFromPicked({ stockClassWarehouse: 'LCI', strategyGroupCode: '0', strategyGroupDesc: 'MTO', stockClassRaw: 'MTO' }, india.stockClassMap, { rules, ood: 'IN' });
+  assert.deepEqual(r0, { stockClass: 'NonMTS' });
 });

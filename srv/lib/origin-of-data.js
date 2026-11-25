@@ -64,9 +64,12 @@ function pickOriginOfData({ suppliers, warehouses }, line, { knownStockClasses }
  *      (SAP + Z4 = MTS, SAP + anything else = NonMTS). Origins no rule names are NOT touched by
  *      it — other origins buy from SAP, not the other way round. Applied only when a warehouse
  *      record was found (nothing to classify otherwise — never the default by accident).
- *   2. Otherwise: a strategy group still blocks the plain StockClass (typed
- *      STRATEGY_GROUP_RULE_PENDING — the warehouse StockClass column alone is not what C4C
- *      sends); without a strategy group the raw StockClass goes through the region's stockClassMap.
+ *   2. Otherwise (every non-SAP origin): the raw StockClass of the preferred warehouse goes through
+ *      the region's stockClassMap — exactly what C4C's retrivePriceBI does for non-SAP nodes ("for
+ *      other nodes the raw class is used"). The strategy group is NOT consulted here: it only
+ *      matters for SAP, where the warehouse StockClass is not what C4C sends (the Z8 case) and the
+ *      rule set above decides. (An earlier version held every part that had a strategy group as
+ *      STRATEGY_GROUP_RULE_PENDING — that blocked all India / China / Americas parts needlessly.)
  */
 function stockClassFromPicked(picked, map, { rules, ood } = {}) {
   const covered = rules && (rules.rules || []).some((r) => stripZeros(r.ood) === stripZeros(ood));
@@ -75,9 +78,6 @@ function stockClassFromPicked(picked, map, { rules, ood } = {}) {
     const code = picked.strategyGroupCode || '';
     const hit = (rules.rules || []).find((r) => stripZeros(r.ood) === stripZeros(ood) && r.strategyCode === code);
     return { stockClass: hit ? hit.stockClass : rules.default, stockClassBy: hit ? `RULE:${hit.ood}/${hit.strategyCode}` : 'RULE:DEFAULT' };
-  }
-  if (picked.strategyGroupCode) {
-    return { note: `STRATEGY_GROUP_RULE_PENDING:${picked.strategyGroupCode}${picked.strategyGroupDesc ? ` (${picked.strategyGroupDesc})` : ''}` };
   }
   if (!picked.stockClassRaw) return {};
   if (!map) return { note: 'NO_STOCK_CLASS_MAP_FOR_REGION' };

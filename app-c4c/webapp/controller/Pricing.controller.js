@@ -337,7 +337,20 @@ sap.ui.define([
           var keys = Object.keys(notes);
           if (keys.length > 0) {
             var bundle = that.getView().getModel("i18n").getResourceBundle();
-            that._message(bundle.getText("originOfDataNotes", [keys.join("; ")]), "Warning");
+            // Group by reason so a 27-line quote reads as 2-3 short sentences, not one wall of text.
+            var byReason = {};
+            keys.forEach(function (k) {
+              var i = k.indexOf(": ");
+              var part = i < 0 ? k : k.slice(0, i);
+              var reason = i < 0 ? "" : k.slice(i + 2);
+              (byReason[reason] = byReason[reason] || []).push(part);
+            });
+            var text = Object.keys(byReason).map(function (reason) {
+              var parts = byReason[reason];
+              var shown = parts.slice(0, 4).join(", ") + (parts.length > 4 ? " … +" + (parts.length - 4) + " more" : "");
+              return (reason || "see lines") + " — " + parts.length + " line" + (parts.length === 1 ? "" : "s") + " (" + shown + ")";
+            }).join("; ");
+            that._message(bundle.getText("originOfDataNotes", [text]), "Warning");
           }
         })
         .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
