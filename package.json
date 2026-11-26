@@ -2,7 +2,7 @@
   "name": "tss-pricing-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "TSS Pricing Engine \u2014 AI pricing workspace. Landed cost from ERP facts + regional config, explainable, CRM-agnostic.",
+  "description": "TSS Pricing Engine — AI pricing workspace. Landed cost from ERP facts + regional config, explainable, CRM-agnostic.",
   "workspaces": [
     "engine-core",
     "config-model",
@@ -50,5 +50,8 @@
         "cors": false
       }
     }
+  },
+  "devDependencies": {
+    "@sap/cds-dk": "^10.2.1"
   }
 }
