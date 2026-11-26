@@ -90,3 +90,19 @@ test('recorded mode replays the raw API6 answer from kits-default.json and makes
   // the same part under ANOTHER OOD is a different ERP's BOM: not there
   assert.equal((await c.fetchKitComponents({ ood: 'SAP', partNumber: 'CN-K001' })).status, 'NOT_FOUND');
 });
+
+test('the kit call uses the SAME credentials as the price call (one API6 auth strategy for every endpoint)', async () => {
+  const { basicAuth } = require('../src/auth/strategies');
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push({ url, authorization: init.headers.Authorization || init.headers.authorization });
+    const answer = url.endsWith('/getKitComponents') ? realAnswer : { status: { statusCode: 'SUCCESS', faultMessage: [] }, calculatedPriceList: [] };
+    return { ok: true, status: 200, statusText: 'OK', json: async () => answer };
+  };
+  const c = createApi6Client({ mode: 'live', baseUrl: 'https://api6.example', auth: basicAuth({ username: 'svc', password: 'pw' }), fetchImpl });
+  await c.fetchKitComponents({ ood: 'SAP', partNumber: 'K-1' });
+  await c.fetchBiPriceList({ customer: { customerId: '1' }, item: [{ lineId: '1', itemLongNumber: 'X', salesQuantity: 1 }] });
+  const expected = 'Basic ' + Buffer.from('svc:pw').toString('base64');
+  assert.equal(seen.length, 2);
+  assert.ok(seen.every((r) => r.authorization === expected), JSON.stringify(seen));
+});
