@@ -31,14 +31,25 @@ class VersionedBucketStore {
     if (versions.some((v) => v.version === doc.version)) {
       throw new ConfigValidationError(`Version "${doc.version}" already exists for this ${this.entityLabel} (key "${key}").`);
     }
+    // Only ACTIVE documents take part in effective-dating. A DRAFT (or REJECTED) one is stored but
+    // never resolves for any date, and never closes another version's window.
     if (doc.status === 'ACTIVE') {
+      let nextStart = null; // the earliest LATER version's start: a backdated save must not reach past it
       for (const v of versions) {
-        if (v.status !== 'ACTIVE') continue;
-        v.status = 'SUPERSEDED';
-        // Close the superseded version's window at the new one's start, so overlapping
-        // validFrom dates can't leave two versions both matching the same lookup date.
-        if (!v.validTo || v.validTo > doc.validFrom) v.validTo = doc.validFrom;
+        if (v.status !== 'ACTIVE' && v.status !== 'SUPERSEDED') continue;
+        if (v.validFrom <= doc.validFrom) {
+          // v started at or before the new version: from the new start on, the new one replaces it.
+          // Close v's window there (never extend it) so no two versions ever cover the same date.
+          if (!v.validTo || v.validTo > doc.validFrom) {
+            v.validTo = doc.validFrom;
+            v.status = 'SUPERSEDED';
+          }
+        } else if (nextStart === null || v.validFrom < nextStart) {
+          nextStart = v.validFrom;
+        }
       }
+      // A backdated save only covers the gap up to the next existing version, which stays in force.
+      if (nextStart !== null && (!doc.validTo || doc.validTo > nextStart)) doc.validTo = nextStart;
     }
     versions.push(doc);
     this.versionsByKey.set(key, versions);
@@ -67,7 +78,16 @@ class VersionedBucketStore {
 
   _effectiveInBucket(key, date) {
     const versions = this.versionsByKey.get(key) || [];
-    return versions.find((v) => v.validFrom <= date && (!v.validTo || date < v.validTo) && v.status !== 'REJECTED') || null;
+    // ACTIVE/SUPERSEDED only (never DRAFT/REJECTED). If more than one window covers the date — which
+    // saveVersion prevents but legacy data could contain — the version that started LAST wins, and
+    // among equal starts the one saved last: "the most recent rule that has taken effect".
+    let best = null;
+    for (const v of versions) {
+      if (v.status !== 'ACTIVE' && v.status !== 'SUPERSEDED') continue;
+      if (!(v.validFrom <= date && (!v.validTo || date < v.validTo))) continue;
+      if (best === null || v.validFrom >= best.validFrom) best = v;
+    }
+    return best;
   }
 }
 

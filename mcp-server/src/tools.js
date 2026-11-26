@@ -16,6 +16,20 @@ const { toApiItem, summarizeRun, explainLine } = require('./summarize');
 const PRICING_TYPE = z.enum(['COST_PLUS', 'PRICE_LIST']);
 const STOCK_CLASS = z.enum(['MTS', 'NonMTS']);
 
+/** One component of a kit: a part and how many of it ONE kit contains. */
+const componentShape = z.object({
+  partNumber: z.string().min(1),
+  quantity: z.number().positive().describe('How many of this component ONE kit contains.'),
+  supplier: z.string().optional(),
+  supplierCountry: z.string().optional(),
+  warehouse: z.string().optional(),
+  ood: z.string().optional(),
+  stockClass: STOCK_CLASS.optional(),
+  additionalCost: z.union([z.string(), z.number()]).optional(),
+  itemType: z.string().optional(),
+  priceUnit: z.number().positive().optional(),
+}).strict();
+
 const itemShape = z.object({
   partNumber: z.string().min(1).describe('Product / part number, e.g. "EU-T100".'),
   quantity: z.number().positive().describe('Ordered quantity in the part\'s own unit (pieces).'),
@@ -31,6 +45,7 @@ const itemShape = z.object({
   priceUnit: z.number().positive().optional().describe('Price/cost unit: amounts are per this many pieces. Default 1 at the API (C4C uses 100).'),
   marginPct: z.number().min(0).lt(100).optional().describe('Margin as % of the SELLING price (0 ≤ m < 100): sellingPrice = landedCost ÷ (1 − m/100). Omit for pure landed cost (a predefined regional margin rule may still apply).'),
   manualPrice: z.number().positive().optional().describe('A selling price per priceUnit. Wins over marginPct; the resulting margin is derived.'),
+  components: z.array(componentShape).min(1).max(100).optional().describe('Makes this line a KIT: its price is the sum over components of (component price per piece x quantity in the kit). Only AMERICAS and CHINA support kits; any other region answers MISSING(KIT_NOT_SUPPORTED_FOR_REGION). Every component must price, or the whole kit is MISSING.'),
 }).strict();
 
 const scopeShape = {

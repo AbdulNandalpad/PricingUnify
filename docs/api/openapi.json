@@ -71,7 +71,7 @@
       "basicAuth": { "type": "http", "scheme": "basic", "description": "Local development only (mocked CAP users)." }
     },
     "responses": {
-      "BadRequest": { "description": "Malformed request (e.g. no items, region not resolvable).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "BadRequest": { "description": "Malformed request: no items, region not resolvable, or an invalid purpose / hostObjectType / priceDate (values are case-sensitive; a typo is refused, never defaulted).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "Unauthorized": { "description": "No or invalid credentials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "Forbidden": { "description": "Authenticated but missing the required role.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "TooManyLines": { "description": "More lines than the configured per-request maximum (default 500).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
@@ -138,7 +138,7 @@
               "priceBy": { "type": "string", "enum": ["MARGIN", "MANUAL", "DEFAULT_RULE"] }
             }
           },
-          "missing": { "type": "object", "description": "Present when MISSING.", "properties": { "reason": { "type": "string", "description": "e.g. NO_CANDIDATES, STOCK_CLASS_UNRESOLVED, RATE_MISSING, AMOUNT_MISSING, PRICE_LIST_COST_NOT_FOUND, MARGIN_INVALID." }, "detail": { "type": "string" } } },
+          "missing": { "type": "object", "description": "Present when MISSING.", "properties": { "reason": { "type": "string", "description": "e.g. NO_CANDIDATES, STOCK_CLASS_UNRESOLVED, RATE_MISSING, AMOUNT_MISSING, PRICE_LIST_COST_NOT_FOUND, MARGIN_INVALID, QUANTITY_INVALID (missing, non-numeric, zero or negative quantity), SELECTED_COST_NOT_FOUND, COST_VALUE_INVALID / FACT_INVALID (a non-numeric value in the data), KIT_NOT_SUPPORTED_FOR_REGION, KIT_COMPONENT_UNRESOLVED, KIT_CURRENCY_MISMATCH." }, "detail": { "type": "string" } } },
           "trace": { "type": "object", "description": "How the number was reached: costCandidate (source, basis, confidence, selectedBy), stockClass, steps[] (id, type, delta, runningTotal, note), constraintPasses[], costRouting[], configVersion." }
         }
       },

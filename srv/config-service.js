@@ -27,7 +27,7 @@ function withHumanProvenance(doc, req) {
   const stampNested = (items) => (Array.isArray(items) ? items.map((item) => ({ ...item, provenance: item.provenance || provenance })) : items);
   return {
     ...doc,
-    status: doc.status || 'ACTIVE',
+    status: 'ACTIVE', // direct saves always go straight to ACTIVE (there is no draft stage); a caller-supplied status is ignored
     validFrom: doc.validFrom || todayIso(),
     validTo: doc.validTo ?? null,
     ...(doc.buildUp ? { buildUp: stampNested(doc.buildUp) } : {}),
@@ -252,7 +252,7 @@ module.exports = (srv) => {
     if (!suggestionId || !newVersion) return req.reject(400, 'payload.suggestionId and payload.newVersion are required.');
     const suggestion = store.getSuggestion(suggestionId);
     if (!suggestion) return req.reject(404, `Suggestion "${suggestionId}" not found.`);
-    return applySuggestion(suggestion, { store, approvedBy: req.user.id, newVersion });
+    return trySave(req, () => applySuggestion(suggestion, { store, approvedBy: req.user.id, newVersion }));
   });
 
   srv.on('rejectSuggestion', (req) => {

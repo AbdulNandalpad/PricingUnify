@@ -37,11 +37,14 @@ function costSource(trace) {
 function summarizeLine(line) {
   const base = { partNumber: line.partNumber, status: line.status };
   const t = line.trace || {};
+  const kitParts = t.kit ? { kit: true, components: (t.components || []).map(summarizeLine) } : {};
   if (line.status !== 'PRICED') {
     return {
       ...base,
+      ...kitParts,
       reason: (line.missing && line.missing.reason) || 'UNKNOWN',
       detail: (line.missing && line.missing.detail) || null,
+      ...(line.missing && line.missing.componentPartNumber ? { componentPartNumber: line.missing.componentPartNumber, componentIssue: line.missing.componentIssue } : {}),
       stockClass: t.stockClass || null,
       hint: hintFor(line),
     };
@@ -49,6 +52,7 @@ function summarizeLine(line) {
   const r = line.result || {};
   return {
     ...base,
+    ...kitParts,
     quantity: r.quantity,
     currency: r.currency,
     // For COST_PLUS the engine's `unitPrice` IS the landed cost; an OPPORTUNITY carries it as `landedCost`.
@@ -69,6 +73,12 @@ function hintFor(line) {
     case 'STOCK_CLASS_UNRESOLVED': return 'Stock class could not be determined. Pass stockClass ("MTS" or "NonMTS") explicitly, or call get_item_attributes first.';
     case 'RATE_MISSING': return 'A charge rate this region needs is missing (usually freight/duty/tariff for the supplier × warehouse). Pass supplier and warehouse.';
     case 'AMOUNT_MISSING': return 'A fixed charge amount this region needs is missing.';
+    case 'QUANTITY_INVALID': return 'Quantity must be a number greater than 0.';
+    case 'SELECTED_COST_NOT_FOUND': return 'The requested cost candidate does not exist for this part. Omit selectedCostId to let the region\'s cost-source order choose.';
+    case 'KIT_NOT_SUPPORTED_FOR_REGION': return 'Kits are only supported for AMERICAS and CHINA. Price the components as separate lines instead.';
+    case 'KIT_COMPONENT_UNRESOLVED': return 'A component of the kit could not be priced; see componentIssue for which one and why. A kit is MISSING if any component is.';
+    case 'KIT_CURRENCY_MISMATCH': return 'The kit\'s components price in different currencies; there is no FX conversion across components.';
+    case 'FACT_INVALID': case 'COST_VALUE_INVALID': return 'A value in the data for this part is not a number; the detail names which one.';
     case 'PRICE_LIST_COST_NOT_FOUND': return 'No price-list cost matched. Pass supplier or productCategory for pricingType PRICE_LIST.';
     default: return null;
   }

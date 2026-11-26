@@ -29,7 +29,10 @@ function resolveCandidate(costFacts, itemSelection, accessSequence) {
 
   if (itemSelection) {
     const chosen = costFacts.candidates.find(c => c.source && c.source.key === itemSelection);
-    if (chosen) return { chosen, reason: null, matchedStep: null };
+    if (chosen) return { chosen, reason: null, matchedStep: null, selectedMatched: true };
+    // An explicit choice that matches nothing is NOT silently replaced by another cost: the
+    // caller asked for a specific candidate, and pricing a different one would misreport who chose it.
+    return { chosen: null, reason: 'SELECTED_COST_NOT_FOUND', matchedStep: null };
   }
 
   if (Array.isArray(accessSequence)) {
@@ -39,7 +42,7 @@ function resolveCandidate(costFacts, itemSelection, accessSequence) {
     }
   }
 
-  const wantId = itemSelection || costFacts.default;
+  const wantId = costFacts.default;
   const chosen = costFacts.candidates.find(c => c.source && c.source.key === wantId) || costFacts.candidates[0];
   return { chosen, reason: null, matchedStep: null };
 }

@@ -14,9 +14,9 @@
       "minItems": 1,
       "description": "REQUIRED for FACTOR — ids of earlier build-up steps this factor is computed on. The engine refuses to run a FACTOR without one."
     },
-    "rate": { "type": ["number", "string"], "description": "Literal multiplier for FACTOR, e.g. 0.047 for 4.7%." },
+    "rate": { "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }], "description": "Literal multiplier for FACTOR, e.g. 0.047 for 4.7%." },
     "rateRef": { "type": "string", "description": "Path into facts.elements to pull the rate from instead of a literal." },
-    "amount": { "type": ["number", "string"], "description": "Literal absolute amount for ADDER/PER_LINE." },
+    "amount": { "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }], "description": "Literal absolute amount for ADDER/PER_LINE." },
     "amountRef": { "type": "string", "description": "Path into facts.elements to pull the amount from instead of a literal." },
     "when": {
       "oneOf": [

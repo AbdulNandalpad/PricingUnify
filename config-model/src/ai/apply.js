@@ -10,20 +10,40 @@ const { validateRegionConfig, ConfigValidationError } = require('../validate');
  */
 function applySuggestion(suggestion, { store, approvedBy, newVersion }) {
   if (suggestion.status !== 'PENDING_REVIEW') {
-    throw new Error(`Suggestion "${suggestion.id}" is ${suggestion.status}, not PENDING_REVIEW.`);
+    throw new ConfigValidationError(`Suggestion "${suggestion.id}" is ${suggestion.status}, not PENDING_REVIEW.`);
   }
   if (!approvedBy) {
-    throw new Error('applySuggestion requires an approvedBy — AI suggestions never go live unattended.');
+    throw new ConfigValidationError('applySuggestion requires an approvedBy — AI suggestions never go live unattended.');
   }
 
   const baseConfig = store.getVersion(suggestion.region, suggestion.salesOrg, suggestion.baseVersion);
   if (!baseConfig) {
-    throw new Error(
+    throw new ConfigValidationError(
       `Base version "${suggestion.baseVersion}" for region "${suggestion.region}" / salesOrg "${suggestion.salesOrg}" not found.`,
     );
   }
+  // The patch was written against THIS version. If a later version has superseded it since, applying
+  // the patch to the old text would silently revert every change made in between — refuse, and ask for a fresh suggestion.
+  if (baseConfig.status !== 'ACTIVE') {
+    throw new ConfigValidationError(
+      `AI suggestion "${suggestion.id}" is based on version "${baseConfig.version}", which is ${baseConfig.status} — a newer version exists. Request a new suggestion against the current version.`,
+    );
+  }
 
-  const { newDocument } = jsonpatch.applyPatch(baseConfig, suggestion.proposedPatch, true, false);
+  let newDocument;
+  try {
+    ({ newDocument } = jsonpatch.applyPatch(baseConfig, suggestion.proposedPatch, true, false));
+  } catch (err) {
+    // A malformed or inapplicable patch is a problem with the SUGGESTION, not a server fault.
+    throw new ConfigValidationError(`AI suggestion "${suggestion.id}" has a patch that cannot be applied: ${err.message}`);
+  }
+  // A suggestion edits the CONTENT of a config; it can never move it to another (region, salesOrg) —
+  // that would save under a different key than the one a human reviewed.
+  if (newDocument.region !== baseConfig.region || newDocument.salesOrg !== baseConfig.salesOrg) {
+    throw new ConfigValidationError(
+      `AI suggestion "${suggestion.id}" tries to change the config's region/salesOrg (${baseConfig.region}/${baseConfig.salesOrg}) — not applied.`,
+    );
+  }
 
   const now = new Date().toISOString();
   newDocument.version = newVersion;
@@ -63,7 +83,7 @@ function applySuggestion(suggestion, { store, approvedBy, newVersion }) {
 
 function rejectSuggestion(suggestion, { reviewedBy, reviewNotes }) {
   if (suggestion.status !== 'PENDING_REVIEW') {
-    throw new Error(`Suggestion "${suggestion.id}" is ${suggestion.status}, not PENDING_REVIEW.`);
+    throw new ConfigValidationError(`Suggestion "${suggestion.id}" is ${suggestion.status}, not PENDING_REVIEW.`);
   }
   suggestion.status = 'REJECTED';
   suggestion.reviewedBy = reviewedBy;

@@ -40,7 +40,11 @@ function translateCustomerPriceListRequest(c4cPayload, { store, priceDate }) {
   const meta = [];
   const items = rawItems.map((it) => {
     const partNumber = isGiven(it.itemLongNumber) ? String(it.itemLongNumber).trim() : String(it.itemShortNumber || '').trim();
-    const item = { partNumber, quantity: Number(it.salesQuantity) || 1, pricingType: 'COST_PLUS' };
+    // A numeric string becomes a number; anything else (missing, '', 'abc', 0) is passed through AS IS so the
+    // kernel answers a typed MISSING(QUANTITY_INVALID) — never silently priced as 1.
+    const rawQty = it.salesQuantity;
+    const asNumber = rawQty === undefined || rawQty === null || String(rawQty).trim() === '' ? NaN : Number(rawQty);
+    const item = { partNumber, quantity: Number.isFinite(asNumber) ? asNumber : rawQty, pricingType: 'COST_PLUS' };
     if (isGiven(it.warehouseCode)) item.warehouse = String(it.warehouseCode).trim();
     // C4C sends BOTH supplier identifiers: supplierMainGroupCode = the supplier ID (the custom
     // OriginOfData Supplier node's GlobalSupplierCode, e.g. X_SIL) and supplierExternalID =

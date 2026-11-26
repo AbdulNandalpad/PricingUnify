@@ -1,15 +1,19 @@
 {
   "name": "@tss-pricing/mcp-server",
   "version": "0.1.0",
-  "description": "MCP server for the TSS Pricing Engine. A thin client of the pricing REST API (srv/) — it holds no pricing logic and no credentials of its own beyond what its operator passes in.",
+  "description": "MCP server for the TSS Pricing Engine. A thin client of the pricing REST API (srv/) \u2014 it holds no pricing logic and no credentials of its own beyond what its operator passes in.",
   "main": "src/index.js",
-  "bin": { "tss-pricing-mcp": "bin/tss-pricing-mcp.js" },
+  "bin": {
+    "tss-pricing-mcp": "bin/tss-pricing-mcp.js"
+  },
   "scripts": {
     "start": "node bin/tss-pricing-mcp.js",
     "start:http": "node bin/tss-pricing-mcp.js --http",
-    "test": "node --test"
+    "test": "node --test --require ../tests/scrub-env.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^3.25.0"

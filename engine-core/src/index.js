@@ -7,8 +7,9 @@
  *  - null !== 0. MISSING is a typed outcome, never a thrown exception.
  *  - Every result carries a full trace.
  */
-const { price } = require('./kernel');
+const { price, roundTotal } = require('./kernel');
 const { CONFIDENCE, BASIS, PURPOSE, resolveAccessSequence } = require('./cost');
 const { ELEMENT_TYPES } = require('./elements');
+const { checkWhen, evaluateWhen } = require('./when');
 
-module.exports = { price, CONFIDENCE, BASIS, PURPOSE, ELEMENT_TYPES, resolveAccessSequence };
+module.exports = { price, CONFIDENCE, BASIS, PURPOSE, ELEMENT_TYPES, resolveAccessSequence, checkWhen, evaluateWhen, roundTotal };

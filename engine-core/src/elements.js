@@ -5,17 +5,39 @@ const Decimal = require('decimal.js');
 
 const ELEMENT_TYPES = Object.freeze(['BASE', 'FACTOR', 'ADDER', 'PER_LINE', 'CONSTRAINT']);
 
+/**
+ * A value in the input (a fact, a cost) that is not a usable number. Distinct from a CONFIG error
+ * (missing basis, unknown element type — those still throw: the engine refuses to run). Bad
+ * INPUT is a typed MISSING outcome for that one line, never an exception that fails the batch.
+ */
+class InvalidValueError extends Error {
+  constructor(reason, detail) {
+    super(`${reason}: ${detail}`);
+    this.name = 'InvalidValueError';
+    this.reason = reason;
+    this.detail = detail;
+  }
+}
+
+/** Decimal parse that refuses NaN/Infinity and reports what it choked on. */
+function toDecimal(value, reason, detail) {
+  let d;
+  try { d = new Decimal(value); } catch (e) { throw new InvalidValueError(reason, `${detail} = ${JSON.stringify(value)}`); }
+  if (!d.isFinite()) throw new InvalidValueError(reason, `${detail} = ${JSON.stringify(value)}`);
+  return d;
+}
+
 function readPath(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 }
 
 /** A literal `amount`/`rate`/`min`/`step` in config wins; a `*Ref` pulls the value from facts.elements. */
 function resolveParam(el, literalKey, refKey, facts) {
-  if (el[literalKey] !== undefined) return { value: new Decimal(el[literalKey]), source: 'CONFIG' };
+  if (el[literalKey] !== undefined) return { value: toDecimal(el[literalKey], 'CONFIG_VALUE_INVALID', `${el.id}.${literalKey}`), source: 'CONFIG' };
   if (el[refKey]) {
     const raw = readPath(facts && facts.elements, el[refKey]);
     if (raw === undefined || raw === null) return { value: null, source: el[refKey] };
-    return { value: new Decimal(raw), source: el[refKey] };
+    return { value: toDecimal(raw, 'FACT_INVALID', `${el[refKey]} (needed by ${el.id})`), source: el[refKey] };
   }
   return { value: null, source: null };
 }
@@ -118,4 +140,4 @@ function applyConstraint(el, running, ctx) {
   throw new Error(`CONSTRAINT "${el.id}" has unknown kind "${el.kind}".`);
 }
 
-module.exports = { ELEMENT_TYPES, applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath };
+module.exports = { InvalidValueError, toDecimal, ELEMENT_TYPES, applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath };

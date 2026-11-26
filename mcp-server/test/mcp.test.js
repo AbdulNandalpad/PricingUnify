@@ -2,6 +2,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { hermeticEnv } = require('../../srv/test/hermetic-env');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { InMemoryTransport } = require('@modelcontextprotocol/sdk/inMemory.js');
 const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
@@ -23,7 +24,7 @@ async function waitForHealth() {
 }
 
 before(async () => {
-  srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'srv', 'server.js')], { env: { ...process.env, PORT: String(SRV_PORT) }, stdio: 'ignore' });
+  srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'srv', 'server.js')], { env: hermeticEnv({ PORT: String(SRV_PORT) }), stdio: 'ignore' });
   await waitForHealth();
 });
 after(() => srv.kill('SIGKILL'));
@@ -197,4 +198,24 @@ test('HTTP transport: forwards the caller\'s own Authorization; refuses callers 
     const priced = await alice.callTool({ name: 'price_items', arguments: { region: 'EUROPE', items: [{ partNumber: 'EU-T100', quantity: 10 }] } });
     assert.equal(priced.structuredContent.lines[0].landedCost, '138.74');
   } finally { http.close(); }
+});
+
+test('kits: components are accepted, the kit total is the sum, a failing component fails the kit with a reason, EUROPE says unsupported', async () => {
+  const mcp = await connect('alice');
+  const ok = await mcp.callTool({ name: 'price_items', arguments: { region: 'CHINA', items: [{ partNumber: 'CN-K001', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 2, ood: 'CN' }, { partNumber: 'CN-K001-B', quantity: 1, ood: 'CN' }] }] } });
+  assert.ok(!ok.isError, JSON.stringify(ok.content));
+  const kit = ok.structuredContent.lines[0];
+  assert.equal(kit.landedCost, '185.76'); // same value pinned in the backend's own kit test
+  assert.equal(kit.kit, true);
+  assert.deepEqual(kit.components.map((c) => c.partNumber), ['CN-K001-A', 'CN-K001-B']);
+
+  const bad = await mcp.callTool({ name: 'price_items', arguments: { region: 'CHINA', items: [{ partNumber: 'K', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' }, { partNumber: 'NO-SUCH-PART', quantity: 1, ood: 'CN' }] }] } });
+  const failed = bad.structuredContent.lines[0];
+  assert.equal(failed.status, 'MISSING');
+  assert.equal(failed.reason, 'KIT_COMPONENT_UNRESOLVED');
+  assert.equal(failed.componentPartNumber, 'NO-SUCH-PART');
+
+  const eu = await mcp.callTool({ name: 'price_items', arguments: { region: 'EUROPE', items: [{ partNumber: 'K', quantity: 1, components: [{ partNumber: 'EU-T100', quantity: 1 }] }] } });
+  assert.equal(eu.structuredContent.lines[0].reason, 'KIT_NOT_SUPPORTED_FOR_REGION');
+  assert.match(eu.structuredContent.lines[0].hint, /AMERICAS and CHINA/);
 });

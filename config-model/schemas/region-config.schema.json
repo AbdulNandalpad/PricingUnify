@@ -44,7 +44,7 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "when": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
-          "marginPct": { "type": ["number", "string"] },
+          "marginPct": { "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^-?\\d+(\\.\\d+)?$" }] },
           "provenance": { "$ref": "provenance.schema.json" }
         }
       }

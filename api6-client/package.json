@@ -3,5 +3,7 @@
   "version": "0.1.0",
   "description": "Single door to API6. Raw facts only (routing, cost candidates + provenance, elements, FX, BI history). One call per pricing run. Dev mode replays ./recorded payloads. Pluggable outbound auth: NoAuth, API key, Basic, OAuth2 client-credentials, and a BTP-destination meta-strategy that delegates to whichever of those a resolved destination declares.",
   "main": "src/index.js",
-  "scripts": { "test": "node --test" }
+  "scripts": {
+    "test": "node --test --require ../tests/scrub-env.js"
+  }
 }

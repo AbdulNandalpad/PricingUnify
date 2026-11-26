@@ -1,6 +1,8 @@
 const path = require('node:path');
 const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
+// The SAME grammar the kernel evaluates with — a `when` that validates here is one price() can run.
+const { checkWhen } = require('@tss-pricing/engine-core');
 
 const SCHEMA_FILES = [
   'provenance.schema.json',
@@ -65,6 +67,24 @@ function checkBusinessRules(config) {
       }
     }
   });
+
+  // Every condition must be an expression the kernel can evaluate — otherwise a saved config
+  // would be accepted here and then fail every price call for the region (500 at run time).
+  const whenOwners = [
+    ...(config.buildUp || []).map((el) => ['build-up element', el]),
+    ...(config.constraints || []).map((c) => ['constraint', c]),
+    ...(config.marginRules || []).map((r) => ['margin rule', r]),
+  ];
+  for (const [kind, owner] of whenOwners) {
+    if (owner.when === undefined) continue;
+    const bad = checkWhen(owner.when);
+    if (bad) errors.push(`${kind} "${owner.id}": ${bad}.`);
+  }
+  // A predefined margin is a share of the SELLING price: 0 <= m < 100 (the kernel refuses anything else).
+  for (const rule of config.marginRules || []) {
+    const m = Number(rule.marginPct);
+    if (!Number.isFinite(m) || m < 0 || m >= 100) errors.push(`margin rule "${rule.id}": marginPct ${JSON.stringify(rule.marginPct)} must be at least 0 and below 100.`);
+  }
 
   if (!(config.buildUp || []).some((el) => el.type === 'BASE')) {
     errors.push('buildUp has no BASE element — nothing to price from.');

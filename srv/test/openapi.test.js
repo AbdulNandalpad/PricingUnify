@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { hermeticEnv } = require('./hermetic-env');
 
 const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'api', 'openapi.json'), 'utf8'));
 const cds = fs.readFileSync(path.join(__dirname, '..', 'pricing-service.cds'), 'utf8');
@@ -13,7 +14,7 @@ let child;
 const auth = (u) => `Basic ${Buffer.from(`${u}:x`).toString('base64')}`;
 
 before(async () => {
-  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(PORT), PRICING_MAX_ITEMS: '5' }, stdio: 'ignore' });
+  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: hermeticEnv({ PORT: String(PORT), PRICING_MAX_ITEMS: '5' }), stdio: 'ignore' });
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
     try { if ((await fetch(`${BASE}/health`)).ok) return; } catch { /* not up */ }

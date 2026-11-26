@@ -5,6 +5,7 @@
  * and run OUR build-up on top. Pure helpers: no I/O here, so they are unit-testable.
  */
 
+const { factsKeyOf } = require('./line-facts');
 const str = (v) => (v === undefined || v === null ? '' : String(v));
 
 /** Our canonical stock class -> the raw group code the BI contract speaks (MTS/MTO). */
@@ -77,8 +78,8 @@ function applyBiCandidates(facts, items, bi) {
     const cand = bi.candidates && bi.candidates[lineId];
     if (!cand || !cand.found) { note.note = (cand && cand.note) || 'no cost returned'; return; }
     const key = `BI_${item.partNumber}_${lineId}`;
-    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
-    facts.costs[item.partNumber] = {
+    const existing = facts.costs[factsKeyOf(item)] || { default: null, candidates: [] };
+    facts.costs[factsKeyOf(item)] = {
       ...existing,
       candidates: [...existing.candidates, {
         value: String(cand.value), currency: cand.currency, basis: cand.basis,

@@ -2,7 +2,8 @@ const { resolveProductStockClass } = require('./lib/product-stock-class');
 const { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod, warehouseFromPicked, defaultWarehouseForOod } = require('./lib/origin-of-data');
 const Decimal = require('decimal.js');
 const { buildBiBody, applyBiCandidates } = require('./lib/bi-cost');
-const { price, resolveAccessSequence } = require('@tss-pricing/engine-core');
+const { factsKeyOf, materializeLineFacts } = require('./lib/line-facts');
+const { price, resolveAccessSequence, roundTotal } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
 const { currentC4c } = require('./lib/c4c');
@@ -36,6 +37,30 @@ const MAX_ITEMS = Number(process.env.PRICING_MAX_ITEMS) > 0 ? Number(process.env
 function tooManyItems(items) {
   const n = items.reduce((sum, it) => sum + 1 + (Array.isArray(it && it.components) ? it.components.length : 0), 0);
   return n > MAX_ITEMS ? `payload.items has ${n} lines; the maximum per request is ${MAX_ITEMS}. Split the request.` : null;
+}
+
+const PURPOSES = ['INDICATIVE', 'BINDING', 'REPRICE', 'SIMULATION'];
+const HOST_OBJECT_TYPES = ['QUOTE', 'OPPORTUNITY'];
+
+/**
+ * Strict request-level checks. A value that is "close" (a lowercase `binding`, `opportunity`) must
+ * not silently fall back to the permissive default: BINDING refuses weak costs and OPPORTUNITY
+ * never returns a price, so treating a typo as INDICATIVE / QUOTE would quietly weaken both.
+ * Returns an error message or null.
+ */
+function validateRequestEnums({ purpose, hostObjectType, priceDate }) {
+  if (purpose !== undefined && purpose !== null && !PURPOSES.includes(purpose)) {
+    return `payload.purpose "${purpose}" is not valid (one of ${PURPOSES.join(', ')}; case-sensitive).`;
+  }
+  if (hostObjectType !== undefined && hostObjectType !== null && !HOST_OBJECT_TYPES.includes(hostObjectType)) {
+    return `payload.hostObjectType "${hostObjectType}" is not valid (one of ${HOST_OBJECT_TYPES.join(', ')}; case-sensitive).`;
+  }
+  if (priceDate !== undefined && priceDate !== null) {
+    const ok = typeof priceDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(priceDate) && !Number.isNaN(Date.parse(priceDate))
+      && new Date(priceDate).toISOString().slice(0, 10) === priceDate;
+    if (!ok) return `payload.priceDate "${priceDate}" is not a valid date (YYYY-MM-DD).`;
+  }
+  return null;
 }
 
 function todayIso() {
@@ -89,7 +114,7 @@ function applySupplierOverrides(facts, items, priceDate) {
 
     if (Object.keys(overrides).length === 0) continue;
 
-    facts.elements[item.partNumber] = { ...(facts.elements[item.partNumber] || {}), ...overrides };
+    facts.elements[factsKeyOf(item)] = { ...(facts.elements[factsKeyOf(item)] || {}), ...overrides };
   }
 }
 
@@ -121,7 +146,7 @@ function applyStockClassNormalization(facts, items, config) {
     // Explicit selection always wins, same precedence as cost candidates, supplier country,
     // and region — a caller that already knows the stock class skips ERP-code normalization.
     if (item.stockClass) continue;
-    const raw = facts.classification && facts.classification[item.partNumber] && facts.classification[item.partNumber].stockClassRaw;
+    const raw = facts.classification && facts.classification[factsKeyOf(item)] && facts.classification[factsKeyOf(item)].stockClassRaw;
     if (raw === undefined || raw === null || raw === '') {
       if (needed) item.stockClassError = 'STOCK_CLASS_NOT_PROVIDED';
       continue;
@@ -145,7 +170,7 @@ function applyStockClassNormalization(facts, items, config) {
  */
 function applyItemAttributesFromFacts(facts, items) {
   for (const item of items) {
-    const attrs = facts.itemAttributes && facts.itemAttributes[item.partNumber];
+    const attrs = facts.itemAttributes && facts.itemAttributes[factsKeyOf(item)];
     if (!attrs) continue;
     if (!item.supplier && attrs.supplier) item.supplier = attrs.supplier;
     if (!item.supplierCountry && attrs.supplierCountry) item.supplierCountry = attrs.supplierCountry;
@@ -209,7 +234,7 @@ function applyQuantityBreakCost(facts, items) {
   if (!facts.qtyBreaks) return;
   for (const item of items) {
     if (item.selectedCostId) continue;
-    const breaks = facts.qtyBreaks[item.partNumber];
+    const breaks = facts.qtyBreaks[factsKeyOf(item)];
     if (!breaks || breaks.length === 0) continue;
 
     const isMroqOverride = !!item.mroqOverride && item.ood === 'SMA';
@@ -221,9 +246,9 @@ function applyQuantityBreakCost(facts, items) {
       .sort((a, b) => Number(b.minQty) - Number(a.minQty))[0];
     if (!applicable) continue;
 
-    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
+    const existing = facts.costs[factsKeyOf(item)] || { default: null, candidates: [] };
     const candidateKey = `${isMroqOverride ? 'MROQ_OVERRIDE' : 'QTY_BREAK'}_${item.partNumber}_${applicable.minQty}`;
-    facts.costs[item.partNumber] = {
+    facts.costs[factsKeyOf(item)] = {
       ...existing,
       candidates: [
         ...existing.candidates,
@@ -285,8 +310,8 @@ function applyHostProvidedCosts(facts, items) {
     if (!hc || item.selectedCostId) continue;
     if (!(Number(hc.value) > 0) || !hc.currency) continue;
     const key = `C4C_INPUT_${item.partNumber}`;
-    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
-    facts.costs[item.partNumber] = {
+    const existing = facts.costs[factsKeyOf(item)] || { default: null, candidates: [] };
+    facts.costs[factsKeyOf(item)] = {
       ...existing,
       candidates: [
         ...existing.candidates,
@@ -322,8 +347,8 @@ async function applyPriceListCosts(facts, items, { region, salesOrg, priceDate }
     }
 
     const candidateKey = `PRICE_LIST_${item.partNumber}_${entry.minQty}`;
-    const existing = facts.costs[item.partNumber] || { default: null, candidates: [] };
-    facts.costs[item.partNumber] = {
+    const existing = facts.costs[factsKeyOf(item)] || { default: null, candidates: [] };
+    facts.costs[factsKeyOf(item)] = {
       ...existing,
       candidates: [
         ...existing.candidates,
@@ -359,41 +384,41 @@ async function applyPriceListCosts(facts, items, { region, salesOrg, priceDate }
  * recorded.
  */
 async function applySequenceRouting(facts, items, config, { region, salesOrg }) {
-  const routingByPart = {};
-  const walked = new Set();
+  const routingByItem = new Map(); // flat item -> walks recorded for ITS line
+  const walks = new Map();         // one gateway walk per (part, sequence, quantity), shared by identical lines
 
   for (const item of items) {
     if (item.selectedCostId || item.stockClassError || item.pricingTypeError || item.priceListError) continue;
     const sequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);
     if (!sequence) continue;
 
-    const walkKey = `${item.partNumber}|${sequence.join(',')}`;
-    if (walked.has(walkKey)) continue;
-    walked.add(walkKey);
-
-    const { candidates, routing } = await api6.fetchCostsBySequence({
-      region,
-      salesOrg,
-      partNumber: item.partNumber,
-      quantity: item.quantity,
-      sequence,
-    });
-
-    routingByPart[item.partNumber] = [...(routingByPart[item.partNumber] || []), { sequence, calls: routing }];
+    const walkKey = `${item.partNumber}|${sequence.join(',')}|${item.quantity}`;
+    if (!walks.has(walkKey)) {
+      walks.set(walkKey, await api6.fetchCostsBySequence({
+        region,
+        salesOrg,
+        partNumber: item.partNumber,
+        quantity: item.quantity,
+        sequence,
+      }));
+    }
+    const { candidates, routing } = walks.get(walkKey);
+    routingByItem.set(item, [{ sequence, calls: routing }]);
 
     // The engine's own resolveCandidate() walks the same sequence over whatever candidates it
-    // gets, so when the pricing-facts payload already carries this part's candidates the walk
+    // gets, so when the pricing-facts payload already carries this line's candidates the walk
     // here changes nothing about selection — it exists to make the endpoint routing visible in
     // the trace and to bound live-mode HTTP calls. Only when the payload carried NO candidates
-    // for the part (the real live-WSO2 shape, where costs come exclusively through per-source
-    // endpoints) do the routed candidates become the part's cost facts.
-    const existing = facts.costs[item.partNumber];
+    // for the line (the real live-WSO2 shape, where costs come exclusively through per-source
+    // endpoints) do the routed candidates become the line's cost facts.
+    const key = factsKeyOf(item);
+    const existing = facts.costs[key];
     if (candidates.length > 0 && (!existing || !Array.isArray(existing.candidates) || existing.candidates.length === 0)) {
-      facts.costs[item.partNumber] = { default: null, candidates };
+      facts.costs[key] = { default: null, candidates: structuredClone(candidates) };
     }
   }
 
-  return routingByPart;
+  return routingByItem;
 }
 
 /**
@@ -424,6 +449,8 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   const componentItems = [];
   const componentOwner = []; // parallel array: which kit's request-array index each componentItems[i] belongs to
   for (const kitIndex of kitIndices) {
+    // A kit in a region without kit support answers MISSING below — its components are not priced at all.
+    if (!KIT_SUPPORTED_REGIONS.includes(region)) continue;
     for (const comp of items[kitIndex].components) {
       componentItems.push(comp);
       componentOwner.push(kitIndex);
@@ -431,6 +458,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   }
 
   const flatItems = [...nonKitItems, ...componentItems];
+  materializeLineFacts(facts, flatItems); // each line gets its OWN copy of its part's facts (same part on several lines must not share)
   applySupplierOverrides(facts, flatItems, priceDate);
   applyStockClassNormalization(facts, flatItems, config);
   applyAdditionalCostFlags(flatItems, config);
@@ -454,11 +482,11 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
       for (const [item, routing] of applyBiCandidates(facts, forBi, bi)) biRouting.set(item, routing);
     }
   }
-  const routingByPart = api6.mode === 'live' ? {} : await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
+  const routingByItem = api6.mode === 'live' ? new Map() : await applySequenceRouting(facts, flatItems, config, { region, salesOrg });
 
   const flatResult = flatItems.length ? price({ request: { ...request, items: flatItems }, facts, config }) : { items: [] };
   flatResult.items.forEach((line, i) => {
-    const walks = biRouting.get(flatItems[i]) || routingByPart[line.partNumber];
+    const walks = biRouting.get(flatItems[i]) || routingByItem.get(flatItems[i]);
     if (walks && line.trace) line.trace.costRouting = walks.length === 1 ? walks[0] : walks;
   });
   const nonKitLines = flatResult.items.slice(0, nonKitItems.length);
@@ -471,7 +499,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
         partNumber: kitItem.partNumber,
         status: 'MISSING',
         missing: { reason: 'KIT_NOT_SUPPORTED_FOR_REGION', region, supportedRegions: KIT_SUPPORTED_REGIONS },
-        trace: { kit: true, components: [] },
+        trace: { kit: true, region, configVersion: config.version, components: [] },
       };
     }
 
@@ -482,7 +510,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
         partNumber: kitItem.partNumber,
         status: failed.status,
         missing: { reason: 'KIT_COMPONENT_UNRESOLVED', componentPartNumber: failed.partNumber, componentIssue: failed.missing },
-        trace: { kit: true, components: myComponentLines },
+        trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
       };
     }
 
@@ -492,19 +520,26 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
         partNumber: kitItem.partNumber,
         status: 'MISSING',
         missing: { reason: 'KIT_CURRENCY_MISMATCH', currencies },
-        trace: { kit: true, components: myComponentLines },
+        trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
       };
     }
 
-    const total = myComponentLines.reduce(
-      (sum, l) => sum.plus(new Decimal(l.result.unitPrice).times(l.result.quantity)),
-      new Decimal(0),
-    );
+    // Kit price = sum over components of (price per PIECE x the quantity of that component the kit
+    // needs). Two things the engine's own line result must not be taken at face value for:
+    //  - unitPrice is per `priceUnit` pieces (C4C uses 100), so it is divided down to one piece first;
+    //  - result.quantity can have been RAISED by an order rule (a MOLV in QUANTITY mode). That is a
+    //    purchasing quantity for the component line, not how many the kit contains — the kit needs the
+    //    quantity it asked for. The raised quantity stays visible in each component's own trace entry.
+    const myComponentInputs = componentItems.filter((_, i) => componentOwner[i] === kitIndex);
+    const total = roundTotal(myComponentLines.reduce((sum, l, i) => {
+      const perPiece = new Decimal(l.result.unitPrice).div(l.result.priceUnit || 1);
+      return sum.plus(perPiece.times(new Decimal(myComponentInputs[i].quantity)));
+    }, new Decimal(0)), config.rounding);
     return {
       partNumber: kitItem.partNumber,
       status: 'PRICED',
       result: { unitPrice: total.toString(), currency: currencies[0], quantity: kitItem.quantity },
-      trace: { kit: true, components: myComponentLines },
+      trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
     };
   });
 
@@ -557,6 +592,7 @@ async function runPricing({ payload, userId }) {
   const priceDate = payload.priceDate || todayIso();
 
   if (!Array.isArray(items) || items.length === 0) return { error: { status: 400, message: 'payload.items must be a non-empty array.' } };
+  { const bad = validateRequestEnums({ purpose: payload.purpose, hostObjectType, priceDate: payload.priceDate }); if (bad) return { error: { status: 400, message: bad } }; }
   { const tooMany = tooManyItems(items); if (tooMany) return { error: { status: 413, message: tooMany } }; }
 
   // party-config is customerId's master data (territory/country/currency/ood); an explicit
@@ -653,25 +689,38 @@ module.exports = (srv) => {
    * in `payload`. Errors come back as {status:"FAILED", message} with HTTP 200, matching
    * the ABSL's own Content-based error branches.
    */
+  // C4C's ABSL only understands the answer's Content ("SUCCESS" / "FAILED"): ANY failure here — a
+  // thrown error included — must come back as {status:'FAILED'} with HTTP 200, never a 500 whose
+  // body the script cannot parse.
+  const asFacadeFailure = (e) => ({ status: 'FAILED', message: `Pricing failed: ${(e && e.message) || e}` });
+
   srv.on('getCustomerPriceList', async (req) => {
-    const translated = translateCustomerPriceListRequest(req.data || {}, { store, priceDate: todayIso() });
-    if (translated.error) return { status: 'FAILED', message: translated.error };
-    const out = await runPricing({ payload: translated.payload, userId: req.user.id });
-    if (out.error) return { status: 'FAILED', message: out.error.message };
-    return { status: 'SUCCESS', calculatedPriceList: renderCalculatedPriceList(out.body.items, translated.meta) };
+    try {
+      const translated = translateCustomerPriceListRequest(req.data || {}, { store, priceDate: todayIso() });
+      if (translated.error) return { status: 'FAILED', message: translated.error };
+      const out = await runPricing({ payload: translated.payload, userId: req.user.id });
+      if (out.error) return { status: 'FAILED', message: out.error.message };
+      return { status: 'SUCCESS', calculatedPriceList: renderCalculatedPriceList(out.body.items, translated.meta) };
+    } catch (e) {
+      return asFacadeFailure(e);
+    }
   });
 
   srv.on('getPricePoints', async (req) => {
-    const { originOfData, itemLongNumber, unitCode } = req.data || {};
-    if (!isNonEmpty(originOfData) || !isNonEmpty(itemLongNumber)) {
-      return { status: 'FAILED', message: 'originOfData and itemLongNumber are required.' };
+    try {
+      const { originOfData, itemLongNumber, unitCode } = req.data || {};
+      if (!isNonEmpty(originOfData) || !isNonEmpty(itemLongNumber)) {
+        return { status: 'FAILED', message: 'originOfData and itemLongNumber are required.' };
+      }
+      const priceDate = todayIso();
+      const route = store.getEffectiveRegionRoute(String(originOfData).trim(), '*', priceDate);
+      if (!route) return { status: 'FAILED', message: `Cannot resolve a region from originOfData "${originOfData}".` };
+      const partNumber = String(itemLongNumber).trim();
+      const facts = await loadFacts({ region: route.region, salesOrg: '*', items: [{ partNumber }] });
+      return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
+    } catch (e) {
+      return asFacadeFailure(e);
     }
-    const priceDate = todayIso();
-    const route = store.getEffectiveRegionRoute(String(originOfData).trim(), '*', priceDate);
-    if (!route) return { status: 'FAILED', message: `Cannot resolve a region from originOfData "${originOfData}".` };
-    const partNumber = String(itemLongNumber).trim();
-    const facts = await loadFacts({ region: route.region, salesOrg: '*', items: [{ partNumber }] });
-    return { status: 'SUCCESS', pricePoints: buildPricePoints({ facts, partNumber, unitCode }) };
   });
 
   srv.on('searchC4cProducts', async (req) => {
@@ -820,6 +869,7 @@ module.exports = (srv) => {
     const priceDate = payload.priceDate || todayIso();
 
     if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+    { const bad = validateRequestEnums({ priceDate: payload.priceDate }); if (bad) return req.reject(400, bad); }
     { const tooMany = tooManyItems(items); if (tooMany) return req.reject(413, tooMany); }
 
     const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
@@ -838,24 +888,29 @@ module.exports = (srv) => {
 
     const facts = await loadFacts({ region, salesOrg, items });
     const workingItems = items.map((it) => ({ ...it }));
+    materializeLineFacts(facts, workingItems, 'A');
     applyItemAttributesFromFacts(facts, workingItems);
     applySupplierOverrides(facts, workingItems, priceDate);
     applyStockClassNormalization(facts, workingItems, config);
 
     const attributes = {};
+    const lines = [];
     for (const item of workingItems) {
-      attributes[item.partNumber] = {
+      const resolved = {
         supplier: item.supplier || null,
         supplierCountry: item.supplierCountry || null,
         warehouse: item.warehouse || null,
         stockClass: item.stockClass || null,
         stockClassError: item.stockClassError || null,
       };
+      lines.push({ partNumber: item.partNumber, ...resolved }); // one entry per requested line, in order
+      attributes[item.partNumber] = resolved;                   // by part number: the last line of a repeated part wins here
     }
 
     return {
       region: { value: region, derivedBy: regionDerivedBy, entityLabel: entityLabel || null },
       attributes,
+      lines,
     };
   });
 };

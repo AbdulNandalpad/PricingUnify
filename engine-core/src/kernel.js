@@ -3,8 +3,9 @@
  *  Pure: no I/O, no wall-clock, no randomness. Same input -> same output (requirements §5.3). */
 const Decimal = require('decimal.js');
 const { resolveCandidate, resolveAccessSequence, purposeAllows, PURPOSE } = require('./cost');
-const { applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath } = require('./elements');
+const { applyBase, applyFactor, applyAdder, applyPerLine, applyConstraint, readPath, InvalidValueError, toDecimal } = require('./elements');
 const trace = require('./trace');
+const { evaluateWhen } = require('./when');
 
 const ROUNDING_MODES = {
   HALF_UP: Decimal.ROUND_HALF_UP,
@@ -15,43 +16,6 @@ const ROUNDING_MODES = {
   FLOOR: Decimal.ROUND_FLOOR,
 };
 
-function parseLiteral(raw) {
-  if (/^'.*'$/.test(raw) || /^".*"$/.test(raw)) return raw.slice(1, -1);
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  if (raw === 'null') return null;
-  const n = Number(raw);
-  return Number.isNaN(n) ? raw : n;
-}
-
-/** Deliberately not `eval`/`Function` — config is data, and this keeps it that way.
- *  Supports "path.to.field OP literal" only; anything richer is a Phase-2+ config-model concern.
- *  An array of expressions is AND-ed together (all must be true) — real regional logic often
- *  branches on more than one field at once (e.g. China: origin of data AND supplier AND COO). */
-function evaluateWhen(expr, scope) {
-  if (Array.isArray(expr)) return expr.every((e) => evaluateWhen(e, scope));
-  // "path in A,B,C" — list membership (e.g. India's margin by product-category group).
-  const inM = String(expr).match(/^\s*([\w.]+)\s+in\s+(.+?)\s*$/);
-  if (inM) {
-    const left = readPath(scope, inM[1]);
-    return inM[2].split(',').map((v) => parseLiteral(v.trim())).some((v) => v === left);
-  }
-  const m = String(expr).match(/^\s*([\w.]+)\s*(===|==|!==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
-  if (!m) throw new Error(`Unsupported "when" expression: "${expr}"`);
-  const [, path, op, rawValue] = m;
-  const left = readPath(scope, path);
-  const right = parseLiteral(rawValue);
-  switch (op) {
-    case '===': case '==': return left === right;
-    case '!==': case '!=': return left !== right;
-    case '>': return left > right;
-    case '<': return left < right;
-    case '>=': return left >= right;
-    case '<=': return left <= right;
-    default: return false;
-  }
-}
-
 function roundTotal(total, rounding) {
   if (!rounding || rounding.decimalPlaces === undefined) return total;
   const mode = ROUNDING_MODES[rounding.mode] ?? Decimal.ROUND_HALF_UP;
@@ -59,6 +23,21 @@ function roundTotal(total, rounding) {
 }
 
 function priceItem(item, request, facts, config) {
+  // A quantity that is missing, non-numeric, zero or negative cannot be priced: typed MISSING for
+  // this line (the rest of the batch is unaffected), never an exception and never a negative price.
+  {
+    let q = null;
+    try { q = new Decimal(item.quantity); } catch (e) { q = null; }
+    if (item.quantity === null || item.quantity === undefined || item.quantity === '' || q === null || !q.isFinite() || q.lte(0)) {
+      return {
+        partNumber: item.partNumber,
+        status: 'MISSING',
+        missing: { reason: 'QUANTITY_INVALID', detail: `quantity = ${JSON.stringify(item.quantity === undefined ? null : item.quantity)} (must be a number greater than 0)` },
+        trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [] }),
+      };
+    }
+  }
+
   // The caller (srv) resolves each region's raw ERP stock-class code (OMT, SMT, MTS-Z, ...)
   // into item.stockClass ('MTS'|'NonMTS') before engine-core ever sees the item — the kernel
   // stays ERP-agnostic and only ever branches on the clean value via `when`. If the caller
@@ -155,9 +134,12 @@ function priceItem(item, request, facts, config) {
   }
 
   const purpose = (request.context && request.context.purpose) || PURPOSE.INDICATIVE;
-  const costFacts = facts.costs && facts.costs[item.partNumber];
+  // Facts are looked up by the line's own key when the caller gave one (several lines of the same
+  // part can then carry different facts), else by part number — unchanged for direct callers.
+  const factsKey = item.factsKey !== undefined && item.factsKey !== null ? item.factsKey : item.partNumber;
+  const costFacts = facts.costs && facts.costs[factsKey];
   const accessSequence = resolveAccessSequence(config.costAccessSequence, item.stockClass);
-  const { chosen, reason, matchedStep } = resolveCandidate(costFacts, item.selectedCostId, accessSequence);
+  const { chosen, reason, matchedStep, selectedMatched } = resolveCandidate(costFacts, item.selectedCostId, accessSequence);
 
   if (!chosen) {
     return {
@@ -169,7 +151,7 @@ function priceItem(item, request, facts, config) {
   }
 
   // Which of the three ways this candidate was picked — never silent about it (requirements §5.2).
-  const selectedBy = item.selectedCostId ? 'USER' : matchedStep ? `ACCESS_SEQUENCE:${matchedStep}` : 'DEFAULT';
+  const selectedBy = selectedMatched ? 'USER' : matchedStep ? `ACCESS_SEQUENCE:${matchedStep}` : 'DEFAULT';
   if (!purposeAllows(chosen.confidence, purpose, item.overrideStaleCost)) {
     return {
       partNumber: item.partNumber,
@@ -179,9 +161,15 @@ function priceItem(item, request, facts, config) {
     };
   }
 
-  const itemFacts = { elements: (facts.elements && facts.elements[item.partNumber]) || {}, fx: facts.fx };
+  const itemFacts = { elements: (facts.elements && facts.elements[factsKey]) || {}, fx: facts.fx };
   const scope = { item, facts: itemFacts };
-  const ctx = { baseCost: new Decimal(chosen.value), quantity: item.quantity, facts: itemFacts, stepValues: {} };
+  let baseCost;
+  try { baseCost = toDecimal(chosen.value, 'COST_VALUE_INVALID', `cost ${(chosen.source && chosen.source.key) || ''}`.trim()); }
+  catch (e) {
+    return { partNumber: item.partNumber, status: 'MISSING', missing: { reason: e.reason, detail: e.detail },
+      trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: chosen, selectedBy, steps: [], stockClass: item.stockClass }) };
+  }
+  const ctx = { baseCost, quantity: item.quantity, facts: itemFacts, stepValues: {} };
 
   let running = new Decimal(0);
   const steps = [];
@@ -272,7 +260,25 @@ function price(input) {
   if (!Array.isArray(config.buildUp)) {
     throw new Error(`Config for region "${config.region}" has no buildUp sequence.`);
   }
-  return { items: request.items.map(item => priceItem(item, request, facts, config)) };
+  return {
+    items: request.items.map((item) => {
+      try {
+        return priceItem(item, request, facts, config);
+      } catch (e) {
+        // Bad INPUT (a non-numeric fact or cost) is that line's typed MISSING. Config errors
+        // (a FACTOR without a basis, an unknown element type) still throw: the engine refuses to run.
+        if (e instanceof InvalidValueError) {
+          return {
+            partNumber: item.partNumber,
+            status: 'MISSING',
+            missing: { reason: e.reason, detail: e.detail },
+            trace: trace.build({ region: config.region, configVersion: config.version, costCandidate: null, steps: [], stockClass: item.stockClass }),
+          };
+        }
+        throw e;
+      }
+    }),
+  };
 }
 
-module.exports = { price };
+module.exports = { price, roundTotal };
