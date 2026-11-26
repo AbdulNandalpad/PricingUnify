@@ -18,6 +18,10 @@ const cds = require('@sap/cds');
 cds.on('bootstrap', (app) => {
   const express = require('express');
   app.use('/app-c4c', express.static(path.join(__dirname, '..', 'app-c4c', 'webapp')));
+  // The public API contract (OpenAPI 3). Schema only — no data, no credentials; it is the
+  // document other applications and agent frameworks generate clients from. Served by srv
+  // itself (the approuter exposes /rest/* and the UI only).
+  app.get('/api/openapi.json', (_req, res) => res.sendFile(path.join(__dirname, '..', 'docs', 'api', 'openapi.json')));
 });
 
 require('@sap/cds/server')();

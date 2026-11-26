@@ -28,6 +28,16 @@ const SUPPLIER_WAREHOUSE_ADDER_FIELDS = ['freight', 'duty', 'tariff'];
 // constraint still reads it from the part's own facts, unaffected by this.
 const SUPPLIER_WIDE_ADDER_FIELDS = ['molv'];
 
+/**
+ * Upper bound on lines (kit components included) per request — an API open to other apps and
+ * agents must not accept an unbounded body. Default 500; PRICING_MAX_ITEMS overrides it.
+ */
+const MAX_ITEMS = Number(process.env.PRICING_MAX_ITEMS) > 0 ? Number(process.env.PRICING_MAX_ITEMS) : 500;
+function tooManyItems(items) {
+  const n = items.reduce((sum, it) => sum + 1 + (Array.isArray(it && it.components) ? it.components.length : 0), 0);
+  return n > MAX_ITEMS ? `payload.items has ${n} lines; the maximum per request is ${MAX_ITEMS}. Split the request.` : null;
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -547,6 +557,7 @@ async function runPricing({ payload, userId }) {
   const priceDate = payload.priceDate || todayIso();
 
   if (!Array.isArray(items) || items.length === 0) return { error: { status: 400, message: 'payload.items must be a non-empty array.' } };
+  { const tooMany = tooManyItems(items); if (tooMany) return { error: { status: 413, message: tooMany } }; }
 
   // party-config is customerId's master data (territory/country/currency/ood); an explicit
   // payload.customerOod overrides its stored customerOod, same precedence pattern as every
@@ -809,6 +820,7 @@ module.exports = (srv) => {
     const priceDate = payload.priceDate || todayIso();
 
     if (!Array.isArray(items) || items.length === 0) return req.reject(400, 'payload.items must be a non-empty array.');
+    { const tooMany = tooManyItems(items); if (tooMany) return req.reject(413, tooMany); }
 
     const partyConfig = customerId ? store.getEffectivePartyConfig(customerId, priceDate) : null;
     const resolvedCustomerOod = customerOod || (partyConfig && partyConfig.customerOod) || null;
