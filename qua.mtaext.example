@@ -1,0 +1,16 @@
+# Deployment secrets for QUA — copy to qua.mtaext (git-ignored), fill in, and deploy with:
+#   cf deploy mta_archives/tss-pricing-engine_1.0.0.mtar -e qua.mtaext
+# Never commit the filled-in file. Variable names: docs/DEPLOYMENT.md ("QUA -> PROD").
+_schema-version: "3.2"
+ID: tss-pricing-engine-qua
+extends: tss-pricing-engine
+
+modules:
+  - name: tss-pricing-srv
+    properties:
+      TSS_ENVIRONMENT: QUA
+      API6_MODE: live                     # recorded = demo data, no API6 calls
+      API6_USERNAME: "<API6 user>"        # Basic auth for price + kit endpoints (same credentials)
+      API6_PASSWORD: "<API6 password>"
+      C4C_USERNAME: "Tss.integration"     # QUA integration user (also the built-in default)
+      C4C_PASSWORD: "<C4C password>"

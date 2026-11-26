@@ -1,13 +1,48 @@
 {
   "xsappname": "tss-pricing-engine",
   "tenant-mode": "dedicated",
-  "description": "XSUAA security descriptor for BTP deployment. Inert for local dev — see package.json's cds.requires.auth (mocked kind, [production] overrides to xsuaa).",
+  "description": "XSUAA security descriptor for BTP deployment. Inert for local dev \u2014 see package.json's cds.requires.auth (mocked kind, [production] overrides to xsuaa).",
   "scopes": [
-    { "name": "$XSAPPNAME.PricingViewer", "description": "Pricing API: load context, calculate costs and prices, view traces, write back to C4C. No config access." },
-    { "name": "$XSAPPNAME.PricingAdmin", "description": "Everything PricingViewer has, plus the full config API: read, create, edit, version and activate rules and tables, and the AI-suggestion pipeline." }
+    {
+      "name": "$XSAPPNAME.PricingViewer",
+      "description": "Pricing API: load context, calculate costs and prices, view traces, write back to C4C. No config access."
+    },
+    {
+      "name": "$XSAPPNAME.PricingAdmin",
+      "description": "Everything PricingViewer has, plus the full config API: read, create, edit, version and activate rules and tables, and the AI-suggestion pipeline."
+    }
   ],
   "role-templates": [
-    { "name": "PricingViewer", "description": "Pricing Viewer", "scope-references": ["$XSAPPNAME.PricingViewer"] },
-    { "name": "PricingAdmin", "description": "Pricing Admin", "scope-references": ["$XSAPPNAME.PricingAdmin", "$XSAPPNAME.PricingViewer"] }
+    {
+      "name": "PricingViewer",
+      "description": "Pricing Viewer",
+      "scope-references": [
+        "$XSAPPNAME.PricingViewer"
+      ]
+    },
+    {
+      "name": "PricingAdmin",
+      "description": "Pricing Admin",
+      "scope-references": [
+        "$XSAPPNAME.PricingAdmin",
+        "$XSAPPNAME.PricingViewer"
+      ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "TSS_Pricing_Viewer",
+      "description": "Pricing screen: calculate costs and prices, view traces, write back to C4C",
+      "role-template-references": [
+        "$XSAPPNAME.PricingViewer"
+      ]
+    },
+    {
+      "name": "TSS_Pricing_Admin",
+      "description": "Pricing screen plus Admin: rules, suppliers, connections, export",
+      "role-template-references": [
+        "$XSAPPNAME.PricingAdmin"
+      ]
+    }
   ]
 }

@@ -5,3 +5,8 @@ dist/
 .DS_Store
 mta_archives/
 gen/
+
+# deployment secrets (see qua.mtaext.example)
+*.mtaext
+!*.mtaext.example
+mta_archives/

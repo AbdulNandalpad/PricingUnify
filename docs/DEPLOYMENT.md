@@ -171,3 +171,33 @@ session are written to C4C (write-back), which then holds them.
 - Trade-offs accepted: no live editing in PROD; a rate change is a commit + deploy; pending AI suggestions are not kept
   across restarts. If business users ever need to edit rules in PROD, a database (e.g. Postgres) can be added behind the
   same store later without changing the config model.
+
+
+---
+
+## Deploying QUA from SAP Business Application Studio (step by step)
+
+Why the MTA path and not a plain `cf push`: the UI needs the approuter in front of the backend (the browser cannot send
+the XSUAA token itself), so three things are deployed together: backend, approuter + UI, XSUAA. The MTA does all of it,
+including the two role collections. `manifest.yml` / `cf push` deploys the backend alone.
+
+1. **Get the code** (BAS terminal): `git clone -b claude/pricingunify-project-setup-h23cn3 https://github.com/AbdulNandalpad/PricingUnify.git && cd PricingUnify`
+2. **Log in:** `cf login` (or `cf login -a <api-endpoint> --sso`), then `cf target -o <org> -s <space>`. Check `cf services`
+   shows nothing named `tss-pricing-xsuaa` yet (the deploy creates it; XSUAA must be entitled in the subaccount).
+3. **Secrets file:** `cp qua.mtaext.example qua.mtaext`, fill in the API6 and C4C credentials. It is git-ignored.
+4. **Build:** `mbt build` (creates `mta_archives/tss-pricing-engine_1.0.0.mtar`).
+5. **Deploy:** `cf deploy mta_archives/tss-pricing-engine_1.0.0.mtar -e qua.mtaext`.
+6. **Roles:** BTP cockpit -> Security -> Role Collections: `TSS_Pricing_Admin` (you) and `TSS_Pricing_Viewer` (users) already
+   exist; add your user (and your IdP user) to them. Without a role every call answers 403.
+7. **Open:** `cf apps` -> the `tss-pricing-approuter` URL. Add `?objectType=QUOTE&objectId=<quote id>` to try a C4C quote;
+   `?mode=admin` opens the Admin screen. Header badge should read **QUA**; Admin -> Connections shows API6 "live" and
+   "credentials set".
+8. **Check the backend:** `curl https://<tss-pricing-srv route>/health` -> `{"status":"UP"}`.
+9. **C4C mashup:** embed the approuter URL as an iframe (the approuter already sends `SameSite=None` cookies and a
+   `frame-ancestors https://*.crm.ondemand.com` policy).
+
+If it fails: `cf logs tss-pricing-srv --recent` and `cf logs tss-pricing-approuter --recent`. Typical causes: XSUAA not
+entitled (step 2), role collection not assigned (step 6), a typo in the `.mtaext` (the Connections tab shows what the
+service actually received), or the first login showing a redirect-URI error (then add the approuter URL pattern under
+`oauth2-configuration.redirect-uris` in `srv/xs-security.json` and redeploy).
+Changing rules later: edit in QUA, Export configuration, commit under `config/`, rebuild and deploy (see "Persistence: none").
