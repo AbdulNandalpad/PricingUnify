@@ -47,4 +47,15 @@ const secretVar = (base) => envVar(base, { allowUnsuffixed: name() === 'QUA' });
  *  the Connections tab must never leak into PROD). Documents with no stamp predate this and are honoured. */
 function honours(conn) { return !conn || !conn.environment || conn.environment === name(); }
 
-module.exports = { name, profile, urlVar, secretVar, honours, PROFILES };
+const flag = (v, dflt) => (v === undefined || v === '' ? dflt : /^(1|true|yes|on)$/i.test(String(v).trim()));
+
+/** Config is CODE (owner decision 2026-11-26: no database; one person maintains it): rules live in the repo
+ *  (seed.js + config/*.json) and reach PROD through a deploy. Editing through the Admin screen is therefore
+ *  allowed by default in QUA only (experiments; they vanish on restart — export them to keep them) and
+ *  refused elsewhere. TSS_CONFIG_EDIT=true|false overrides either way. */
+function configEditable() { return flag(process.env.TSS_CONFIG_EDIT, name() === 'QUA'); }
+
+/** Demo suppliers / customers are seeded in QUA only unless TSS_SEED_DEMO=true. */
+function seedDemo() { return flag(process.env.TSS_SEED_DEMO, name() === 'QUA'); }
+
+module.exports = { name, profile, urlVar, secretVar, honours, configEditable, seedDemo, PROFILES };

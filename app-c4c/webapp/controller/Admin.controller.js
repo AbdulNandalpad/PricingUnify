@@ -49,6 +49,21 @@ sap.ui.define([
 
     _onShown: function () { this._reloadAll(); },
 
+    /** Pricing rules are code: download every config document as JSON, save each kind under config/<kind>.json,
+     *  commit and deploy (config/README.md). */
+    onExportConfig: function () {
+      var that = this;
+      this.callRest("/rest/config/exportConfig").then(function (res) {
+        var blob = new Blob([JSON.stringify(res.documents, null, 2)], { type: "application/json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "pricing-config-" + res.environment + "-" + new Date().toISOString().slice(0, 10) + ".json";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        that._message(that.getView().getModel("i18n").getResourceBundle().getText("exportConfigDone", [res.environment]), "Success");
+      }).catch(function (err) { that._message(err.message, "Error"); });
+    },
+
     _message: function (text, type) {
       this._vm().setProperty("/message", text);
       this._vm().setProperty("/messageType", type || "Information");

@@ -52,7 +52,23 @@ function trySave(req, saveFn) {
   }
 }
 
+const WRITE_ACTIONS = ['saveRegionConfig', 'saveSupplierConfig', 'saveRegionRoute', 'savePartyConfig', 'saveConnections', 'suggestChange', 'approveSuggestion', 'rejectSuggestion'];
+
 module.exports = (srv) => {
+  // Config is code in this environment: the pricing rules change through the repo and a deploy, never
+  // through the running service (owner decision 2026-11-26 — no database, a single maintainer).
+  srv.before(WRITE_ACTIONS, (req) => {
+    if (!environment.configEditable()) {
+      return req.reject(409, `Configuration is read-only in ${environment.name()}: pricing rules are maintained as code (srv/lib/seed.js and config/*.json) and promoted by a deploy. Make the change in QUA, use Export configuration, commit the file, deploy. (TSS_CONFIG_EDIT=true overrides this.)`);
+    }
+  });
+
+  srv.on('exportConfig', () => ({
+    environment: environment.name(),
+    exportedAt: new Date().toISOString(),
+    documents: store.exportAll(),
+  }));
+
   srv.on('getEffectiveConfig', (req) => {
     const { region, salesOrg = '*', asOf } = req.data;
     if (!region) return req.reject(400, 'region is required.');
@@ -127,6 +143,7 @@ module.exports = (srv) => {
       // defaults — exactly what the adapters use on the next call.
       configVersion: conn ? conn.version : null,
       environment: environment.name(), // QUA | PROD | ... — the TSS_ENVIRONMENT switch
+      configEditable: environment.configEditable(),
       environmentNote: environment.honours(conn) ? null : `The saved connection settings were saved under ${conn.environment}; their URLs are ignored in ${environment.name()} until saved again here.`,
       api6: {
         mode: api6.mode, // 'recorded' (dev fixtures, no outbound calls) or 'live'

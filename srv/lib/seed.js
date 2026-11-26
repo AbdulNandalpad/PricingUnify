@@ -1,4 +1,5 @@
 const { store } = require('./store');
+const environment = require('./environment');
 
 const HUMAN_PROVENANCE = { source: 'HUMAN', authoredBy: 'seed@tss.example', authoredAt: '2026-08-01T00:00:00Z' };
 
@@ -13,9 +14,9 @@ function seed() {
   seedChinaRegionConfig();
   seedIndiaRegionConfig();
   seedAmericasRegionConfig();
-  seedSupplierConfigs();
+  if (environment.seedDemo()) seedSupplierConfigs(); // demo suppliers: QUA only (real terms come from config/supplier-config.json)
   seedRegionRoutes();
-  seedPartyConfigs();
+  if (environment.seedDemo()) seedPartyConfigs();
 }
 
 function seedRegionConfig() {

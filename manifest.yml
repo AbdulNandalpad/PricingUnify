@@ -10,7 +10,7 @@ applications:
     command: node srv/server.js
     memory: 512M
     disk_quota: 1G
-    instances: 1
+    instances: 1   # QUA is editable (in-memory edits): keep 1. PROD is read-only, so it may scale out.
     env:
       NODE_ENV: production
       TSS_ENVIRONMENT: QUA   # QUA | PROD — selects gateway, tenant and credentials (docs/DEPLOYMENT.md, "QUA -> PROD")

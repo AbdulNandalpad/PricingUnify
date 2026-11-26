@@ -928,6 +928,7 @@ module.exports = (srv) => {
   srv.on('me', (req) => ({
     id: req.user.id,
     environment: require('./lib/environment').name(),
+    configEditable: require('./lib/environment').configEditable(),
     roles: {
       PricingViewer: req.user.is('PricingViewer'),
       PricingAdmin: req.user.is('PricingAdmin'),

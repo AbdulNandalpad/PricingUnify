@@ -82,9 +82,7 @@ from here.
 
 ## Known limitations, still true after this deploy
 
-- **No persistent DB.** `config-model`'s `ConfigStore` is in-memory — the seeded EUROPE
-  demo config (and anything else) is gone on every restage/restart. Don't rely on approved
-  AI suggestions surviving a redeploy yet; real persistence (HANA/Postgres) is still parked.
+- **No database, by decision** — see "Persistence: none" at the end of this document: the rules are code (seed + `config/*.json`), PROD is read-only.
 - **CORS is off in production** (`[production]: { cors: false }` in the root
   `package.json`). Fine if Build Apps calls server-side; if you see CORS errors from a
   browser-based caller, that config is where to loosen it (or, better long-term: front
@@ -149,3 +147,27 @@ Switching to PROD = set the `*_PROD` variables (`cf set-env` or the MTA/deployme
 set `API6_MODE_PROD=live`, restart. Nothing in code or pricing config changes: region rules, suppliers and margins are
 the same configuration in both (note: config is still in-memory, so PROD needs the same rules re-entered or seeded until persistence exists).
 Run `npm test` unchanged — tests scrub every `TSS_*`/`API6_*`/`C4C_*` variable and never reach a real system.
+
+
+---
+
+## Persistence: none — pricing rules are code (owner decision 2026-11-26)
+
+There is **no database** and none is needed: only one person maintains the pricing rules, and the results of a pricing
+session are written to C4C (write-back), which then holds them.
+
+- The rules live in the repo: the built-in seed (`srv/lib/seed.js`) plus `config/<kind>.json` files, applied on boot
+  (`config/README.md`). A deploy therefore reproduces exactly the same rules every time.
+- **QUA is editable** (Admin screens) for experiments; edits live in memory and are lost on restart. **PROD is read-only**
+  (`TSS_CONFIG_EDIT` overrides): every save answers 409 with the way to change it.
+- **Promotion QUA -> PROD:** edit in QUA -> Admin -> *Export configuration* -> save each kind as `config/<kind>.json` ->
+  commit -> `cf push` / `mbt build && cf deploy`. Version history and audit trail = git history.
+- Demo suppliers/customers are seeded in QUA only; PROD gets real supplier terms from `config/supplier-config.json`.
+- Connections settings are per environment: in PROD set URLs/modes/credentials through environment variables
+  (`API6_BASE_URL_PROD`, `API6_MODE_PROD`, ...), see "QUA -> PROD" above. A `connection-config` document is stamped with the
+  environment it was saved in and applies only there.
+- Because PROD never changes its own config, it can run **more than one instance** without caches drifting apart.
+  QUA keeps 1 instance (in-memory edits would differ between instances).
+- Trade-offs accepted: no live editing in PROD; a rate change is a commit + deploy; pending AI suggestions are not kept
+  across restarts. If business users ever need to edit rules in PROD, a database (e.g. Postgres) can be added behind the
+  same store later without changing the config model.

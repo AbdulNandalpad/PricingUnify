@@ -245,6 +245,19 @@ class ConfigStore {
     return this._connectionConfigs.getEffectiveAsOf('GLOBAL', 'GLOBAL', date);
   }
 
+  /** Every version of every config document (all kinds except AI suggestions), for promoting a config
+   *  from one environment to another through the repo (config/*.json) — see srv/lib/config-files.js. */
+  exportAll() {
+    const all = (bucket) => [...bucket.versionsByKey.values()].flat();
+    return {
+      'region-config': all(this._regionConfigs),
+      'supplier-config': all(this._supplierConfigs),
+      'region-route': all(this._regionRoutes),
+      'party-config': all(this._partyConfigs),
+      'connection-config': all(this._connectionConfigs),
+    };
+  }
+
   saveSuggestion(suggestion) {
     validateAiSuggestion(suggestion);
     this.suggestions.set(suggestion.id, suggestion);

@@ -50,8 +50,5 @@
         "cors": false
       }
     }
-  },
-  "devDependencies": {
-    "@sap/cds-dk": "^10.2.1"
   }
 }

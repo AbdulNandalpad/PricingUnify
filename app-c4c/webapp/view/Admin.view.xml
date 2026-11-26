@@ -22,9 +22,13 @@
           </HBox>
           <HBox alignItems="Center">
             <Text text="{i18n>signedInAs}: {session>/user}" class="sapUiSmallMarginEnd ctxUser"/>
+            <Button text="{i18n>exportConfig}" icon="sap-icon://download" type="Transparent" tooltip="{i18n>exportConfigTip}" press=".onExportConfig"/>
             <Button text="{i18n>openPricing}" icon="sap-icon://navigation-left-arrow" type="Transparent" press=".onOpenPricing"/>
           </HBox>
         </HBox>
+        <MessageStrip text="{= ${session>/configEditable} ? ${i18n>configEditableHint} : ${i18n>configReadOnlyHint} }"
+          type="{= ${session>/configEditable} ? 'Information' : 'Warning' }" showIcon="true" class="sapUiTinyMarginTop"
+          visible="{= !!${session>/environment} }"/>
         <MessageStrip text="{vm>/message}" type="{vm>/messageType}" showIcon="true" showCloseButton="true"
           class="sapUiTinyMarginTop" visible="{= !!${vm>/message} }" close=".onCloseMessage"/>
         <MessageStrip text="{i18n>sessionExpired}" type="Error" showIcon="true" class="sapUiTinyMarginTop"
@@ -150,7 +154,7 @@
                 <Input value="{vm>/sheet/validFrom}" width="9rem" placeholder="YYYY-MM-DD"/>
                 <Text text="{i18n>saveCreatesVersion}" class="adminHint"/>
                 <ToolbarSpacer/>
-                <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" press=".onSaveSheet"/>
+                <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" enabled="{session>/configEditable}" press=".onSaveSheet"/>
               </OverflowToolbar>
             </VBox>
           </IconTabFilter>
@@ -222,7 +226,7 @@
                     <Label text="{i18n>validFrom}"/>
                     <Input value="{vm>/suppliers/doc/validFrom}" width="9rem"/>
                     <ToolbarSpacer/>
-                    <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" press=".onSaveSupplier"/>
+                    <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" enabled="{session>/configEditable}" press=".onSaveSupplier"/>
                   </OverflowToolbar>
                 </VBox>
               </HBox>
@@ -364,7 +368,7 @@
                 <Input value="{vm>/connections/newVersion}" width="11rem" placeholder="{i18n>connVersionAuto}"/>
                 <Text text="{i18n>connInMemoryNote}" class="traceNote sapUiSmallMarginBegin"/>
                 <ToolbarSpacer/>
-                <Button text="{i18n>saveConnections}" type="Emphasized" icon="sap-icon://save" press=".onSaveConnections"/>
+                <Button text="{i18n>saveConnections}" type="Emphasized" icon="sap-icon://save" enabled="{session>/configEditable}" press=".onSaveConnections"/>
               </OverflowToolbar>
 
               <Panel headerText="{i18n>connAi}">

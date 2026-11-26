@@ -7,8 +7,12 @@ const path = require('node:path');
 process.chdir(path.join(__dirname, '..'));
 
 const { seed } = require('./lib/seed');
+const { loadConfigFiles } = require('./lib/config-files');
 
 seed();
+// Config as code: config/<kind>.json (exported from QUA, committed, deployed) is applied on top of the seed.
+const loaded = loadConfigFiles();
+if (loaded.files.length) console.log(`[config] applied ${loaded.applied} document(s) from config/ (${loaded.skipped} already present): ${loaded.files.join(', ')}`);
 
 // Serve the SAPUI5 app (app-c4c/webapp) same-origin at /app-c4c in local dev, so the UI can
 // call /rest/* with no CORS and CAP's mocked basic auth just works in the browser. In CF the
