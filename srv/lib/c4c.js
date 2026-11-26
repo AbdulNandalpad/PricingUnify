@@ -1,5 +1,6 @@
 const { createC4cClient } = require('./c4c-client');
 const { store } = require('./store');
+const environment = require('./environment');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -11,12 +12,10 @@ function todayIso() {
  * URL + technical user — stays in the BTP destination / environment, never in config.
  * Built per call (cheap): a save in the admin UI applies immediately.
  */
-// Owner-requested defaults (2026-11-24): the QUA tenant and the integration user are fixed
-// facts of this project, so they are the fallback when neither a destination nor the
-// Connections tab provides them. The PASSWORD is deliberately NOT here and never will be —
-// it comes only from the C4C_PASSWORD environment variable or a BTP destination.
-const DEFAULT_C4C_URL = 'https://my352500.crm.ondemand.com';
-const DEFAULT_C4C_USERNAME = 'Tss.integration';
+// Which tenant / user is decided by TSS_ENVIRONMENT (lib/environment.js): QUA has a built-in profile (the
+// my352500 tenant + the integration user, owner-requested 2026-11-24); PROD takes URL and user from
+// C4C_URL_PROD / C4C_USERNAME_PROD (or the Connections tab). The PASSWORD is deliberately NOT defaulted and
+// never will be — C4C_PASSWORD_<ENV> (unsuffixed C4C_PASSWORD for QUA only) or a BTP destination.
 
 function envDestinations(name) {
   try {
@@ -29,7 +28,7 @@ function envDestinations(name) {
 
 function currentC4c() {
   const conn = store.getEffectiveConnectionConfig(todayIso());
-  const c = (conn && conn.c4c) || {};
+  const c = environment.honours(conn) ? ((conn && conn.c4c) || {}) : {}; // a document saved for another environment is ignored
 
   // Destination resolution chain: a full BTP/env destination wins; else the admin-maintained
   // C4C URL from connection-config, with the technical user's credentials taken ONLY from
@@ -37,12 +36,12 @@ function currentC4c() {
   const resolveDestination = (name) => {
     const fromEnv = envDestinations(name);
     if (fromEnv) return fromEnv;
-    const url = (c.url && String(c.url).trim()) || process.env.C4C_URL || DEFAULT_C4C_URL;
+    const url = (c.url && String(c.url).trim()) || environment.urlVar('C4C_URL') || environment.profile().c4cUrl || null;
     return {
       name,
       url,
-      username: process.env.C4C_USERNAME || DEFAULT_C4C_USERNAME,
-      password: process.env.C4C_PASSWORD || null, // never defaulted, never stored in config
+      username: environment.secretVar('C4C_USERNAME') || environment.profile().c4cUsername || null,
+      password: environment.secretVar('C4C_PASSWORD') || null, // never defaulted, never stored in config
     };
   };
 

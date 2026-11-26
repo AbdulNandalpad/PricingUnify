@@ -1,29 +1,32 @@
 const { createApi6Client, basicAuth, noAuth } = require('@tss-pricing/api6-client');
 const { store } = require('./store');
+const environment = require('./environment');
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// The TSS API6 QUA gateway (APIM). A URL is a tenant fact, not a secret, so it is a default;
-// override in the Connections tab or with API6_BASE_URL. Credentials are NEVER defaulted.
-const DEFAULT_BASE_URL = 'https://apimqua.tss.trelleborg.com';
+// Which gateway / which credentials is decided by TSS_ENVIRONMENT (see lib/environment.js): QUA has a built-in
+// default URL, PROD (or any other) takes its URL from API6_BASE_URL_<ENV> / the Connections tab. Credentials are
+// NEVER defaulted and never stored.
 
 let cached = { key: null, client: null };
 
-/** Basic auth from API6_USERNAME / API6_PASSWORD (environment only — never config, never code).
- *  Without both, calls go unauthenticated (fine for recorded mode; a live call will be refused
- *  by the gateway and surface as a typed FAILED, not a throw). */
+/** Basic auth from API6_USERNAME_<ENV> / API6_PASSWORD_<ENV> (unsuffixed names count for QUA only) — environment
+ *  only, never config, never code. Without both, calls go unauthenticated (fine for recorded mode; a live call
+ *  will be refused by the gateway and surface as a typed FAILED, not a throw). */
 function credentialsConfigured() {
-  return Boolean(process.env.API6_USERNAME && process.env.API6_PASSWORD);
+  return Boolean(environment.secretVar('API6_USERNAME') && environment.secretVar('API6_PASSWORD'));
 }
 function envAuth() {
   return credentialsConfigured()
-    ? basicAuth({ username: process.env.API6_USERNAME, password: process.env.API6_PASSWORD })
+    ? basicAuth({ username: environment.secretVar('API6_USERNAME'), password: environment.secretVar('API6_PASSWORD') })
     : noAuth();
 }
+/** The saved settings, minus anything saved for ANOTHER environment. */
+function usable(conn) { return environment.honours(conn) ? ((conn && conn.api6) || {}) : {}; }
 function effectiveBaseUrl(a) {
-  return (a && a.baseUrl && String(a.baseUrl).trim()) || process.env.API6_BASE_URL || DEFAULT_BASE_URL;
+  return (a && a.baseUrl && String(a.baseUrl).trim()) || environment.urlVar('API6_BASE_URL') || environment.profile().api6BaseUrl || null;
 }
 
 /**
@@ -36,14 +39,20 @@ function effectiveBaseUrl(a) {
  */
 function current() {
   const conn = store.getEffectiveConnectionConfig(todayIso());
-  const a = (conn && conn.api6) || {};
-  const key = JSON.stringify(a);
+  const a = usable(conn);
+  const key = JSON.stringify([environment.name(), a, credentialsConfigured()]);
   if (cached.key !== key) {
+    const mode = a.mode || environment.urlVar('API6_MODE') || 'recorded';
+    const baseUrl = effectiveBaseUrl(a);
+    // Live with no URL for THIS environment (e.g. PROD before API6_BASE_URL_PROD is set): every call answers a
+    // typed FAILED that names the missing setting, never a crash and never another environment's gateway.
+    const unset = mode === 'live' && !baseUrl;
     cached = {
       key,
       client: createApi6Client({
-        mode: a.mode || process.env.API6_MODE || 'recorded',
-        baseUrl: effectiveBaseUrl(a),
+        mode,
+        baseUrl: unset ? 'https://base-url-not-set.invalid' : baseUrl,
+        ...(unset ? { fetchImpl: async () => { throw new Error(`The API6 base URL is not set for environment ${environment.name()} — set API6_BASE_URL_${environment.name()} or the Connections tab.`); } } : {}),
         auth: envAuth(),
         costSourceEndpoints: a.costSourceEndpoints || {},
         kitEndpoints: a.kitEndpoints || {},
@@ -59,7 +68,8 @@ function current() {
 }
 
 const api6 = {
-  get baseUrl() { return effectiveBaseUrl((store.getEffectiveConnectionConfig(todayIso()) || {}).api6); },
+  get baseUrl() { return effectiveBaseUrl(usable(store.getEffectiveConnectionConfig(todayIso()))); },
+  get environment() { return environment.name(); },
   get credentialsConfigured() { return credentialsConfigured(); },
   get mode() { return current().mode; },
   get authType() { return current().authType; },
@@ -77,4 +87,4 @@ const api6 = {
   fetchBiCosts: (body) => current().fetchBiCosts(body),
 };
 
-module.exports = { api6, DEFAULT_BASE_URL };
+module.exports = { api6, DEFAULT_BASE_URL: environment.PROFILES.QUA.api6BaseUrl };

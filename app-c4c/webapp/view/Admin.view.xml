@@ -233,6 +233,9 @@
           <IconTabFilter text="{i18n>tabConnections}" key="connections" icon="sap-icon://chain-link">
             <VBox class="adminBody">
               <MessageStrip text="{i18n>connectionsHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
+              <MessageStrip text="{= ${i18n>connEnvironment} + ' ' + ${vm>/connections/environment} + ' — ' + ( ${vm>/connections/environment} === 'PROD' ? ${i18n>connEnvProd} : ${i18n>connEnvTest} ) }"
+                            type="{= ${vm>/connections/environment} === 'PROD' ? 'Warning' : 'Success' }" showIcon="true" class="sapUiTinyMarginBottom" visible="{= !!${vm>/connections/environment} }"/>
+              <MessageStrip text="{vm>/connections/environmentNote}" type="Warning" showIcon="true" class="sapUiTinyMarginBottom" visible="{= !!${vm>/connections/environmentNote} }"/>
 
               <Panel headerText="{i18n>connApi6}" class="sapUiTinyMarginBottom">
                 <VBox class="sapUiSmallMargin">

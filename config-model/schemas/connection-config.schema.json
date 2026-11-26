@@ -7,6 +7,7 @@
   "required": ["name", "version", "validFrom", "status", "provenance"],
   "properties": {
     "name": { "const": "GLOBAL" },
+    "environment": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]{0,15}$", "description": "The deployment environment (QUA, PROD, ...) this document was saved under; server-stamped. URLs in it are ignored when the service runs in another environment." },
     "version": { "type": "string" },
     "status": { "enum": ["DRAFT", "ACTIVE", "SUPERSEDED", "REJECTED"] },
     "supersedes": { "type": ["string", "null"] },

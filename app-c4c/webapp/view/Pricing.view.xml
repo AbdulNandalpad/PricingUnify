@@ -38,7 +38,8 @@
               <Title text="{= ${session>/objectType} === 'OPPORTUNITY' ? ${i18n>titleOpportunity} : ${i18n>titleQuote} }" level="H3" class="ctxTitle"/>
               <HBox alignItems="Center">
                 <ObjectStatus text="{session>/objectId}" state="Information" visible="{= !!${session>/objectId} }" class="sapUiSmallMarginEnd"/>
-                <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' }"/>
+                <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' }" class="sapUiSmallMarginEnd"/>
+                <ObjectStatus text="{session>/environment}" state="{= ${session>/environment} === 'PROD' ? 'Error' : 'Success' }" inverted="true" visible="{= !!${session>/environment} }" tooltip="{i18n>environmentTip}"/>
               </HBox>
             </VBox>
           </HBox>

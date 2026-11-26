@@ -13,5 +13,6 @@ applications:
     instances: 1
     env:
       NODE_ENV: production
+      TSS_ENVIRONMENT: QUA   # QUA | PROD — selects gateway, tenant and credentials (docs/DEPLOYMENT.md, "QUA -> PROD")
     services:
       - tss-pricing-xsuaa

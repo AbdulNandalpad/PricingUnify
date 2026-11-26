@@ -66,6 +66,7 @@ sap.ui.define([
         .then(function (me) {
           session.setProperty("/user", me.id);
           session.setProperty("/roles", me.roles || {});
+          session.setProperty("/environment", me.environment || "");
           session.setProperty("/meLoaded", true);
           if (mode === "admin") {
             if (me.roles && me.roles.PricingAdmin) { that.getRouter().navTo("admin"); }

@@ -2,6 +2,7 @@ const { DEFAULT_REQUEST_MAPPING } = require('@tss-pricing/api6-client');
 const { suggestConfigChange, applySuggestion, rejectSuggestion, ConfigValidationError } = require('@tss-pricing/config-model');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
+const environment = require('./lib/environment');
 const { currentC4c } = require('./lib/c4c');
 const { getAiClientOrNull } = require('./lib/ai');
 
@@ -125,6 +126,8 @@ module.exports = (srv) => {
       // Effective values = UI-saved connection-config (when one exists) over environment
       // defaults — exactly what the adapters use on the next call.
       configVersion: conn ? conn.version : null,
+      environment: environment.name(), // QUA | PROD | ... — the TSS_ENVIRONMENT switch
+      environmentNote: environment.honours(conn) ? null : `The saved connection settings were saved under ${conn.environment}; their URLs are ignored in ${environment.name()} until saved again here.`,
       api6: {
         mode: api6.mode, // 'recorded' (dev fixtures, no outbound calls) or 'live'
         authType: api6.authType,
@@ -138,7 +141,7 @@ module.exports = (srv) => {
         biPriceListEndpoint: api6.biPriceListEndpoint,
         requestMapping: (conn && conn.api6 && conn.api6.requestMapping) || null, // kept as saved; edited as data, not in this form
         itemTypeDesc: ((conn && conn.api6 && conn.api6.requestMapping && conn.api6.requestMapping.defaultItemTypeDesc !== undefined) ? conn.api6.requestMapping.defaultItemTypeDesc : DEFAULT_REQUEST_MAPPING.defaultItemTypeDesc), // the item type sent to the BI when a line has none
-        maintainedVia: 'Editable here (saved as a versioned connection-config). Environment defaults: API6_MODE, API6_BASE_URL (default: the TSS APIM QUA gateway). Credentials (Basic auth) are environment-owned ONLY: API6_USERNAME and API6_PASSWORD — never saved here. The cost source ORDER stays pricing config (Cost Rules tab).',
+        maintainedVia: `Editable here (saved as a versioned connection-config, valid for ${environment.name()} only). Environment: TSS_ENVIRONMENT selects QUA/PROD; defaults API6_MODE, API6_BASE_URL[_<ENV>] (QUA has a built-in gateway URL; any other environment takes its URL from API6_BASE_URL_<ENV> or this form). Credentials (Basic auth) are environment-owned ONLY: API6_USERNAME_${environment.name()} and API6_PASSWORD_${environment.name()}${environment.name() === 'QUA' ? ' (or API6_USERNAME / API6_PASSWORD)' : ''} — never saved here. The cost source ORDER stays pricing config (Cost Rules tab).`,
       },
       c4c: {
         destinationName: c4cInfo.destinationName,
@@ -148,7 +151,7 @@ module.exports = (srv) => {
         url: c4cInfo.url || (conn && conn.c4c && conn.c4c.url) || null,
         servicePath: c4cInfo.servicePath,
         fieldMap: c4cInfo.fieldMap,
-        maintainedVia: 'Tenant URL, service path and field map editable here. The technical user\'s credentials are NEVER stored in config — BTP destination C4C_ODATA, or the C4C_USERNAME / C4C_PASSWORD environment variables.',
+        maintainedVia: 'Tenant URL, service path and field map editable here. The technical user\'s credentials are NEVER stored in config — BTP destination C4C_ODATA, or the C4C_USERNAME_<ENV> / C4C_PASSWORD_<ENV> environment variables (unsuffixed C4C_USERNAME / C4C_PASSWORD count for QUA only).',
       },
       ai: {
         configured: !!getAiClientOrNull(),
@@ -172,6 +175,7 @@ module.exports = (srv) => {
     const versions = store.listConnectionConfigVersions();
     const doc = withHumanProvenance({
       name: 'GLOBAL',
+      environment: environment.name(), // server-stamped: this document's URLs only apply in this environment
       version: (p.version && String(p.version).trim()) || `${todayIso()}-r${versions.length + 1}`,
       api6: p.api6 || (existing && existing.api6) || {},
       c4c: p.c4c || (existing && existing.c4c) || {},

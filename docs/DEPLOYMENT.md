@@ -121,3 +121,31 @@ The URL parameters C4C should pass into the iframe: `objectType=QUOTE|OPPORTUNIT
 Same caveat as everything else in this runbook: written ready-to-run but **not yet
 exercised against a real BTP org** from the dev sandbox (no `cf`/`mbt` here). The plain
 `cf push` path via `manifest.yml` still works for the backend alone.
+
+
+---
+
+## QUA -> PROD (one switch) — added 2026-11-26
+
+Everything environment-specific hangs off **one setting, `TSS_ENVIRONMENT`** (default `QUA`; `PROD` for production).
+It selects which API6 gateway, which C4C tenant and which credentials every outbound call uses; the Pricing screen shows
+the environment as a badge (green QUA / red PROD) and the Admin → Connections tab says it too.
+
+| What | QUA | PROD |
+|---|---|---|
+| API6 gateway URL | built in: `https://apimqua.tss.trelleborg.com` | **none built in** — set `API6_BASE_URL_PROD` (or the Connections tab) |
+| C4C tenant URL | built in: `https://my352500.crm.ondemand.com` | **none built in** — set `C4C_URL_PROD` (or the Connections tab) |
+| API6 credentials (Basic) | `API6_USERNAME_QUA` / `API6_PASSWORD_QUA` (or the unsuffixed `API6_USERNAME` / `API6_PASSWORD`) | `API6_USERNAME_PROD` / `API6_PASSWORD_PROD` **only** |
+| C4C technical user | `C4C_USERNAME_QUA` / `C4C_PASSWORD_QUA` (or unsuffixed; user defaults to `Tss.integration`) | `C4C_USERNAME_PROD` / `C4C_PASSWORD_PROD` **only** |
+| Mode | `API6_MODE` (`recorded` until you set `live`) — `API6_MODE_PROD` overrides it for PROD | |
+
+Safety rules built in:
+- **No cross-environment credentials.** The unsuffixed variables count for QUA only, so a PROD run can never pick up QUA
+  credentials (nor send them to the PROD gateway). PROD URLs are never guessed: until they are set, Connections shows them as missing and a live call answers a typed failure naming the variable.
+- **Connections-tab settings belong to the environment they were saved under** (server-stamped). After switching `TSS_ENVIRONMENT`, URLs saved under QUA are ignored and the tab says so until you save again.
+- Credentials are never stored in config, only in the environment / BTP destination.
+
+Switching to PROD = set the `*_PROD` variables (`cf set-env` or the MTA/deployment descriptor), set `TSS_ENVIRONMENT=PROD`,
+set `API6_MODE_PROD=live`, restart. Nothing in code or pricing config changes: region rules, suppliers and margins are
+the same configuration in both (note: config is still in-memory, so PROD needs the same rules re-entered or seeded until persistence exists).
+Run `npm test` unchanged — tests scrub every `TSS_*`/`API6_*`/`C4C_*` variable and never reach a real system.
