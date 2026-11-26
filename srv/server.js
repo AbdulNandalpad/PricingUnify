@@ -6,6 +6,9 @@ const path = require('node:path');
 // and the cds config in the root package.json are always found consistently.
 process.chdir(path.join(__dirname, '..'));
 
+// Must run before anything requires '@tss-pricing/*' (see lib/internal-packages.js — Cloud Foundry relocates node_modules).
+require('./lib/internal-packages').install();
+
 const { seed } = require('./lib/seed');
 const { loadConfigFiles } = require('./lib/config-files');
 
