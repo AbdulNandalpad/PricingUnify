@@ -62,7 +62,7 @@ service PricingService {
   action writeBackToC4C(payload: Map) returns Map;
 
   // KIT / BOM explosion (generic, every region): the components of one or more kit headers, fetched from the ERP
-  // behind each header's Origin of Data through that OOD's own endpoint (connection-config api6.kitEndpoints).
+  // behind each header's Origin of Data through API6 getKitComponents: the common endpoint (api6.kitEndpoint), or that OOD's individual one (api6.kitEndpoints).
   // Components come back with SAP-style item numbers (header 10 -> 11, 12, 13 ...). A typed status per kit
   // (OK | NOT_FOUND | FAILED | OOD_UNKNOWN) — never an invented component list.
   @requires: 'PricingViewer'

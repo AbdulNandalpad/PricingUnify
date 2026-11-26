@@ -64,7 +64,7 @@ curl -s -X POST "$BASE/rest/pricing/price" \
   skipped steps with the unmet condition, rules applied, config version.
 - Explicit values always win over automatic resolution (`stockClass`, `supplierCountry`, `region`, …).
 - **Kits (sales BOMs), any region, modeled on standard SAP SD.** A line with `components` (or `itemType: "ZKIT"` and no components) is a kit header.
-  Components are fetched from the ERP behind the header's Origin of Data through that OOD's own endpoint (an admin setting; fallback `/kits/<ood>`).
+  Components are fetched from the ERP behind the header's Origin of Data through API6 `getKitComponents` — one common endpoint (API6 routes to the ERP by Origin of Data) unless an admin has given that Origin of Data its own individual endpoint (Connections). Each component carries `usage` and `itemShortNumber` as API6 returns them.
   Component quantity = kit quantity × quantity in one kit, and each component is priced at its real total quantity. Pricing is at **header level**: the
   header's cost, price and margin are the roll-up of its components, and a margin on the header applies to every component. Item numbers follow SAP's
   sub-item rule (header 10 → components 11, 12, 13 → next item 20). A price typed on the header is refused; a kit whose components cannot all be priced is MISSING.

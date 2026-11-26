@@ -1,34 +1,78 @@
 {
   "CN": {
     "CN-K001": {
-      "components": [
-        {
-          "partNumber": "CN-K001-A",
-          "quantity": 2,
-          "uom": "PC"
-        },
-        {
-          "partNumber": "CN-K001-B",
-          "quantity": 1,
-          "uom": "PC"
-        }
-      ]
+      "status": {
+        "statusCode": "SUCCESS",
+        "faultMessage": []
+      },
+      "kitComponentList": {
+        "itemKitComonent": [
+          {
+            "tssArticleNumber": "CN-K001-A",
+            "itemShortNumber": 100,
+            "quantity": "0000000002",
+            "usage": "S"
+          },
+          {
+            "tssArticleNumber": "CN-K001-B",
+            "itemShortNumber": 101,
+            "quantity": "0000000001",
+            "usage": "S"
+          }
+        ]
+      }
+    },
+    "PQ0301400-T46NK": {
+      "status": {
+        "statusCode": "SUCCESS",
+        "faultMessage": []
+      },
+      "kitComponentList": {
+        "itemKitComonent": [
+          {
+            "tssArticleNumber": "ORAR00351-N7083",
+            "itemShortNumber": 3694,
+            "quantity": "0000000020",
+            "usage": "S"
+          },
+          {
+            "tssArticleNumber": "PQ0301400-T46",
+            "itemShortNumber": 295,
+            "quantity": "0000000010",
+            "usage": "S"
+          },
+          {
+            "tssArticleNumber": "QRAR04250-N7004",
+            "itemShortNumber": 5391,
+            "quantity": "0000000010",
+            "usage": "O"
+          }
+        ]
+      }
     }
   },
   "SAP": {
     "EU-KIT01": {
-      "components": [
-        {
-          "partNumber": "EU-T100",
-          "quantity": 2,
-          "uom": "PC"
-        },
-        {
-          "partNumber": "P-10023",
-          "quantity": 1,
-          "uom": "PC"
-        }
-      ]
+      "status": {
+        "statusCode": "SUCCESS",
+        "faultMessage": []
+      },
+      "kitComponentList": {
+        "itemKitComonent": [
+          {
+            "tssArticleNumber": "EU-T100",
+            "itemShortNumber": 100,
+            "quantity": "0000000002",
+            "usage": "S"
+          },
+          {
+            "tssArticleNumber": "P-10023",
+            "itemShortNumber": 101,
+            "quantity": "0000000001",
+            "usage": "S"
+          }
+        ]
+      }
     }
   }
 }

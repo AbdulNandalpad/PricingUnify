@@ -269,6 +269,13 @@
                       </ColumnListItem>
                     </items>
                   </Table>
+                  <Label text="{i18n>connKitCommon}" design="Bold" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
+                  <Text text="{i18n>connKitCommonHint}" class="adminHint sapUiTinyMarginBottom"/>
+                  <HBox alignItems="Center" class="sapUiTinyMarginBottom">
+                    <Input value="{vm>/connections/api6/kitEndpoint}" width="26rem" placeholder="/core/item/rest/v1/getKitComponents"/>
+                    <Label text="{i18n>connKitRequestor}" class="sapUiSmallMarginBegin sapUiTinyMarginEnd"/>
+                    <Input value="{vm>/connections/api6/kitRequestorId}" width="6rem" placeholder="FS"/>
+                  </HBox>
                   <Label text="{i18n>connKitEndpoints}" design="Bold" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
                   <Text text="{i18n>connKitHint}" class="adminHint sapUiTinyMarginBottom"/>
                   <Table items="{vm>/connections/api6/kitRows}" inset="false" noDataText="{i18n>connKitHint}">
@@ -287,7 +294,7 @@
                       <ColumnListItem>
                         <cells>
                           <Input value="{vm>ood}" placeholder="SAP"/>
-                          <Input value="{vm>path}" placeholder="/kits/sap"/>
+                          <Input value="{vm>path}" placeholder="/erp/sap/getKitComponents"/>
                           <Button icon="sap-icon://decline" type="Transparent" press=".onRemoveKitEndpoint"/>
                         </cells>
                       </ColumnListItem>

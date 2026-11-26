@@ -25,10 +25,23 @@ const DEFAULT_COST_SOURCE_ENDPOINTS = {
 const { buildBiPriceRequest, parseBiPriceResponse, DEFAULT_REQUEST_MAPPING } = require('./bi-price-request');
 const DEFAULT_BI_PRICE_LIST_ENDPOINT = '/core/price/rest/v1/getPriceList';
 const DEFAULT_PRICE_LIST_ENDPOINT = '/costs/price-list';
-// Kit (BOM) components are fetched from the ERP that owns the item, i.e. one independent endpoint PER
-// ORIGIN OF DATA (SAP, SMA, CN, IN, ...). Integration config like the cost-source endpoints; an OOD with no
-// entry falls back to /kits/<ood lowercased>.
+// Kit (BOM) components. Two routing modes, both config (owner decision 2026-11-26: no orchestration logic
+// in middleware, so individual endpoints must be possible; the COMMON one is used first):
+//  - COMMON: one API6 endpoint for every Origin of Data; API6 itself routes to the right ERP by `originOfData`.
+//  - INDIVIDUAL: `kitEndpoints[ood]` points one OOD straight at its own endpoint. An OOD with an entry uses
+//    it; every other OOD keeps using the common one, so switching OOD by OOD is a config change only.
+const DEFAULT_KIT_ENDPOINT = '/core/item/rest/v1/getKitComponents';
+const DEFAULT_KIT_REQUESTOR_ID = 'FS';
 const DEFAULT_KIT_ENDPOINTS = {};
+
+// "0000000020" -> 20. Anything that is not a plain non-negative number is passed through unchanged so the
+// kernel answers its typed QUANTITY_INVALID instead of us guessing.
+function parseKitQuantity(q) {
+  if (typeof q === 'number') return q;
+  const t = String(q === undefined || q === null ? '' : q).trim();
+  if (/^\d+(\.\d+)?$/.test(t)) return Number(t);
+  return q;
+}
 
 function createApi6Client({
   mode = process.env.API6_MODE || 'recorded',
@@ -38,6 +51,8 @@ function createApi6Client({
   costSourceEndpoints = {},
   priceListEndpoint = DEFAULT_PRICE_LIST_ENDPOINT,
   kitEndpoints = {},
+  kitEndpoint = DEFAULT_KIT_ENDPOINT,
+  kitRequestorId = DEFAULT_KIT_REQUESTOR_ID,
   biPriceListEndpoint = DEFAULT_BI_PRICE_LIST_ENDPOINT,
   requestMapping = null,
   fetchImpl,
@@ -46,7 +61,9 @@ function createApi6Client({
   const endpoints = { ...DEFAULT_COST_SOURCE_ENDPOINTS, ...costSourceEndpoints };
   const endpointFor = (system) => endpoints[system] || `/costs/${String(system).toLowerCase()}`;
   const kitEndpoints_ = { ...DEFAULT_KIT_ENDPOINTS, ...kitEndpoints };
-  const kitEndpointFor = (ood) => kitEndpoints_[ood] || `/kits/${String(ood).toLowerCase()}`;
+  const kitRouteFor = (ood) => (kitEndpoints_[ood]
+    ? { endpoint: kitEndpoints_[ood], routing: 'INDIVIDUAL' }
+    : { endpoint: kitEndpoint, routing: 'COMMON' });
 
   return {
     mode: connector.mode,
@@ -55,6 +72,8 @@ function createApi6Client({
     costSourceEndpoints: endpoints,
     priceListEndpoint,
     kitEndpoints: kitEndpoints_,
+    kitEndpoint,
+    kitRequestorId,
     biPriceListEndpoint,
 
     /**
@@ -134,36 +153,58 @@ function createApi6Client({
     },
 
     /**
-     * KIT / BOM explosion: the components of a kit header, fetched from the ERP behind the header's
-     * ORIGIN OF DATA — each OOD has its own independent endpoint (config: connection-config
-     * api6.kitEndpoints; fallback /kits/<ood>). Components are quantities PER ONE KIT, as the ERP's
-     * BOM holds them; scaling by the ordered kit quantity is the caller's job (as SAP does it).
+     * KIT / BOM explosion — API6 getKitComponents. Request (real contract):
+     *   { tssArticleNumber, originOfData, warehouseCode, requestorId }   (requestorId default 'FS')
+     * Answer: { status:{statusCode, faultMessage[]}, kitComponentList:{ itemKitComonent:[
+     *   { tssArticleNumber, itemShortNumber, quantity:"0000000020", usage:"S"|"O" } ] } }
+     * (sic: the real field is spelled `itemKitComonent`; the correctly spelled `itemKitComponent` is accepted too).
+     * Routing is config: the COMMON endpoint (API6 routes to the ERP by originOfData) unless
+     * `kitEndpoints[ood]` names an INDIVIDUAL one (assumed to speak the same contract). Components are
+     * quantities PER ONE KIT, as the BOM holds them (zero-padding stripped); scaling by the ordered kit
+     * quantity is the caller's job, as in SAP. `usage` and `itemShortNumber` are carried through untouched.
      *
-     * Returns { status: 'OK'|'NOT_FOUND'|'FAILED', endpoint, ood, components, message? }. Never
-     * throws on an API6/ERP fault and never invents components. Recorded mode simulates the per-OOD
-     * endpoint from recorded/kits-default.json ({ <ood>: { <partNumber>: { components: [...] } } });
-     * live mode is one authenticated POST { ood, partNumber } to the configured endpoint, answer
-     * { components: [{ partNumber, quantity, uom?, description? }] } (shape TO CONFIRM against the real API6 kit services).
+     * Returns { status: 'OK'|'NOT_FOUND'|'FAILED', endpoint, routing, ood, request, components, message? }.
+     * Never throws on an API6/ERP fault and never invents components. Recorded mode replays
+     * recorded/kits-default.json ({ <ood>: { <partNumber>: <raw getKitComponents answer> } }), no call made.
      */
-    async fetchKitComponents({ ood, partNumber, scenario }) {
-      const endpoint = kitEndpointFor(ood);
-      const normalize = (list) => (Array.isArray(list) ? list : [])
-        .filter((c) => c && c.partNumber)
-        .map((c) => ({ partNumber: String(c.partNumber), quantity: c.quantity, ...(c.uom ? { uom: c.uom } : {}), ...(c.description ? { description: c.description } : {}) }));
+    async fetchKitComponents({ ood, partNumber, warehouse, scenario }) {
+      const { endpoint, routing } = kitRouteFor(ood);
+      const request = {
+        tssArticleNumber: String(partNumber),
+        originOfData: String(ood),
+        ...(warehouse ? { warehouseCode: String(warehouse) } : {}),
+        requestorId: kitRequestorId,
+      };
+      const base = { endpoint, routing, ood, request };
       try {
-        let components;
+        let res;
         if (connector.mode === 'recorded') {
           const payload = await connector.call(scenario || 'kits-default');
-          const entry = payload && payload[ood] && payload[ood][partNumber];
-          components = normalize(entry && entry.components);
+          res = payload && payload[ood] && payload[ood][partNumber];
+          if (!res) return { status: 'NOT_FOUND', ...base, components: [], message: `No recorded kit for ${partNumber} @ ${ood}.` };
         } else {
-          const res = await connector.call(null, { method: 'POST', path: endpoint, body: { ood, partNumber } });
-          components = normalize(res && res.components);
+          res = await connector.call(null, { method: 'POST', path: endpoint, body: request });
         }
-        if (components.length === 0) return { status: 'NOT_FOUND', endpoint, ood, components: [], message: `No components returned for ${partNumber} from the ${ood} kit endpoint.` };
-        return { status: 'OK', endpoint, ood, components };
+        const st = res && res.status;
+        const code = st && typeof st === 'object' ? st.statusCode : st;
+        if (code && String(code).toUpperCase() !== 'SUCCESS') {
+          const faults = st && Array.isArray(st.faultMessage) ? st.faultMessage.filter(Boolean).join('; ') : '';
+          return { status: 'FAILED', ...base, components: [], message: `API6 answered ${code}${faults ? `: ${faults}` : ''}` };
+        }
+        const list = (res && res.kitComponentList) || {};
+        const rows = list.itemKitComonent || list.itemKitComponent || [];
+        const components = (Array.isArray(rows) ? rows : [rows])
+          .filter((c) => c && c.tssArticleNumber)
+          .map((c) => ({
+            partNumber: String(c.tssArticleNumber),
+            quantity: parseKitQuantity(c.quantity),
+            ...(c.usage ? { usage: String(c.usage) } : {}),
+            ...(c.itemShortNumber !== undefined && c.itemShortNumber !== null ? { itemShortNumber: c.itemShortNumber } : {}),
+          }));
+        if (components.length === 0) return { status: 'NOT_FOUND', ...base, components: [], message: `No components returned for ${partNumber} from the ${routing.toLowerCase()} kit endpoint (${ood}).` };
+        return { status: 'OK', ...base, components };
       } catch (err) {
-        return { status: 'FAILED', endpoint, ood, components: [], message: err.message };
+        return { status: 'FAILED', ...base, components: [], message: err.message };
       }
     },
 

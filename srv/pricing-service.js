@@ -473,7 +473,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
     let components = Array.isArray(kitItem.components) ? kitItem.components : [];
     if (components.length === 0) {
       if (!ood) { kitPlans.set(kitIndex, { failure: kitFailure(kitItem, 'KIT_OOD_UNKNOWN', { detail: 'The kit has no Origin of Data, so there is no ERP to fetch its components from.' }) }); continue; }
-      const exploded = await api6.fetchKitComponents({ ood, partNumber: kitItem.partNumber });
+      const exploded = await api6.fetchKitComponents({ ood, partNumber: kitItem.partNumber, warehouse: kitItem.warehouse });
       if (exploded.status !== 'OK') {
         kitPlans.set(kitIndex, { failure: kitFailure(kitItem, exploded.status === 'NOT_FOUND' ? 'KIT_COMPONENTS_NOT_FOUND' : 'KIT_FETCH_FAILED', { ood, endpoint: exploded.endpoint, detail: exploded.message }) });
         continue;
@@ -791,7 +791,7 @@ module.exports = (srv) => {
       const ood = (kit.ood && String(kit.ood).trim()) || (regionOods.length === 1 ? regionOods[0] : null);
       if (!ood) { out.push({ partNumber, status: 'OOD_UNKNOWN', message: 'The kit has no Origin of Data, so there is no ERP to fetch its components from.', components: [] }); continue; }
 
-      const res = await api6.fetchKitComponents({ ood, partNumber });
+      const res = await api6.fetchKitComponents({ ood, partNumber, warehouse: kit.warehouse });
       // SAP-style numbering: header 10 -> 11, 12, 13 ...; numbers already used by other lines are skipped.
       const numbers = numberKitComponents(kit.itemNo, res.components.length, used);
       numbers.forEach((n) => { if (n !== null) used.push(n); });

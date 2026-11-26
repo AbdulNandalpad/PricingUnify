@@ -213,6 +213,8 @@ sap.ui.define([
           mode: conn.api6.mode || "recorded",
           baseUrl: (conn.api6.baseUrl || "").trim() || null,
           costSourceEndpoints: costSourceEndpoints,
+          kitEndpoint: (conn.api6.kitEndpoint || "").trim() || null,
+          kitRequestorId: (conn.api6.kitRequestorId || "").trim() || null,
           kitEndpoints: kitEndpoints,
           priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
           biPriceListEndpoint: (conn.api6.biPriceListEndpoint || "").trim() || null,

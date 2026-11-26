@@ -288,7 +288,7 @@
       "post": {
         "operationId": "fetchKitComponents",
         "summary": "Components of one or more kits, from the ERP behind each kit's Origin of Data",
-        "description": "Requires role PricingViewer. Each Origin of Data has its own independent endpoint (Connections: kit endpoints; fallback /kits/<ood>). Components are quantities PER ONE KIT and come with SAP-style item numbers (header 10 -> 11, 12, 13), skipping numbers in usedItemNos. A kit header can also be priced directly via /price (itemType ZKIT, no components needed).",
+        "description": "Requires role PricingViewer. Calls API6 getKitComponents ({tssArticleNumber, originOfData, warehouseCode, requestorId}): one common endpoint (API6 routes to the ERP by Origin of Data) unless Connections gives that Origin of Data an individual endpoint. Components also carry usage and itemShortNumber as returned. Components are quantities PER ONE KIT and come with SAP-style item numbers (header 10 -> 11, 12, 13), skipping numbers in usedItemNos. A kit header can also be priced directly via /price (itemType ZKIT, no components needed).",
         "requestBody": {
           "required": true,
           "content": {

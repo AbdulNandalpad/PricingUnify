@@ -115,7 +115,7 @@ test('cost-only object: a kit on an OPPORTUNITY carries landed cost — header A
 test('typed failures, never an invented BOM: unknown kit, invalid quantity, a component that cannot be priced', async () => {
   const unknown = await line('EUROPE', { partNumber: 'NO-SUCH-KIT', itemType: 'ZKIT', quantity: 1, ood: 'SAP' });
   assert.equal(unknown.missing.reason, 'KIT_COMPONENTS_NOT_FOUND');
-  assert.equal(unknown.missing.endpoint, '/kits/sap'); // names the endpoint that was asked
+  assert.equal(unknown.missing.endpoint, '/core/item/rest/v1/getKitComponents'); // names the endpoint that was asked
   const badQty = await line('EUROPE', { partNumber: 'EU-KIT01', itemType: 'ZKIT', quantity: 0, ood: 'SAP' });
   assert.equal(badQty.missing.reason, 'QUANTITY_INVALID');
   const broken = await line('CHINA', { partNumber: 'K', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 1, ood: 'CN' }, { partNumber: 'NO-COST-ANYWHERE', quantity: 1, ood: 'CN' }] });
@@ -148,7 +148,17 @@ test('fetchKitComponents: the Origin of Data defaults from the region when it ha
   assert.equal((await call('pricing', 'fetchKitComponents', { payload: { kits: Array.from({ length: 51 }, () => ({ partNumber: 'X', ood: 'SAP' })) } })).status, 413);
 });
 
-test('the endpoint for an Origin of Data is CONFIG: saving it in Connections changes which endpoint the next explosion asks, no restart', async () => {
+test('the COMMON kit endpoint and requestor id are config too (Connections), no restart', async () => {
+  const saved = await call('config', 'saveConnections', { payload: { api6: { mode: 'recorded', kitEndpoint: '/core/item/rest/v2/getKitComponents', kitRequestorId: 'ZZ' }, c4c: {} } }, 'bob');
+  assert.equal(saved.status, 200);
+  const unknown = await line('EUROPE', { partNumber: 'NO-SUCH-KIT', itemType: 'ZKIT', quantity: 1, ood: 'SAP' });
+  assert.equal(unknown.missing.endpoint, '/core/item/rest/v2/getKitComponents');
+  const bad = await call('config', 'saveConnections', { payload: { api6: { mode: 'recorded', kitEndpoint: 'https://evil.example/x' }, c4c: {} } }, 'bob');
+  assert.equal(bad.status, 422);
+  await call('config', 'saveConnections', { payload: { api6: { mode: 'recorded' }, c4c: {} } }, 'bob'); // back to defaults for the tests below
+});
+
+test('an INDIVIDUAL endpoint for an Origin of Data is CONFIG: saving it in Connections changes which endpoint the next explosion asks, no restart', async () => {
   const saved = await call('config', 'saveConnections', { payload: { api6: { mode: 'recorded', kitEndpoints: { SAP: '/erp/sap/boms' } }, c4c: {} } }, 'bob');
   assert.equal(saved.status, 200);
   const unknown = await line('EUROPE', { partNumber: 'NO-SUCH-KIT', itemType: 'ZKIT', quantity: 1, ood: 'SAP' });
