@@ -11,6 +11,7 @@ against the credentials the server was given — the MCP layer never widens acce
 
 | Tool | Purpose |
 |---|---|
+| `get_kit_components` | Preview a kit's components (BOM) per Origin of Data, SAP-style numbered |
 | `price_items` | Price 1–200 lines → per-line landed cost, optional selling price, cost source, or a typed MISSING reason with a hint |
 | `explain_price` | Price one line and return the step-by-step calculation in plain language |
 | `get_item_attributes` | Preview resolved supplier / country / warehouse / stock class (no price) |

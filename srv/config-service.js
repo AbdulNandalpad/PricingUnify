@@ -131,6 +131,7 @@ module.exports = (srv) => {
         baseUrl: api6.baseUrl,
         credentialsConfigured: api6.credentialsConfigured,
         costSourceEndpoints: api6.costSourceEndpoints,
+        kitEndpoints: api6.kitEndpoints, // Origin of Data -> the endpoint that returns a kit's components from that ERP
         priceListEndpoint: api6.priceListEndpoint,
         biPriceListEndpoint: api6.biPriceListEndpoint,
         requestMapping: (conn && conn.api6 && conn.api6.requestMapping) || null, // kept as saved; edited as data, not in this form

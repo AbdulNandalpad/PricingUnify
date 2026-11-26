@@ -75,7 +75,10 @@ function hintFor(line) {
     case 'AMOUNT_MISSING': return 'A fixed charge amount this region needs is missing.';
     case 'QUANTITY_INVALID': return 'Quantity must be a number greater than 0.';
     case 'SELECTED_COST_NOT_FOUND': return 'The requested cost candidate does not exist for this part. Omit selectedCostId to let the region\'s cost-source order choose.';
-    case 'KIT_NOT_SUPPORTED_FOR_REGION': return 'Kits are only supported for AMERICAS and CHINA. Price the components as separate lines instead.';
+    case 'KIT_COMPONENTS_NOT_FOUND': return 'The ERP behind the kit\'s Origin of Data returned no components for this part (wrong part number or Origin of Data, or its kit endpoint has no BOM). Check with get_kit_components.';
+    case 'KIT_FETCH_FAILED': return 'The kit component endpoint could not be reached or answered with an error; see detail.';
+    case 'KIT_OOD_UNKNOWN': return 'The kit has no Origin of Data, so there is no ERP to fetch its components from. Pass ood.';
+    case 'KIT_HEADER_PRICE_UNSUPPORTED': return 'A kit price is the sum of its components: pass a marginPct on the kit, or a price on a component.';
     case 'KIT_COMPONENT_UNRESOLVED': return 'A component of the kit could not be priced; see componentIssue for which one and why. A kit is MISSING if any component is.';
     case 'KIT_CURRENCY_MISMATCH': return 'The kit\'s components price in different currencies; there is no FX conversion across components.';
     case 'FACT_INVALID': case 'COST_VALUE_INVALID': return 'A value in the data for this part is not a number; the detail names which one.';

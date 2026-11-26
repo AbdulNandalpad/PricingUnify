@@ -301,22 +301,16 @@ test('topic 8: a kit with an unresolvable component comes back MISSING, not sile
   assert.equal(line.missing.componentPartNumber, 'CN-K002-NOCOST');
 });
 
-test('topic 8: a kit requested for a region without a real BOM-explosion path (Europe) is a typed MISSING, not a silent wrong price', async () => {
-  const res = await fetch(`${BASE}/rest/pricing/price`, {
+test('kit is generic (2026-11-26, supersedes topic 8\'s AMERICAS/CHINA whitelist): a kit with components prices in EUROPE too — one component of qty 1 = that part alone', async () => {
+  const post = (items) => fetch(`${BASE}/rest/pricing/price`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: basicAuthHeader('alice') },
-    body: JSON.stringify({
-      payload: {
-        region: 'EUROPE',
-        salesOrg: '*',
-        items: [{ partNumber: 'EU-KIT', quantity: 1, components: [{ partNumber: 'P-10023', quantity: 1 }] }],
-      },
-    }),
+    body: JSON.stringify({ payload: { region: 'EUROPE', salesOrg: '*', items } }),
   }).then((r) => r.json());
-  const line = res.items[0];
-  assert.equal(line.status, 'MISSING');
-  assert.equal(line.missing.reason, 'KIT_NOT_SUPPORTED_FOR_REGION');
-  assert.equal(line.missing.region, 'EUROPE');
+  const alone = (await post([{ partNumber: 'P-10023', quantity: 1 }])).items[0].result.unitPrice;
+  const line = (await post([{ partNumber: 'EU-KIT', quantity: 1, components: [{ partNumber: 'P-10023', quantity: 1 }] }])).items[0];
+  assert.equal(line.status, 'PRICED');
+  assert.equal(line.result.unitPrice, alone);
 });
 
 async function priceRegion(region, item) {

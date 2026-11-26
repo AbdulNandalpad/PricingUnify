@@ -57,7 +57,7 @@ sap.ui.define([
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
-        priceBreak: false, alternativeToLine: "", fromC4c: false, stale: false, // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
+        priceBreak: false, alternativeToLine: "", parentItemNo: "", perKitQty: "", fromC4c: false, stale: false, // parentItemNo/perKitQty: a kit COMPONENT row (ZCOM) points at its header (ZKIT) and holds the quantity in ONE kit; // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
         supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         priceBy: "", marginNote: "", costManual: false, currency: "", // priceBy: "MARGIN" | "PRICE" = what the user typed last; costManual = a typed cost replaces the fetched one
@@ -90,7 +90,8 @@ sap.ui.define([
       if (table) { table.clearSelection(); }
       this._vm().setProperty("/selectedCount", 0);
       this._vm().setProperty("/itemCount", items.length);
-      this._vm().setProperty("/writableCount", items.filter(function (r) { return r.line && r.line.status === "PRICED" && !r.stale; }).length);
+      var that = this;
+      this._vm().setProperty("/writableCount", items.filter(function (r) { return r.line && r.line.status === "PRICED" && !r.stale && !that._isKitRow(r); }).length);
       return items;
     },
 
@@ -135,7 +136,7 @@ sap.ui.define([
       var view = this.getView();
       this._vm().setProperty("/addItem", {
         partNumber: "", description: "", quantity: "1",
-        withBreaks: false, breakQtys: "10, 25, 50",
+        withBreaks: false, breakQtys: "10, 25, 50", isKit: false,
         suggestions: [], sourceNote: "", searching: false
       });
       if (!this._addItemDialogPromise) {
@@ -147,6 +148,7 @@ sap.ui.define([
     },
 
     onCloseAddItem: function () {
+      if (this._suggestTimer) { clearTimeout(this._suggestTimer); this._suggestTimer = null; } // a pending search must not reopen the popup on a closed dialog
       if (this._addItemDialog) { this._addItemDialog.close(); }
     },
 
@@ -179,8 +181,8 @@ sap.ui.define([
                 : res.source === "LOCAL_CATALOG" ? bundle.getText("addItemSourceLocal") : ""));
             // The popup only opens on its own if items exist when the suggest event fires;
             // ours arrive asynchronously, so open it explicitly once they're in.
-            if ((res.products || []).length > 0) {
-              setTimeout(function () { input.showItems(function () { return true; }); }, 0);
+            if ((res.products || []).length > 0 && that._addItemDialog && that._addItemDialog.isOpen()) {
+              setTimeout(function () { if (that._addItemDialog.isOpen()) { input.showItems(function () { return true; }); } }, 0);
             }
           })
           .catch(function (err) { that._vm().setProperty("/addItem/sourceNote", String((err && err.message) || err)); }) // typing stays possible
@@ -211,7 +213,8 @@ sap.ui.define([
       var mainLineNo = main.itemNo; // C4C-style number (10, 20, …) the break lines point back at
 
       var breakCount = 0;
-      if (add.withBreaks) {
+      if (add.isKit) { main.itemType = "ZKIT"; }
+      if (add.withBreaks && !add.isKit) {
         var mainQty = Number(main.quantity);
         String(add.breakQtys || "").split(",")
           .map(function (s) { return Number(s.trim()); })
@@ -236,6 +239,7 @@ sap.ui.define([
       var bundle = this.getView().getModel("i18n").getResourceBundle();
       this._message(breakCount > 0 ? bundle.getText("addItemDoneBreaks", [part, breakCount]) : bundle.getText("addItemDone", [part]), "Success");
       this.onCloseAddItem();
+      if (add.isKit) { this._explodeKit(main); return; } // fetches the components, then enriches them
       this._enrichFromProductMaster(); // stock type, supplier, description — filled as soon as the line is added
     },
 
@@ -246,17 +250,120 @@ sap.ui.define([
       if (!ctx) { return; }
       var row = ctx.getObject();
       if (row.line && !row.stale) { this._vm().setProperty(ctx.getPath() + "/stale", true); }
+      if (row.itemType === "ZKIT") { this._staleKitComponents(row); }
       this._updateWritable();
     },
 
-    /** Lines that can be written back: priced, and still matching their inputs. */
+    _staleKitComponents: function (header) {
+      var vm = this._vm();
+      var items = vm.getProperty("/items");
+      items.forEach(function (r, i) { if (r.parentItemNo && r.parentItemNo === header.itemNo && r.line) { vm.setProperty("/items/" + i + "/stale", true); } });
+    },
+
+    /** Quantity edited: on a kit header the components follow (component quantity = kit quantity x quantity per kit, as SAP's BOM explosion does). */
+    onQtyChange: function (oEvent) {
+      var ctx = oEvent.getSource().getBindingContext("vm");
+      var row = ctx.getObject();
+      if (row.itemType === "ZKIT") { this._syncKitQuantities(row); }
+      this.onRowEdited(oEvent);
+    },
+
+    _syncKitQuantities: function (header) {
+      var vm = this._vm();
+      var items = vm.getProperty("/items");
+      var headerQty = Number(header.quantity);
+      items.forEach(function (r, i) {
+        if (r.parentItemNo && r.parentItemNo === header.itemNo) {
+          var total = Number(r.perKitQty) * headerQty;
+          vm.setProperty("/items/" + i + "/quantity", Number.isFinite(total) && total > 0 ? String(parseFloat(total.toPrecision(12))) : r.quantity);
+        }
+      });
+    },
+
+    /** Kit headers and components are not written back yet: how C4C stores a priced kit (ZKIT + ZCOM items) is not mapped. */
+    _isKitRow: function (row) { return row.itemType === "ZKIT" || !!row.parentItemNo; },
+
+    /** Lines that can be written back: priced, still matching their inputs, and not part of a kit. */
     _writableRows: function () {
+      var that = this;
       return this._vm().getProperty("/items").filter(function (row) {
-        return row.line && row.line.status === "PRICED" && !row.stale;
+        return row.line && row.line.status === "PRICED" && !row.stale && !that._isKitRow(row);
       });
     },
     _updateWritable: function () {
       this._vm().setProperty("/writableCount", this._writableRows().length);
+    },
+
+    /** Item type changed. Choosing ZKIT (a kit header) fetches its components from the ERP behind the
+     *  line's Origin of Data and lists them under it, numbered 11, 12, 13 …; choosing anything else
+     *  removes components a header no longer owns. */
+    onItemTypeChange: function (oEvent) {
+      var ctx = oEvent.getSource().getBindingContext("vm");
+      var row = ctx.getObject();
+      if (row.itemType === "ZKIT") {
+        if ((row.partNumber || "").trim()) { this._explodeKit(row); }
+      } else {
+        var items = this._vm().getProperty("/items");
+        var kept = items.filter(function (r) { return !(r.parentItemNo && r.parentItemNo === row.itemNo); });
+        if (kept.length !== items.length) { this._vm().setProperty("/items", this._renumber(kept)); }
+      }
+      this.onRowEdited(oEvent);
+    },
+
+    onRefetchKit: function (oEvent) {
+      this._explodeKit(oEvent.getSource().getBindingContext("vm").getObject());
+    },
+
+    /** Fetch one kit header's components (OOD-routed endpoint, srv) and list them under it. Typed outcomes
+     *  are shown as they are — a kit with no endpoint answer is never given invented components. */
+    _explodeKit: function (header) {
+      var that = this;
+      var vm = this._vm();
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      var part = (header.partNumber || "").trim();
+      if (!part) { return Promise.resolve(); }
+      // Numbers used by every OTHER line (the header's current components are about to be replaced, so they do not count).
+      var used = vm.getProperty("/items")
+        .filter(function (r) { return !(r.parentItemNo && r.parentItemNo === header.itemNo); })
+        .map(function (r) { return r.itemNo; });
+      vm.busyStart();
+      return this.callRest("/rest/pricing/fetchKitComponents", {
+        body: { payload: { region: this.getSession().getProperty("/region"), usedItemNos: used,
+          kits: [{ partNumber: part, ood: (header.ood || "").trim() || undefined, itemNo: header.itemNo }] } }
+      })
+        .then(function (res) {
+          var kit = (res.kits || [])[0] || {};
+          if (kit.status !== "OK") {
+            that._message(bundle.getText("kitExplodeFailed", [part, kit.message || kit.status || "?"]), "Warning");
+            return;
+          }
+          var items = vm.getProperty("/items").filter(function (r) { return !(r.parentItemNo && r.parentItemNo === header.itemNo); });
+          var at = items.indexOf(header);
+          if (at < 0) { return; }
+          var headerQty = Number(header.quantity) || 1;
+          if (!(header.ood || "").trim() && kit.ood) { header.ood = kit.ood; }
+          var parts = kit.components.map(function (c) {
+            var row = that._newRow();
+            row.itemType = "ZCOM";
+            row.parentItemNo = header.itemNo;
+            row.itemNo = c.itemNo === null || c.itemNo === undefined ? "" : String(c.itemNo);
+            row.partNumber = c.partNumber;
+            row.description = c.description || "";
+            row.uom = c.uom || "";
+            row.perKitQty = String(c.quantity);
+            row.quantity = String(parseFloat((Number(c.quantity) * headerQty).toPrecision(12)));
+            row.priceUnit = header.priceUnit;
+            row.ood = (header.ood || "").trim();
+            return row;
+          });
+          items.splice.apply(items, [at + 1, 0].concat(parts));
+          vm.setProperty("/items", that._renumber(items));
+          vm.setProperty("/orderTotal", "");
+          that._message(bundle.getText("kitExploded", [part, parts.length, kit.ood]), "Success");
+          return that._enrichFromProductMaster(); // description, supplier, stock type, warehouse for the components
+        })
+        .catch(function (err) { that._message(String(err.message || err), "Error"); })
+        .finally(function () { vm.busyEnd(); });
     },
 
     /** The user picks the stock class by hand — it always wins over any automatic value. */
@@ -271,7 +378,10 @@ sap.ui.define([
       var ctx = oEvent.getSource().getBindingContext("vm");
       var index = Number(ctx.getPath().split("/").pop());
       var items = this._vm().getProperty("/items");
+      var gone = items[index];
+      if (gone && gone.parentItemNo) { return; } // a component belongs to its kit — remove the kit instead
       items.splice(index, 1);
+      if (gone && gone.itemType === "ZKIT") { items = items.filter(function (r) { return r.parentItemNo !== gone.itemNo; }); }
       if (items.length === 0) { items.push(this._newRow()); }
       this.byId("itemTable").clearSelection();
       this._vm().setProperty("/items", this._renumber(items));
@@ -287,9 +397,13 @@ sap.ui.define([
       var items = this._vm().getProperty("/items");
       // Selected indices are positions in the (possibly search-FILTERED) table, not in the array:
       // resolve each to the row it shows and remove that row by identity.
+      var before = items.length;
       var doomed = selected.map(function (i) { var c = table.getContextByIndex(i); return c ? c.getObject() : null; }).filter(Boolean);
-      items = items.filter(function (row) { return doomed.indexOf(row) === -1; });
-      var removed = doomed.length;
+      // A kit header takes its components with it; a component selected without its header stays (it belongs to its kit).
+      var headerNos = doomed.filter(function (r) { return r.itemType === "ZKIT"; }).map(function (r) { return r.itemNo; });
+      doomed = doomed.filter(function (r) { return !r.parentItemNo || headerNos.indexOf(r.parentItemNo) >= 0; });
+      items = items.filter(function (row) { return doomed.indexOf(row) === -1 && !(row.parentItemNo && headerNos.indexOf(row.parentItemNo) >= 0); });
+      var removed = before - items.length;
       if (items.length === 0) { items.push(this._newRow()); }
       table.clearSelection();
       this._vm().setProperty("/items", this._renumber(items));
@@ -436,37 +550,63 @@ sap.ui.define([
 
     onCloseMessage: function () { this._message(""); },
 
-    /** Rows with a part number, in table order, plus the row indexes they came from — results
-     *  zip back by position, never by guessing (blank rows are skipped, order is preserved). */
-    _payloadItems: function (fillPrices) {
+    /** One grid row as a pricing item (what the engine receives for an ordinary line). */
+    _rowToItem: function (row) {
+      var item = { partNumber: (row.partNumber || "").trim(), quantity: Number(row.quantity) || 1, pricingType: row.pricingType || "COST_PLUS" };
+      if (String(row.priceUnit || "").trim() !== "") { item.priceUnit = Number(row.priceUnit); }
+      // Step 2 of the flow (after Fetch Costs): what the user typed decides the selling price.
+      //   typed Price  -> manualPrice (margin is then derived)   typed Margin % -> margin on the landed cost
+      //   typed Cost   -> replaces the fetched cost (explicit manual cost; the build-up still applies per Additional Cost)
+      if (row.priceBy === "PRICE" && String(row.price || "").trim() !== "") { item.manualPrice = Number(row.price); }
+      else if (row.priceBy === "MARGIN" && String(row.marginPct || "").trim() !== "") { item.margin = { marginPct: Number(row.marginPct) }; }
+      if (row.costManual && String(row.cost || "").trim() !== "" && row.currency) {
+        item.hostCost = { value: String(parseFloat((Number(row.cost) / (Number(row.priceUnit) || 1)).toPrecision(12))), currency: row.currency };
+      }
+      if ((row.itemType || "").trim()) { item.itemType = row.itemType.trim(); }
+      if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
+      if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
+      if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
+      if ((row.productCategory || "").trim()) { item.productCategory = row.productCategory.trim(); }
+      if ((row.ood || "").trim()) { item.ood = row.ood.trim(); }
+      if ((row.warehouse || "").trim()) { item.warehouse = row.warehouse.trim(); }
+      if ((row.additionalCost || "").trim() !== "") { item.additionalCost = String(row.additionalCost).trim(); }
+      return item;
+    },
+
+    /** Rows with a part number, in table order, plus the row indexes they came from — results zip back by
+     *  position, never by guessing (blank rows are skipped, order is preserved). A kit header travels with
+     *  its components inside it (quantity = quantity in ONE kit; the engine scales by the header quantity);
+     *  component rows are never sent on their own, so a kit is never priced twice. */
+    _payloadItems: function () {
+      var that = this;
       var rows = this._vm().getProperty("/items");
       var payloadItems = [];
       var rowIndexes = [];
+      var componentRowIndexes = []; // parallel to payloadItems: the component rows of each kit header
       rows.forEach(function (row, i) {
-        var part = (row.partNumber || "").trim();
-        if (!part) { return; }
-        var item = { partNumber: part, quantity: Number(row.quantity) || 1, pricingType: row.pricingType || "COST_PLUS" };
-        if (String(row.priceUnit || "").trim() !== "") { item.priceUnit = Number(row.priceUnit); }
-        // Step 2 of the flow (after Fetch Costs): what the user typed decides the selling price.
-        //   typed Price  -> manualPrice (margin is then derived)   typed Margin % -> margin on the landed cost
-        //   typed Cost   -> replaces the fetched cost (explicit manual cost; the build-up still applies per Additional Cost)
-        if (row.priceBy === "PRICE" && String(row.price || "").trim() !== "") { item.manualPrice = Number(row.price); }
-        else if (row.priceBy === "MARGIN" && String(row.marginPct || "").trim() !== "") { item.margin = { marginPct: Number(row.marginPct) }; }
-        if (row.costManual && String(row.cost || "").trim() !== "" && row.currency) {
-          item.hostCost = { value: String(parseFloat((Number(row.cost) / (Number(row.priceUnit) || 1)).toPrecision(12))), currency: row.currency };
+        if (!(row.partNumber || "").trim() || row.parentItemNo) { return; }
+        var item = that._rowToItem(row);
+        var compIdx = [];
+        if (row.itemType === "ZKIT") {
+          // The header has no price of its own to type except a margin (pushed down to its components).
+          delete item.manualPrice; delete item.hostCost;
+          var comps = [];
+          rows.forEach(function (r, k) {
+            if (r.parentItemNo && r.parentItemNo === row.itemNo && (r.partNumber || "").trim()) {
+              var c = that._rowToItem(r);
+              delete c.manualPrice; delete c.margin; delete c.hostCost;
+              c.quantity = Number(r.perKitQty) || 1;
+              comps.push(c);
+              compIdx.push(k);
+            }
+          });
+          if (comps.length) { item.components = comps; }
         }
-        if ((row.itemType || "").trim()) { item.itemType = row.itemType.trim(); }
-        if (row.stockClassSel) { item.stockClass = row.stockClassSel; }
-        if ((row.supplier || "").trim()) { item.supplier = row.supplier.trim(); }
-        if ((row.supplierExternalId || "").trim()) { item.supplierExternalId = row.supplierExternalId.trim(); }
-        if ((row.productCategory || "").trim()) { item.productCategory = row.productCategory.trim(); }
-        if ((row.ood || "").trim()) { item.ood = row.ood.trim(); }
-        if ((row.warehouse || "").trim()) { item.warehouse = row.warehouse.trim(); }
-        if ((row.additionalCost || "").trim() !== "") { item.additionalCost = String(row.additionalCost).trim(); }
         payloadItems.push(item);
         rowIndexes.push(i);
+        componentRowIndexes.push(compIdx);
       });
-      return { payloadItems: payloadItems, rowIndexes: rowIndexes };
+      return { payloadItems: payloadItems, rowIndexes: rowIndexes, componentRowIndexes: componentRowIndexes };
     },
 
     /** The user typed in Cost / Price / Margin %: remember WHAT they typed, it drives the next Calculate Prices. */
@@ -482,7 +622,7 @@ sap.ui.define([
     _orderTotal: function (rows) {
       var totals = {};
       rows.forEach(function (row) {
-        if (!row.line || row.line.status !== "PRICED") { return; }
+        if (!row.line || row.line.status !== "PRICED" || row.parentItemNo) { return; } // components are inside their header's value
         var perUnit = Number(row.line.result.priceUnit) || 1; // price/cost unit: the amount is per N pieces
         var unit = Number(row.price) / perUnit; // order total = selling price x qty; cost is never summed here
         var qty = Number(row.line.result.quantity);
@@ -495,6 +635,64 @@ sap.ui.define([
       });
       if (parts.length === 0) { return ""; }
       return this.getView().getModel("i18n").getResourceBundle().getText("orderTotal", [parts.join(" · ")]);
+    },
+
+    /** Fill one grid row from one engine line (an ordinary line, a kit header, or a kit component). Returns
+     *  { priced, withMargin } so the caller can summarize. Display only — every number comes from the engine. */
+    _applyLine: function (row, line) {
+      var counts = { priced: 0, withMargin: 0 };
+      row.line = line;
+      row.status = line.status;
+      row.stale = false;
+
+      var cc = (line.trace && line.trace.costCandidate) || null;
+      row.confidence = cc ? cc.confidence : "";
+      row.sourceErp = cc && cc.source ? cc.source.system : "";
+      var rowUnit = Number(row.priceUnit) || 1; // what was sent for this line
+      // The cost candidate is per piece; show it per price unit, like the landed cost / price.
+      row.cost = cc ? (rowUnit === 1 ? cc.value : String(parseFloat((Number(cc.value) * rowUnit).toPrecision(12)))) : "";
+      if (line.trace && line.trace.stockClass && !row.stockClassSel) { row.stockClassSel = line.trace.stockClass; row.stockClassHow = "Resolved by the calculation"; }
+      if (line.status === "PRICED") {
+        counts.priced = 1;
+        var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
+        row.landedCost = amount;
+        row.currency = line.result.currency || row.currency;
+        // Line value is ALWAYS selling price x quantity (owner rule) — never cost. No selling
+        // price yet (cost only, or an opportunity) = blank. A cost-based line value exists in C4C
+        // only for China / the sales-quote layout: a later item.
+        var lv = line.result.sellingPrice !== undefined ? Number(line.result.sellingPrice) / rowUnit * Number(line.result.quantity) : NaN;
+        row.lineValue = Number.isFinite(lv)
+          ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : "";
+        if (line.result.sellingPrice !== undefined) {
+          // The engine did the margin math on the fetched cost: selling price + the margin it implies.
+          // Works on the FIRST call too: a typed margin/price, or the region's predefined margin rule.
+          row.price = line.result.sellingPrice;
+          row.marginPct = line.result.marginPct;
+          row.marginNote = line.result.priceBy === "DEFAULT_RULE" ? ("Predefined margin (region rule " + line.result.marginRule + ")") : "";
+          counts.withMargin = 1;
+        } else if (row.priceBy === "") {
+          row.price = ""; row.marginPct = ""; row.marginNote = ""; // nothing typed and no predefined rule: cost only
+        }
+        // Fetch Costs (or no margin/price typed yet) leaves whatever the user typed untouched.
+      } else {
+        row.landedCost = "";
+        row.lineValue = "";
+      }
+      return counts;
+    },
+
+    /** A kit header has no cost candidate of its own: its Cost column is the roll-up of its components
+     *  (their per-piece cost x quantity in one kit, per the header's price unit). Display only. */
+    _applyKitHeaderCost: function (row, components) {
+      var unit = Number(row.priceUnit) || 1;
+      var sum = 0;
+      var any = false;
+      components.forEach(function (c) {
+        var cc = c.trace && c.trace.costCandidate;
+        if (cc && Number.isFinite(Number(cc.value))) { sum += Number(cc.value) * Number(c.perKitQuantity); any = true; }
+      });
+      row.cost = any ? String(parseFloat((sum * unit).toPrecision(12))) : "";
     },
 
     _runPricing: function (fillPrices) {
@@ -545,7 +743,7 @@ sap.ui.define([
           // Re-build the payload so freshly resolved attributes flow into pricing too.
           var rebuilt = that._payloadItems(fillPrices);
           return that.callRest("/rest/pricing/price", { body: { payload: Object.assign({}, payload, { items: rebuilt.payloadItems }) } })
-            .then(function (res) { return { res: res, rowIndexes: rebuilt.rowIndexes }; });
+            .then(function (res) { return { res: res, rowIndexes: rebuilt.rowIndexes, componentRowIndexes: rebuilt.componentRowIndexes }; });
         })
         .then(function (zip) {
           var res = zip.res;
@@ -555,43 +753,16 @@ sap.ui.define([
           (res.items || []).forEach(function (line, j) {
             var row = rows[zip.rowIndexes[j]];
             if (!row) { return; }
-            row.line = line;
-            row.status = line.status;
-            row.stale = false;
-
-            var cc = (line.trace && line.trace.costCandidate) || null;
-            row.confidence = cc ? cc.confidence : "";
-            row.sourceErp = cc && cc.source ? cc.source.system : "";
-            var rowUnit = Number(row.priceUnit) || 1; // what was sent for this line
-            // The cost candidate is per piece; show it per price unit, like the landed cost / price.
-            row.cost = cc ? (rowUnit === 1 ? cc.value : String(parseFloat((Number(cc.value) * rowUnit).toPrecision(12)))) : "";
-            if (line.trace && line.trace.stockClass && !row.stockClassSel) { row.stockClassSel = line.trace.stockClass; row.stockClassHow = "Resolved by the calculation"; }
-            if (line.status === "PRICED") {
-              priced++;
-              var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
-              row.landedCost = amount;
-              row.currency = line.result.currency || row.currency;
-              // Line value is ALWAYS selling price x quantity (owner rule) — never cost. No selling
-              // price yet (cost only, or an opportunity) = blank. A cost-based line value exists in C4C
-              // only for China / the sales-quote layout: a later item.
-              var lv = line.result.sellingPrice !== undefined ? Number(line.result.sellingPrice) / rowUnit * Number(line.result.quantity) : NaN;
-              row.lineValue = Number.isFinite(lv)
-                ? lv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : "";
-              if (line.result.sellingPrice !== undefined) {
-                // The engine did the margin math on the fetched cost: selling price + the margin it implies.
-                // Works on the FIRST call too: a typed margin/price, or the region's predefined margin rule.
-                row.price = line.result.sellingPrice;
-                row.marginPct = line.result.marginPct;
-                row.marginNote = line.result.priceBy === "DEFAULT_RULE" ? ("Predefined margin (region rule " + line.result.marginRule + ")") : "";
-                pricedWithMargin++;
-              } else if (row.priceBy === "") {
-                row.price = ""; row.marginPct = ""; row.marginNote = ""; // nothing typed and no predefined rule: cost only
-              }
-              // Fetch Costs (or no margin/price typed yet) leaves whatever the user typed untouched.
-            } else {
-              row.landedCost = "";
-              row.lineValue = "";
+            var counts = that._applyLine(row, line);
+            priced += counts.priced;
+            pricedWithMargin += counts.withMargin;
+            if (row.itemType === "ZKIT") {
+              // The header shows the roll-up of its components; each component row shows its own result.
+              var comps = (line.trace && line.trace.components) || [];
+              that._applyKitHeaderCost(row, comps);
+              (zip.componentRowIndexes[j] || []).forEach(function (rowIdx, k) {
+                if (rows[rowIdx] && comps[k]) { that._applyLine(rows[rowIdx], comps[k]); }
+              });
             }
           });
           vm.setProperty("/items", rows);
@@ -621,8 +792,9 @@ sap.ui.define([
       if (lines.length === 0) { return; }
       if (!objectId) { this._message(bundle.getText("writeBackNeedsObject"), "Warning"); return; }
       var skipped = this._vm().getProperty("/items").filter(function (r) { return r.line && r.line.status === "PRICED" && r.stale; }).length;
+      var kitRows = this._vm().getProperty("/items").filter(function (r) { return r.line && that._isKitRow(r); }).length;
 
-      MessageBox.confirm(bundle.getText("writeBackConfirm", [lines.length, objectId]) + (skipped ? " " + bundle.getText("writeBackSkipped", [skipped]) : ""), {
+      MessageBox.confirm(bundle.getText("writeBackConfirm", [lines.length, objectId]) + (skipped ? " " + bundle.getText("writeBackSkipped", [skipped]) : "") + (kitRows ? " " + bundle.getText("writeBackKitSkipped") : ""), {
         title: bundle.getText("writeBack"),
         actions: [bundle.getText("writeBack"), MessageBox.Action.CANCEL],
         emphasizedAction: bundle.getText("writeBack"),

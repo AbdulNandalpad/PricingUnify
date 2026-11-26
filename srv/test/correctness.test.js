@@ -112,10 +112,11 @@ test('M1: a component priced per 100 pieces contributes its per-PIECE price x qu
   assert.equal(k.result.unitPrice, '103.2'); // 5160 per 100 -> 51.6 each x 2 (it used to be 10320)
 });
 
-test('M1: a kit in a region without kit support is MISSING and its components are not priced', async () => {
+test('M1: a kit works in every region (EUROPE here), not only AMERICAS/CHINA — one component of qty 1 = that part priced alone', async () => {
+  const alone = (await price({ region: 'EUROPE', items: [{ partNumber: 'EU-T100', quantity: 1 }] })).body.items[0].result.unitPrice;
   const r = await price({ region: 'EUROPE', items: [{ partNumber: 'K', quantity: 1, components: [{ partNumber: 'EU-T100', quantity: 1 }] }] });
-  assert.equal(r.body.items[0].missing.reason, 'KIT_NOT_SUPPORTED_FOR_REGION');
-  assert.deepEqual(r.body.items[0].trace.components, []);
+  assert.equal(r.body.items[0].status, 'PRICED');
+  assert.equal(r.body.items[0].result.unitPrice, alone);
 });
 
 // ---- M9: facade failures

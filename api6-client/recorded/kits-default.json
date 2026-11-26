@@ -1,0 +1,34 @@
+{
+  "CN": {
+    "CN-K001": {
+      "components": [
+        {
+          "partNumber": "CN-K001-A",
+          "quantity": 2,
+          "uom": "PC"
+        },
+        {
+          "partNumber": "CN-K001-B",
+          "quantity": 1,
+          "uom": "PC"
+        }
+      ]
+    }
+  },
+  "SAP": {
+    "EU-KIT01": {
+      "components": [
+        {
+          "partNumber": "EU-T100",
+          "quantity": 2,
+          "uom": "PC"
+        },
+        {
+          "partNumber": "P-10023",
+          "quantity": 1,
+          "uom": "PC"
+        }
+      ]
+    }
+  }
+}

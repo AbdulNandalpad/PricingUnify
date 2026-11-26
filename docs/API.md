@@ -20,6 +20,7 @@ Base path `/rest/pricing`. JSON in, JSON out. Every action takes `{ "payload": {
 | `POST /price` | PricingViewer | Landed cost (and selling price) for 1–500 lines |
 | `POST /fetchItemAttributes` | PricingViewer | Preview supplier / country / warehouse / stock class per part, no price |
 | `POST /searchC4cProducts` | PricingViewer | Part-number type-ahead (C4C product master, else local catalog) |
+| `POST /fetchKitComponents` | PricingViewer | A kit's components from the ERP behind its Origin of Data, with SAP-style item numbers |
 | `GET /me` | any authenticated user | Identity and roles |
 
 Configuration is a separate admin API (`/rest/config`, PricingAdmin only) and is not part of this contract.
@@ -62,6 +63,11 @@ curl -s -X POST "$BASE/rest/pricing/price" \
 - **The trace is the explanation**: cost source and why it was chosen, each step with rate and running total,
   skipped steps with the unmet condition, rules applied, config version.
 - Explicit values always win over automatic resolution (`stockClass`, `supplierCountry`, `region`, …).
+- **Kits (sales BOMs), any region, modeled on standard SAP SD.** A line with `components` (or `itemType: "ZKIT"` and no components) is a kit header.
+  Components are fetched from the ERP behind the header's Origin of Data through that OOD's own endpoint (an admin setting; fallback `/kits/<ood>`).
+  Component quantity = kit quantity × quantity in one kit, and each component is priced at its real total quantity. Pricing is at **header level**: the
+  header's cost, price and margin are the roll-up of its components, and a margin on the header applies to every component. Item numbers follow SAP's
+  sub-item rule (header 10 → components 11, 12, 13 → next item 20). A price typed on the header is refused; a kit whose components cannot all be priced is MISSING.
 - Limit: 500 lines per request (kit components count). Larger → `413`; split the request.
 
 ### Status codes

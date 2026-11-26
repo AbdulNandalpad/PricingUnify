@@ -45,7 +45,7 @@ const itemShape = z.object({
   priceUnit: z.number().positive().optional().describe('Price/cost unit: amounts are per this many pieces. Default 1 at the API (C4C uses 100).'),
   marginPct: z.number().min(0).lt(100).optional().describe('Margin as % of the SELLING price (0 ≤ m < 100): sellingPrice = landedCost ÷ (1 − m/100). Omit for pure landed cost (a predefined regional margin rule may still apply).'),
   manualPrice: z.number().positive().optional().describe('A selling price per priceUnit. Wins over marginPct; the resulting margin is derived.'),
-  components: z.array(componentShape).min(1).max(100).optional().describe('Makes this line a KIT: its price is the sum over components of (component price per piece x quantity in the kit). Only AMERICAS and CHINA support kits; any other region answers MISSING(KIT_NOT_SUPPORTED_FOR_REGION). Every component must price, or the whole kit is MISSING.'),
+  components: z.array(componentShape).min(1).max(100).optional().describe('Makes this line a KIT (sales BOM), in ANY region: component quantity = kit quantity x quantity in one kit; the kit\'s cost, price and margin are the roll-up of its components (a margin on the kit applies to every component). Omit components and set itemType "ZKIT" to have them fetched from the ERP behind the line\'s Origin of Data. Every component must price, or the whole kit is MISSING.'),
 }).strict();
 
 const scopeShape = {
@@ -141,6 +141,21 @@ function buildTools({ getClient }, { enableAdmin = false } = {}) {
         const body = await getClient().post('/rest/pricing/searchC4cProducts', { payload: { query: args.query, region: args.region } });
         return ok(body);
       },
+    },
+    {
+      name: 'get_kit_components',
+      title: 'Get a kit\'s components',
+      description: 'Preview the components of one or more kits (sales BOMs) as the ERP behind each kit\'s Origin of Data returns them, numbered the way SAP numbers sub-items (header 10 -> 11, 12, 13). Quantities are PER ONE KIT. A kit header can also be priced directly with price_items (itemType "ZKIT", no components needed): its components are fetched the same way. Typed status per kit: OK | NOT_FOUND | FAILED | OOD_UNKNOWN.',
+      inputSchema: {
+        region: scopeShape.region,
+        kits: z.array(z.object({
+          partNumber: z.string().min(1).describe('The kit header\'s part number.'),
+          ood: z.string().optional().describe('Origin of Data of the kit (SAP, SMA, CN, IN). Omit to use the region\'s own when it has exactly one.'),
+          itemNo: z.number().int().positive().optional().describe('The header\'s item number, to get component numbers (header + 1, + 2, ...).'),
+        }).strict()).min(1).max(50),
+      },
+      annotations: READ_ONLY,
+      handler: async (args) => ok(await getClient().post('/rest/pricing/fetchKitComponents', { payload: { region: args.region, kits: args.kits } })),
     },
     {
       name: 'whoami',

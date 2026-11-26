@@ -45,9 +45,9 @@ test('toApiItem maps marginPct/manualPrice into the API shape and drops unknown 
   assert.deepEqual(it, { partNumber: 'A', quantity: 2, margin: { marginPct: '20' }, manualPrice: '5' });
 });
 
-test('lists the five agent tools, admin tools only when enabled; no write tools ever', async () => {
+test('lists the six agent tools, admin tools only when enabled; no write tools ever', async () => {
   const names = async (opts) => (await (await connect('alice', opts)).listTools()).tools.map((t) => t.name).sort();
-  assert.deepEqual(await names(), ['explain_price', 'get_item_attributes', 'price_items', 'search_products', 'whoami']);
+  assert.deepEqual(await names(), ['explain_price', 'get_item_attributes', 'get_kit_components', 'price_items', 'search_products', 'whoami']);
   const admin = await names({ enableAdmin: true });
   assert.ok(admin.includes('get_region_config') && admin.includes('list_suppliers'));
   assert.ok(!admin.some((n) => /save|approve|write|suggest/.test(n)));
@@ -200,7 +200,7 @@ test('HTTP transport: forwards the caller\'s own Authorization; refuses callers 
   } finally { http.close(); }
 });
 
-test('kits: components are accepted, the kit total is the sum, a failing component fails the kit with a reason, EUROPE says unsupported', async () => {
+test('kits: components accepted, kit total is the sum, a failing component fails the kit with a reason, any region works', async () => {
   const mcp = await connect('alice');
   const ok = await mcp.callTool({ name: 'price_items', arguments: { region: 'CHINA', items: [{ partNumber: 'CN-K001', quantity: 1, components: [{ partNumber: 'CN-K001-A', quantity: 2, ood: 'CN' }, { partNumber: 'CN-K001-B', quantity: 1, ood: 'CN' }] }] } });
   assert.ok(!ok.isError, JSON.stringify(ok.content));
@@ -215,7 +215,17 @@ test('kits: components are accepted, the kit total is the sum, a failing compone
   assert.equal(failed.reason, 'KIT_COMPONENT_UNRESOLVED');
   assert.equal(failed.componentPartNumber, 'NO-SUCH-PART');
 
-  const eu = await mcp.callTool({ name: 'price_items', arguments: { region: 'EUROPE', items: [{ partNumber: 'K', quantity: 1, components: [{ partNumber: 'EU-T100', quantity: 1 }] }] } });
-  assert.equal(eu.structuredContent.lines[0].reason, 'KIT_NOT_SUPPORTED_FOR_REGION');
-  assert.match(eu.structuredContent.lines[0].hint, /AMERICAS and CHINA/);
+  // generic: EUROPE works too, and a header with no components is exploded from the ERP behind its Origin of Data
+  const eu = await mcp.callTool({ name: 'price_items', arguments: { region: 'EUROPE', items: [{ partNumber: 'EU-KIT01', itemType: 'ZKIT', quantity: 1, ood: 'SAP' }] } });
+  assert.equal(eu.structuredContent.lines[0].status, 'PRICED');
+  assert.deepEqual(eu.structuredContent.lines[0].components.map((c) => c.partNumber), ['EU-T100', 'P-10023']);
+});
+
+test('get_kit_components: the ERP\'s BOM per kit with SAP-style numbering and a typed status', async () => {
+  const mcp = await connect('alice');
+  const r = await mcp.callTool({ name: 'get_kit_components', arguments: { region: 'EUROPE', kits: [{ partNumber: 'EU-KIT01', itemNo: 10 }, { partNumber: 'NOPE', itemNo: 20 }] } });
+  assert.ok(!r.isError);
+  const [ok, missing] = r.structuredContent.kits;
+  assert.deepEqual(ok.components.map((c) => [c.partNumber, c.quantity, c.itemNo]), [['EU-T100', 2, 11], ['P-10023', 1, 12]]);
+  assert.equal(missing.status, 'NOT_FOUND');
 });

@@ -19,11 +19,16 @@
         "baseUrl": { "type": ["string", "null"], "description": "WSO2/API6 base URL, e.g. https://wso2.tss.example — required when mode is live." },
         "costSourceEndpoints": {
           "type": "object",
-          "additionalProperties": { "type": "string", "minLength": 1 },
+          "additionalProperties": { "type": "string", "pattern": "^/(?!/)(?!.*\\.\\.)[A-Za-z0-9_./~-]*$" },
           "description": "Cost source system -> endpoint path (e.g. CCD -> /costs/ccd). The ORDER they are called in stays pricing config (region-config.costAccessSequence)."
         },
-        "priceListEndpoint": { "type": ["string", "null"] },
-        "biPriceListEndpoint": { "type": ["string", "null"], "description": "API6's BI price endpoint path (e.g. /core/price/rest/v1/getPriceList) — called directly, no CPI in between." },
+        "priceListEndpoint": { "type": ["string", "null"], "pattern": "^/(?!/)(?!.*\\.\\.)[A-Za-z0-9_./~-]*$" },
+        "kitEndpoints": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^/(?!/)(?!.*\\.\\.)[A-Za-z0-9_./~-]*$" },
+          "description": "Origin of Data -> the endpoint that returns a kit's components from THAT ERP (e.g. SMA -> /kits/jde-e1, SAP -> /kits/sap). One independent endpoint per OOD; an OOD with no entry falls back to /kits/<ood>."
+        },
+        "biPriceListEndpoint": { "type": ["string", "null"], "pattern": "^/(?!/)(?!.*\\.\\.)[A-Za-z0-9_./~-]*$", "description": "API6's BI price endpoint path (e.g. /core/price/rest/v1/getPriceList) — called directly, no CPI in between." },
         "requestMapping": {
           "type": ["object", "null"],
           "description": "The rules the former CPI Groovy step applied to the request before API6 (unit/uom mapping, currency default, supplier clearing, stock-class override, leading-zero strip). Data, not code; omit to use the built-in defaults that mirror that script.",

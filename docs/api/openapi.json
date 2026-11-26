@@ -3,24 +3,72 @@
   "info": {
     "title": "TSS Pricing Engine API",
     "version": "1.0.0",
-    "description": "Landed-cost and price calculation for Trelleborg Sealing Solutions. Every amount is a decimal STRING (never a float). A line is either PRICED or MISSING with a typed reason — MISSING is a normal 200 answer, not an HTTP error. Amounts are per `priceUnit` pieces. See docs/API.md for the guide."
+    "description": "Landed-cost and price calculation for Trelleborg Sealing Solutions. Every amount is a decimal STRING (never a float). A line is either PRICED or MISSING with a typed reason \u2014 MISSING is a normal 200 answer, not an HTTP error. Amounts are per `priceUnit` pieces. See docs/API.md for the guide."
   },
-  "servers": [{ "url": "/rest/pricing", "description": "Path prefix on the backend (or on the approuter in a BTP deployment)." }],
-  "security": [{ "bearerAuth": [] }, { "basicAuth": [] }],
+  "servers": [
+    {
+      "url": "/rest/pricing",
+      "description": "Path prefix on the backend (or on the approuter in a BTP deployment)."
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "basicAuth": []
+    }
+  ],
   "paths": {
     "/price": {
       "post": {
         "operationId": "price",
         "summary": "Calculate landed cost (and selling price) for one or more lines",
         "description": "Requires role PricingViewer. COST_PLUS (default) builds up the region's configured add-ons on the part's cost; PRICE_LIST starts from a supplier price-list cost. hostObjectType OPPORTUNITY returns cost only.",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["payload"], "properties": { "payload": { "$ref": "#/components/schemas/PriceRequest" } } } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "$ref": "#/components/schemas/PriceRequest"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Priced run (individual lines may be MISSING).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PriceResponse" } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "413": { "$ref": "#/components/responses/TooManyLines" },
-          "422": { "$ref": "#/components/responses/NoConfig" }
+          "200": {
+            "description": "Priced run (individual lines may be MISSING).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooManyLines"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoConfig"
+          }
         }
       }
     },
@@ -29,14 +77,87 @@
         "operationId": "fetchItemAttributes",
         "summary": "Preview resolved supplier, supplier country, warehouse and stock class per part (no price)",
         "description": "Requires role PricingViewer.",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["payload"], "properties": { "payload": { "$ref": "#/components/schemas/PriceRequest" } } } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "$ref": "#/components/schemas/PriceRequest"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Attributes keyed by part number.", "content": { "application/json": { "schema": { "type": "object", "properties": { "region": { "$ref": "#/components/schemas/RegionInfo" }, "attributes": { "type": "object", "additionalProperties": { "type": "object", "properties": { "supplier": { "type": "string", "nullable": true }, "supplierCountry": { "type": "string", "nullable": true }, "warehouse": { "type": "string", "nullable": true }, "stockClass": { "type": "string", "enum": ["MTS", "NonMTS"], "nullable": true }, "stockClassError": { "type": "string", "nullable": true } } } } } } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "413": { "$ref": "#/components/responses/TooManyLines" },
-          "422": { "$ref": "#/components/responses/NoConfig" }
+          "200": {
+            "description": "Attributes keyed by part number.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "region": {
+                      "$ref": "#/components/schemas/RegionInfo"
+                    },
+                    "attributes": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "supplier": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "supplierCountry": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "warehouse": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "stockClass": {
+                            "type": "string",
+                            "enum": [
+                              "MTS",
+                              "NonMTS"
+                            ],
+                            "nullable": true
+                          },
+                          "stockClassError": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooManyLines"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoConfig"
+          }
         }
       }
     },
@@ -45,11 +166,83 @@
         "operationId": "searchC4cProducts",
         "summary": "Type-ahead part-number search (C4C product master, else the local catalog)",
         "description": "Requires role PricingViewer. `source` says which answered: C4C or LOCAL_CATALOG.",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["payload"], "properties": { "payload": { "type": "object", "required": ["query"], "properties": { "query": { "type": "string", "minLength": 2 }, "region": { "type": "string" } } } } } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "object",
+                    "required": [
+                      "query"
+                    ],
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "minLength": 2
+                      },
+                      "region": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Matches.", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string" }, "source": { "type": "string", "enum": ["C4C", "LOCAL_CATALOG", "NONE"] }, "note": { "type": "string" }, "products": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "description": { "type": "string" } } } } } } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "200": {
+            "description": "Matches.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "C4C",
+                        "LOCAL_CATALOG",
+                        "NONE"
+                      ]
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     },
@@ -59,99 +252,586 @@
         "summary": "Who am I and which roles do I hold",
         "description": "Any authenticated user. Describes access, never grants it.",
         "responses": {
-          "200": { "description": "Identity and roles.", "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string" }, "roles": { "type": "object", "properties": { "PricingViewer": { "type": "boolean" }, "PricingAdmin": { "type": "boolean" } } } } } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "200": {
+            "description": "Identity and roles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "object",
+                      "properties": {
+                        "PricingViewer": {
+                          "type": "boolean"
+                        },
+                        "PricingAdmin": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/fetchKitComponents": {
+      "post": {
+        "operationId": "fetchKitComponents",
+        "summary": "Components of one or more kits, from the ERP behind each kit's Origin of Data",
+        "description": "Requires role PricingViewer. Each Origin of Data has its own independent endpoint (Connections: kit endpoints; fallback /kits/<ood>). Components are quantities PER ONE KIT and come with SAP-style item numbers (header 10 -> 11, 12, 13), skipping numbers in usedItemNos. A kit header can also be priced directly via /price (itemType ZKIT, no components needed).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "object",
+                    "required": [
+                      "kits"
+                    ],
+                    "properties": {
+                      "region": {
+                        "type": "string"
+                      },
+                      "usedItemNos": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        },
+                        "description": "Item numbers already used by other lines."
+                      },
+                      "kits": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "partNumber"
+                          ],
+                          "properties": {
+                            "partNumber": {
+                              "type": "string"
+                            },
+                            "ood": {
+                              "type": "string"
+                            },
+                            "itemNo": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One entry per kit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partNumber": {
+                            "type": "string"
+                          },
+                          "ood": {
+                            "type": "string"
+                          },
+                          "endpoint": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "OK",
+                              "NOT_FOUND",
+                              "FAILED",
+                              "OOD_UNKNOWN"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "components": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "partNumber": {
+                                  "type": "string"
+                                },
+                                "quantity": {
+                                  "type": "number",
+                                  "description": "In ONE kit."
+                                },
+                                "uom": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "itemNo": {
+                                  "type": "integer",
+                                  "nullable": true
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooManyLines"
+          }
         }
       }
     }
   },
   "components": {
     "securitySchemes": {
-      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "XSUAA access token (production)." },
-      "basicAuth": { "type": "http", "scheme": "basic", "description": "Local development only (mocked CAP users)." }
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "XSUAA access token (production)."
+      },
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "Local development only (mocked CAP users)."
+      }
     },
     "responses": {
-      "BadRequest": { "description": "Malformed request: no items, region not resolvable, or an invalid purpose / hostObjectType / priceDate (values are case-sensitive; a typo is refused, never defaulted).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Unauthorized": { "description": "No or invalid credentials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Forbidden": { "description": "Authenticated but missing the required role.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "TooManyLines": { "description": "More lines than the configured per-request maximum (default 500).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "NoConfig": { "description": "No effective configuration for that region / sales org / date.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+      "BadRequest": {
+        "description": "Malformed request: no items, region not resolvable, or an invalid purpose / hostObjectType / priceDate (values are case-sensitive; a typo is refused, never defaulted).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No or invalid credentials.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated but missing the required role.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyLines": {
+        "description": "More lines than the configured per-request maximum (default 500).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoConfig": {
+        "description": "No effective configuration for that region / sales org / date.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
     },
     "schemas": {
-      "Error": { "type": "object", "properties": { "error": { "type": "object", "properties": { "message": { "type": "string" }, "code": { "type": "string" } } } } },
-      "RegionInfo": { "type": "object", "properties": { "value": { "type": "string", "enum": ["EUROPE", "AMERICAS", "CHINA", "INDIA"] }, "derivedBy": { "type": "string", "description": "EXPLICIT or ROUTE:<ood> — how the region was chosen; never silent." }, "entityLabel": { "type": "string", "nullable": true } } },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "RegionInfo": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "EUROPE",
+              "AMERICAS",
+              "CHINA",
+              "INDIA"
+            ]
+          },
+          "derivedBy": {
+            "type": "string",
+            "description": "EXPLICIT or ROUTE:<ood> \u2014 how the region was chosen; never silent."
+          },
+          "entityLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "Item": {
         "type": "object",
-        "required": ["partNumber", "quantity"],
+        "required": [
+          "partNumber",
+          "quantity"
+        ],
         "properties": {
-          "partNumber": { "type": "string" },
-          "quantity": { "type": "number", "exclusiveMinimum": 0 },
-          "supplier": { "type": "string", "description": "Supplier ID (GlobalSupplierCode)." },
-          "supplierCountry": { "type": "string" },
-          "supplierExternalId": { "type": "string" },
-          "warehouse": { "type": "string", "description": "Destination warehouse; with supplier selects freight/duty/tariff terms." },
-          "ood": { "type": "string", "description": "Origin of Data (SAP, SMA, CN, IN)." },
-          "stockClass": { "type": "string", "enum": ["MTS", "NonMTS"], "description": "Explicit value wins over automatic resolution." },
-          "additionalCost": { "type": "string", "description": "C4C Additional Cost flag (0, 1, 3, 4)." },
-          "itemType": { "type": "string", "description": "C4C item type code, e.g. AGN." },
-          "pricingType": { "type": "string", "enum": ["COST_PLUS", "PRICE_LIST"], "default": "COST_PLUS" },
-          "productCategory": { "type": "string" },
-          "priceUnit": { "type": "string", "description": "Amounts are per this many pieces (default 1; C4C uses 100)." },
-          "margin": { "type": "object", "properties": { "marginPct": { "type": "string", "description": "% of the SELLING price, 0 <= m < 100." } } },
-          "manualPrice": { "type": "string", "description": "Selling price per priceUnit; wins over margin." },
-          "selectedCostId": { "type": "string", "description": "Force a specific recorded cost candidate." },
-          "components": { "type": "array", "description": "Kit components (CHINA and AMERICAS only); the header price is the sum of its components.", "items": { "$ref": "#/components/schemas/Item" } }
+          "partNumber": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "supplier": {
+            "type": "string",
+            "description": "Supplier ID (GlobalSupplierCode)."
+          },
+          "supplierCountry": {
+            "type": "string"
+          },
+          "supplierExternalId": {
+            "type": "string"
+          },
+          "warehouse": {
+            "type": "string",
+            "description": "Destination warehouse; with supplier selects freight/duty/tariff terms."
+          },
+          "ood": {
+            "type": "string",
+            "description": "Origin of Data (SAP, SMA, CN, IN)."
+          },
+          "stockClass": {
+            "type": "string",
+            "enum": [
+              "MTS",
+              "NonMTS"
+            ],
+            "description": "Explicit value wins over automatic resolution."
+          },
+          "additionalCost": {
+            "type": "string",
+            "description": "C4C Additional Cost flag (0, 1, 3, 4)."
+          },
+          "itemType": {
+            "type": "string",
+            "description": "C4C item type code, e.g. AGN. ZKIT = a kit header (components fetched by Origin of Data when not given)."
+          },
+          "pricingType": {
+            "type": "string",
+            "enum": [
+              "COST_PLUS",
+              "PRICE_LIST"
+            ],
+            "default": "COST_PLUS"
+          },
+          "productCategory": {
+            "type": "string"
+          },
+          "priceUnit": {
+            "type": "string",
+            "description": "Amounts are per this many pieces (default 1; C4C uses 100)."
+          },
+          "margin": {
+            "type": "object",
+            "properties": {
+              "marginPct": {
+                "type": "string",
+                "description": "% of the SELLING price, 0 <= m < 100."
+              }
+            }
+          },
+          "manualPrice": {
+            "type": "string",
+            "description": "Selling price per priceUnit; wins over margin."
+          },
+          "selectedCostId": {
+            "type": "string",
+            "description": "Force a specific recorded cost candidate."
+          },
+          "components": {
+            "type": "array",
+            "description": "Makes the line a KIT (sales BOM) in ANY region. Component quantity = kit quantity x quantity in ONE kit. The kit's cost, price and margin are the roll-up of its components; a margin on the kit applies to every component (a component's own margin wins). A typed price on the kit header is refused (KIT_HEADER_PRICE_UNSUPPORTED). Omit components and set itemType ZKIT to have them fetched from the ERP behind the line's Origin of Data.",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          }
         }
       },
       "PriceRequest": {
         "type": "object",
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "properties": {
-          "region": { "type": "string", "enum": ["EUROPE", "AMERICAS", "CHINA", "INDIA"], "description": "Omit only when customerOod / customerId can route it." },
-          "salesOrg": { "type": "string", "default": "*" },
-          "customerId": { "type": "string" },
-          "customerOod": { "type": "string" },
-          "customer": { "type": "object", "description": "Customer header values from the host system.", "properties": { "salesTerritory": { "type": "string" }, "countryCode": { "type": "string" }, "currency": { "type": "string" }, "priceGroup": { "type": "string" }, "classCode": { "type": "string" }, "segmentCode": { "type": "string" } } },
-          "hostSystem": { "type": "string" },
-          "hostObjectType": { "type": "string", "enum": ["QUOTE", "OPPORTUNITY"], "default": "QUOTE", "description": "OPPORTUNITY = cost only: `landedCost` is returned, never a price or margin." },
-          "hostObjectId": { "type": "string" },
-          "purpose": { "type": "string", "enum": ["INDICATIVE", "BINDING", "REPRICE"], "default": "INDICATIVE", "description": "BINDING refuses FALLBACK/STALE costs." },
-          "priceDate": { "type": "string", "format": "date", "description": "Selects the effective-dated configuration. Default today." },
-          "items": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/components/schemas/Item" } }
+          "region": {
+            "type": "string",
+            "enum": [
+              "EUROPE",
+              "AMERICAS",
+              "CHINA",
+              "INDIA"
+            ],
+            "description": "Omit only when customerOod / customerId can route it."
+          },
+          "salesOrg": {
+            "type": "string",
+            "default": "*"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "customerOod": {
+            "type": "string"
+          },
+          "customer": {
+            "type": "object",
+            "description": "Customer header values from the host system.",
+            "properties": {
+              "salesTerritory": {
+                "type": "string"
+              },
+              "countryCode": {
+                "type": "string"
+              },
+              "currency": {
+                "type": "string"
+              },
+              "priceGroup": {
+                "type": "string"
+              },
+              "classCode": {
+                "type": "string"
+              },
+              "segmentCode": {
+                "type": "string"
+              }
+            }
+          },
+          "hostSystem": {
+            "type": "string"
+          },
+          "hostObjectType": {
+            "type": "string",
+            "enum": [
+              "QUOTE",
+              "OPPORTUNITY"
+            ],
+            "default": "QUOTE",
+            "description": "OPPORTUNITY = cost only: `landedCost` is returned, never a price or margin."
+          },
+          "hostObjectId": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "INDICATIVE",
+              "BINDING",
+              "REPRICE"
+            ],
+            "default": "INDICATIVE",
+            "description": "BINDING refuses FALLBACK/STALE costs."
+          },
+          "priceDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Selects the effective-dated configuration. Default today."
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          }
         }
       },
       "Line": {
         "type": "object",
         "properties": {
-          "partNumber": { "type": "string" },
-          "status": { "type": "string", "enum": ["PRICED", "MISSING", "BLOCKED"] },
+          "partNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PRICED",
+              "MISSING",
+              "BLOCKED"
+            ]
+          },
           "result": {
-            "type": "object", "description": "Present when PRICED.",
+            "type": "object",
+            "description": "Present when PRICED.",
             "properties": {
-              "unitPrice": { "type": "string", "description": "The LANDED COST per priceUnit pieces for a QUOTE (cost + configured add-ons). Absent for an OPPORTUNITY." },
-              "landedCost": { "type": "string", "description": "OPPORTUNITY only." },
-              "currency": { "type": "string" },
-              "quantity": { "type": "number", "description": "May differ from the request when a QUANTITY-mode MOLV rule bumped it." },
-              "priceUnit": { "type": "number", "description": "Only present when not 1." },
-              "sellingPrice": { "type": "string", "description": "Only with a margin, manual price or predefined margin rule. Never for an OPPORTUNITY." },
-              "marginPct": { "type": "string" },
-              "priceBy": { "type": "string", "enum": ["MARGIN", "MANUAL", "DEFAULT_RULE"] }
+              "unitPrice": {
+                "type": "string",
+                "description": "The LANDED COST per priceUnit pieces for a QUOTE (cost + configured add-ons). Absent for an OPPORTUNITY."
+              },
+              "landedCost": {
+                "type": "string",
+                "description": "OPPORTUNITY only."
+              },
+              "currency": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "number",
+                "description": "May differ from the request when a QUANTITY-mode MOLV rule bumped it."
+              },
+              "priceUnit": {
+                "type": "number",
+                "description": "Only present when not 1."
+              },
+              "sellingPrice": {
+                "type": "string",
+                "description": "Only with a margin, manual price or predefined margin rule. Never for an OPPORTUNITY."
+              },
+              "marginPct": {
+                "type": "string"
+              },
+              "priceBy": {
+                "type": "string",
+                "enum": [
+                  "MARGIN",
+                  "MANUAL",
+                  "DEFAULT_RULE",
+                  "KIT_COMPONENTS"
+                ]
+              }
             }
           },
-          "missing": { "type": "object", "description": "Present when MISSING.", "properties": { "reason": { "type": "string", "description": "e.g. NO_CANDIDATES, STOCK_CLASS_UNRESOLVED, RATE_MISSING, AMOUNT_MISSING, PRICE_LIST_COST_NOT_FOUND, MARGIN_INVALID, QUANTITY_INVALID (missing, non-numeric, zero or negative quantity), SELECTED_COST_NOT_FOUND, COST_VALUE_INVALID / FACT_INVALID (a non-numeric value in the data), KIT_NOT_SUPPORTED_FOR_REGION, KIT_COMPONENT_UNRESOLVED, KIT_CURRENCY_MISMATCH." }, "detail": { "type": "string" } } },
-          "trace": { "type": "object", "description": "How the number was reached: costCandidate (source, basis, confidence, selectedBy), stockClass, steps[] (id, type, delta, runningTotal, note), constraintPasses[], costRouting[], configVersion." }
+          "missing": {
+            "type": "object",
+            "description": "Present when MISSING.",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "description": "e.g. NO_CANDIDATES, STOCK_CLASS_UNRESOLVED, RATE_MISSING, AMOUNT_MISSING, PRICE_LIST_COST_NOT_FOUND, MARGIN_INVALID, QUANTITY_INVALID (missing, non-numeric, zero or negative quantity), SELECTED_COST_NOT_FOUND, COST_VALUE_INVALID / FACT_INVALID (a non-numeric value in the data), KIT_NOT_SUPPORTED_FOR_REGION, KIT_COMPONENT_UNRESOLVED, KIT_CURRENCY_MISMATCH. Kit: KIT_COMPONENTS_NOT_FOUND, KIT_FETCH_FAILED, KIT_OOD_UNKNOWN, KIT_HEADER_PRICE_UNSUPPORTED."
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          },
+          "trace": {
+            "type": "object",
+            "description": "How the number was reached: costCandidate (source, basis, confidence, selectedBy), stockClass, steps[] (id, type, delta, runningTotal, note), constraintPasses[], costRouting[], configVersion."
+          }
         }
       },
       "PriceResponse": {
         "type": "object",
         "properties": {
-          "config": { "type": "object", "properties": { "region": { "type": "string" }, "salesOrg": { "type": "string" }, "version": { "type": "string" }, "status": { "type": "string" } } },
-          "region": { "$ref": "#/components/schemas/RegionInfo" },
-          "priceDate": { "type": "string", "format": "date" },
-          "api6Mode": { "type": "string", "enum": ["recorded", "live"], "description": "`recorded` = costs from demo data, not the live gateway." },
-          "requestedBy": { "type": "string" },
-          "costOnly": { "type": "boolean" },
-          "items": { "type": "array", "items": { "$ref": "#/components/schemas/Line" } }
+          "config": {
+            "type": "object",
+            "properties": {
+              "region": {
+                "type": "string"
+              },
+              "salesOrg": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          },
+          "region": {
+            "$ref": "#/components/schemas/RegionInfo"
+          },
+          "priceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "api6Mode": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "live"
+            ],
+            "description": "`recorded` = costs from demo data, not the live gateway."
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "costOnly": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Line"
+            }
+          }
         }
       }
     }

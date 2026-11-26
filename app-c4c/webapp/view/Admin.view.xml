@@ -269,6 +269,30 @@
                       </ColumnListItem>
                     </items>
                   </Table>
+                  <Label text="{i18n>connKitEndpoints}" design="Bold" class="sapUiSmallMarginTop sapUiTinyMarginBottom"/>
+                  <Text text="{i18n>connKitHint}" class="adminHint sapUiTinyMarginBottom"/>
+                  <Table items="{vm>/connections/api6/kitRows}" inset="false" noDataText="{i18n>connKitHint}">
+                    <headerToolbar>
+                      <OverflowToolbar>
+                        <ToolbarSpacer/>
+                        <Button icon="sap-icon://add" text="{i18n>connAddKitEndpoint}" type="Transparent" press=".onAddKitEndpoint"/>
+                      </OverflowToolbar>
+                    </headerToolbar>
+                    <columns>
+                      <Column width="9rem"><Text text="{i18n>connKitOod}"/></Column>
+                      <Column><Text text="{i18n>connEndpointPath}"/></Column>
+                      <Column width="3rem"><Text text=""/></Column>
+                    </columns>
+                    <items>
+                      <ColumnListItem>
+                        <cells>
+                          <Input value="{vm>ood}" placeholder="SAP"/>
+                          <Input value="{vm>path}" placeholder="/kits/sap"/>
+                          <Button icon="sap-icon://decline" type="Transparent" press=".onRemoveKitEndpoint"/>
+                        </cells>
+                      </ColumnListItem>
+                    </items>
+                  </Table>
                   <HBox alignItems="Center" class="sapUiTinyMarginTop">
                     <Label text="{i18n>connPriceListEndpoint}" class="sapUiTinyMarginEnd"/>
                     <Input value="{vm>/connections/api6/priceListEndpoint}" width="18rem"/>

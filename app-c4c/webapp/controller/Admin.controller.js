@@ -160,6 +160,9 @@ sap.ui.define([
           conn.api6.endpointRows = Object.keys(conn.api6.costSourceEndpoints || {}).map(function (system) {
             return { system: system, path: conn.api6.costSourceEndpoints[system] };
           });
+          conn.api6.kitRows = Object.keys(conn.api6.kitEndpoints || {}).map(function (ood) {
+            return { ood: ood, path: conn.api6.kitEndpoints[ood] };
+          });
           conn.c4c.fieldRows = Object.keys(conn.c4c.fieldMap || {})
             .filter(function (key) { return typeof conn.c4c.fieldMap[key] === "string"; })
             .map(function (key) { return { ours: key, theirs: conn.c4c.fieldMap[key] }; });
@@ -167,6 +170,19 @@ sap.ui.define([
           that._vm().setProperty("/connections", conn);
         })
         .catch(function () { /* non-admin or backend down — tab simply stays empty */ });
+    },
+
+    onAddKitEndpoint: function () {
+      var rows = this._vm().getProperty("/connections/api6/kitRows") || [];
+      rows.push({ ood: "", path: "" });
+      this._vm().setProperty("/connections/api6/kitRows", rows);
+    },
+
+    onRemoveKitEndpoint: function (oEvent) {
+      var index = Number(oEvent.getSource().getBindingContext("vm").getPath().split("/").pop());
+      var rows = this._vm().getProperty("/connections/api6/kitRows");
+      rows.splice(index, 1);
+      this._vm().setProperty("/connections/api6/kitRows", rows);
     },
 
     /** Endpoints/paths/field names only — the schema server-side rejects anything that
@@ -182,6 +198,10 @@ sap.ui.define([
       (conn.api6.endpointRows || []).forEach(function (row) {
         if ((row.path || "").trim()) { costSourceEndpoints[row.system] = row.path.trim(); }
       });
+      var kitEndpoints = {};
+      (conn.api6.kitRows || []).forEach(function (row) {
+        if ((row.ood || "").trim() && (row.path || "").trim()) { kitEndpoints[row.ood.trim()] = row.path.trim(); }
+      });
       var fieldMap = {};
       (conn.c4c.fieldRows || []).forEach(function (row) {
         if ((row.theirs || "").trim()) { fieldMap[row.ours] = row.theirs.trim(); }
@@ -193,6 +213,7 @@ sap.ui.define([
           mode: conn.api6.mode || "recorded",
           baseUrl: (conn.api6.baseUrl || "").trim() || null,
           costSourceEndpoints: costSourceEndpoints,
+          kitEndpoints: kitEndpoints,
           priceListEndpoint: (conn.api6.priceListEndpoint || "").trim() || null,
           biPriceListEndpoint: (conn.api6.biPriceListEndpoint || "").trim() || null,
           // The rest of the request mapping is not edited here — passed through so a save never drops it;

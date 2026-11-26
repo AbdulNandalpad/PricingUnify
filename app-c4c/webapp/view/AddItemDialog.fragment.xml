@@ -22,8 +22,11 @@
         <Label text="{i18n>colQty}" class="sapUiTinyMarginTop"/>
         <Input value="{vm>/addItem/quantity}" type="Number" width="8rem"/>
 
-        <CheckBox text="{i18n>addItemWithBreaks}" selected="{vm>/addItem/withBreaks}" class="sapUiTinyMarginTop"/>
-        <VBox visible="{vm>/addItem/withBreaks}" class="sapUiTinyMarginBegin">
+        <CheckBox text="{i18n>addItemIsKit}" selected="{vm>/addItem/isKit}" class="sapUiTinyMarginTop" tooltip="{i18n>addItemIsKitTip}"/>
+        <Text text="{i18n>addItemIsKitTip}" class="traceNote sapUiTinyMarginBegin" visible="{vm>/addItem/isKit}"/>
+
+        <CheckBox text="{i18n>addItemWithBreaks}" selected="{vm>/addItem/withBreaks}" class="sapUiTinyMarginTop" enabled="{= !${vm>/addItem/isKit} }"/>
+        <VBox visible="{= ${vm>/addItem/withBreaks} &amp;&amp; !${vm>/addItem/isKit} }" class="sapUiTinyMarginBegin">
           <Label text="{i18n>addItemBreakQtys}"/>
           <Input value="{vm>/addItem/breakQtys}" width="16rem" placeholder="10, 25, 50"/>
           <Text text="{i18n>addItemBreaksHint}" class="traceNote"/>

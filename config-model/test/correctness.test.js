@@ -116,3 +116,18 @@ test('a store holding ONLY a draft resolves nothing for any date', () => {
   store.saveVersion(europeConfig({ version: 'draft-only', validFrom: '2026-01-01', status: 'DRAFT', validTo: null }));
   assert.equal(at(store, '2026-06-01'), null);
 });
+
+/** ---- connection-config: kit endpoints per Origin of Data ---- */
+const { ConfigStore: Store2 } = require('../src/store');
+const connection = (kitEndpoints) => ({
+  name: 'GLOBAL', version: 'v-kit', validFrom: '2026-01-01', validTo: null, status: 'ACTIVE',
+  api6: { mode: 'recorded', kitEndpoints }, c4c: {}, provenance: HUMAN_PROVENANCE,
+});
+
+test('kitEndpoints: an OOD -> path map is accepted; a path that is not an absolute path (could redirect the call to another host) is refused', () => {
+  const store = new Store2();
+  assert.doesNotThrow(() => store.saveConnectionConfig(connection({ SMA: '/kits/jde-e1', SAP: '/erp/sap/boms' })));
+  for (const bad of ['kits/sap', 'https://evil.example/x', '//evil.example/x', '/kits/ sap', '/kits/../admin']) {
+    assert.throws(() => new Store2().saveConnectionConfig(connection({ SAP: bad })), ConfigValidationError, bad);
+  }
+});

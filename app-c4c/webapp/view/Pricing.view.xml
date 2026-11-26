@@ -153,10 +153,14 @@
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
             fixedColumnCount="2" visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 20) }" rowHeight="36" alternateRowColors="true"
             rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
+            <t:rowSettingsTemplate>
+              <t:RowSettings highlight="{= ${vm>itemType} === 'ZKIT' ? 'Information' : 'None' }"/>
+            </t:rowSettingsTemplate>
             <t:columns>
-              <t:Column width="3.5rem">
+              <t:Column width="4.5rem">
                 <Label text="{i18n>colItem}"/>
-                <t:template><Text text="{vm>itemNo}"/></t:template>
+                <!-- A kit's components sit under their header: 10 -> 11, 12, 13 -> next item 20 (SAP sub-item numbering). -->
+                <t:template><Text text="{= ${vm>parentItemNo} ? '↳ ' + ${vm>itemNo} : ${vm>itemNo} }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitHeaderTip} : (${vm>parentItemNo} ? ${i18n>kitComponentTip} : '') }"/></t:template>
               </t:Column>
               <t:Column minWidth="130">
                 <Label text="{i18n>colProduct}"/>
@@ -168,7 +172,11 @@
               </t:Column>
               <t:Column width="5rem">
                 <Label text="{i18n>colQty}"/>
-                <t:template><Input value="{vm>quantity}" type="Number" textAlign="End" change=".onRowEdited"/></t:template>
+                <t:template><Input value="{vm>quantity}" type="Number" textAlign="End" change=".onQtyChange" editable="{= !${vm>parentItemNo} }" tooltip="{= ${vm>parentItemNo} ? ${i18n>kitQtyFollowsTip} : '' }"/></t:template>
+              </t:Column>
+              <t:Column width="4.5rem" hAlign="End">
+                <Label text="{i18n>colPerKit}" tooltip="{i18n>colPerKitTip}"/>
+                <t:template><Text text="{vm>perKitQty}"/></t:template>
               </t:Column>
               <t:Column width="4.5rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colUom}"/>
@@ -181,7 +189,7 @@
               <t:Column width="9rem">
                 <Label text="{i18n>colItemType}" tooltip="{i18n>colItemTypeTip}"/>
                 <t:template>
-                  <Select selectedKey="{vm>itemType}" width="100%" tooltip="{i18n>colItemTypeTip}" items="{path: 'vm>/itemTypes', templateShareable: false}" change=".onRowEdited">
+                  <Select selectedKey="{vm>itemType}" width="100%" tooltip="{i18n>colItemTypeTip}" items="{path: 'vm>/itemTypes', templateShareable: false}" change=".onItemTypeChange" enabled="{= !${vm>parentItemNo} }">
                     <core:Item key="{vm>key}" text="{vm>text}"/>
                   </Select>
                 </t:template>
@@ -189,7 +197,7 @@
               <t:Column width="8.5rem">
                 <Label text="{i18n>colStockType}"/>
                 <t:template>
-                  <Select selectedKey="{vm>stockClassSel}" width="100%" change=".onStockClassChange"
+                  <Select selectedKey="{vm>stockClassSel}" width="100%" change=".onStockClassChange" enabled="{= ${vm>itemType} !== 'ZKIT' }"
                     tooltip="{= ${vm>stockClassHow} || ${i18n>stockTypeNotSetHint} }"
                     valueState="{= ${vm>stockClassSel} === 'MTS' ? 'Success' : (${vm>stockClassSel} === 'NonMTS' ? 'Warning' : 'None') }">
                     <core:Item key="" text="{i18n>stockTypeNotSet}"/>
@@ -200,11 +208,11 @@
               </t:Column>
               <t:Column minWidth="110">
                 <Label text="{i18n>colSupplier}"/>
-                <t:template><Input value="{vm>supplier}" change=".onRowEdited"/></t:template>
+                <t:template><Input value="{vm>supplier}" change=".onRowEdited" editable="{= ${vm>itemType} !== 'ZKIT' }"/></t:template>
               </t:Column>
               <t:Column minWidth="110">
                 <Label text="{i18n>colSupplierExt}"/>
-                <t:template><Input value="{vm>supplierExternalId}" change=".onRowEdited"/></t:template>
+                <t:template><Input value="{vm>supplierExternalId}" change=".onRowEdited" editable="{= ${vm>itemType} !== 'ZKIT' }"/></t:template>
               </t:Column>
               <t:Column minWidth="150" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colSupplierName}"/>
@@ -267,7 +275,7 @@
               </t:Column>
               <t:Column width="6.5rem" hAlign="End">
                 <Label text="{i18n>colCost}"/>
-                <t:template><Input value="{vm>cost}" type="Number" textAlign="End" change=".onCostEdit" valueState="{= ${vm>costManual} ? 'Information' : 'None' }" tooltip="{i18n>costEditTip}"/></t:template>
+                <t:template><Input value="{vm>cost}" type="Number" textAlign="End" change=".onCostEdit" valueState="{= ${vm>costManual} ? 'Information' : 'None' }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitRollUpTip} : ${i18n>costEditTip} }" editable="{= ${vm>itemType} !== 'ZKIT' &amp;&amp; !${vm>parentItemNo} }"/></t:template>
               </t:Column>
               <t:Column width="7rem" hAlign="End">
                 <Label text="{i18n>colLandedCost}"/>
@@ -275,7 +283,7 @@
               </t:Column>
               <t:Column width="6.5rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colPrice}"/>
-                <t:template><Input value="{vm>price}" type="Number" textAlign="End" change=".onPriceEdit" valueState="{= ${vm>priceBy} === 'PRICE' ? 'Information' : 'None' }" tooltip="{i18n>priceEditTip}"/></t:template>
+                <t:template><Input value="{vm>price}" type="Number" textAlign="End" change=".onPriceEdit" valueState="{= ${vm>priceBy} === 'PRICE' ? 'Information' : 'None' }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitRollUpTip} : ${i18n>priceEditTip} }" editable="{= ${vm>itemType} !== 'ZKIT' &amp;&amp; !${vm>parentItemNo} }"/></t:template>
               </t:Column>
               <t:Column width="7rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colLineValue}"/>
@@ -283,7 +291,7 @@
               </t:Column>
               <t:Column width="6rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colMargin}"/>
-                <t:template><Input value="{vm>marginPct}" type="Number" textAlign="End" change=".onMarginEdit" valueState="{= ${vm>priceBy} === 'MARGIN' ? 'Information' : 'None' }" tooltip="{= ${vm>marginNote} || ${i18n>marginEditTip} }"/></t:template>
+                <t:template><Input value="{vm>marginPct}" type="Number" textAlign="End" change=".onMarginEdit" valueState="{= ${vm>priceBy} === 'MARGIN' ? 'Information' : 'None' }" tooltip="{= ${vm>marginNote} || (${vm>itemType} === 'ZKIT' ? ${i18n>kitMarginTip} : ${i18n>marginEditTip}) }" editable="{= !${vm>parentItemNo} }"/></t:template>
               </t:Column>
               <t:Column width="7rem">
                 <Label text="{i18n>colStatus}"/>
@@ -297,13 +305,15 @@
                   </HBox>
                 </t:template>
               </t:Column>
-              <t:Column width="5.5rem">
+              <t:Column width="8rem">
                 <Label text="{i18n>colActions}"/>
                 <t:template>
                   <HBox>
+                    <Button icon="sap-icon://refresh" type="Transparent" tooltip="{i18n>kitRefetch}" press=".onRefetchKit"
+                      visible="{= ${vm>itemType} === 'ZKIT' }" enabled="{= !${vm>/busy} }"/>
                     <Button icon="sap-icon://detail-view" type="Transparent" tooltip="{i18n>showTrace}"
                       press=".onShowTrace" visible="{= !!${vm>line} }"/>
-                    <Button icon="sap-icon://decline" type="Transparent" tooltip="{i18n>removeItem}" press=".onRemoveRow" enabled="{= !${vm>/busy} }"/>
+                    <Button icon="sap-icon://decline" type="Transparent" tooltip="{= ${vm>parentItemNo} ? ${i18n>kitComponentNoRemove} : ${i18n>removeItem} }" press=".onRemoveRow" enabled="{= !${vm>/busy} &amp;&amp; !${vm>parentItemNo} }"/>
                   </HBox>
                 </t:template>
               </t:Column>

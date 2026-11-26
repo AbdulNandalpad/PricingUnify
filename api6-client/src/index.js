@@ -25,6 +25,10 @@ const DEFAULT_COST_SOURCE_ENDPOINTS = {
 const { buildBiPriceRequest, parseBiPriceResponse, DEFAULT_REQUEST_MAPPING } = require('./bi-price-request');
 const DEFAULT_BI_PRICE_LIST_ENDPOINT = '/core/price/rest/v1/getPriceList';
 const DEFAULT_PRICE_LIST_ENDPOINT = '/costs/price-list';
+// Kit (BOM) components are fetched from the ERP that owns the item, i.e. one independent endpoint PER
+// ORIGIN OF DATA (SAP, SMA, CN, IN, ...). Integration config like the cost-source endpoints; an OOD with no
+// entry falls back to /kits/<ood lowercased>.
+const DEFAULT_KIT_ENDPOINTS = {};
 
 function createApi6Client({
   mode = process.env.API6_MODE || 'recorded',
@@ -33,6 +37,7 @@ function createApi6Client({
   recordedDir = path.join(__dirname, '..', 'recorded'),
   costSourceEndpoints = {},
   priceListEndpoint = DEFAULT_PRICE_LIST_ENDPOINT,
+  kitEndpoints = {},
   biPriceListEndpoint = DEFAULT_BI_PRICE_LIST_ENDPOINT,
   requestMapping = null,
   fetchImpl,
@@ -40,6 +45,8 @@ function createApi6Client({
   const connector = createConnector({ mode, baseUrl, authStrategy: auth, recordedDir, ...(fetchImpl ? { fetchImpl } : {}) });
   const endpoints = { ...DEFAULT_COST_SOURCE_ENDPOINTS, ...costSourceEndpoints };
   const endpointFor = (system) => endpoints[system] || `/costs/${String(system).toLowerCase()}`;
+  const kitEndpoints_ = { ...DEFAULT_KIT_ENDPOINTS, ...kitEndpoints };
+  const kitEndpointFor = (ood) => kitEndpoints_[ood] || `/kits/${String(ood).toLowerCase()}`;
 
   return {
     mode: connector.mode,
@@ -47,6 +54,7 @@ function createApi6Client({
     // Exposed for the admin "Connections" view — which endpoint each cost source routes to.
     costSourceEndpoints: endpoints,
     priceListEndpoint,
+    kitEndpoints: kitEndpoints_,
     biPriceListEndpoint,
 
     /**
@@ -123,6 +131,40 @@ function createApi6Client({
         path: '/pricing-facts',
         body: { region, salesOrg, items },
       });
+    },
+
+    /**
+     * KIT / BOM explosion: the components of a kit header, fetched from the ERP behind the header's
+     * ORIGIN OF DATA — each OOD has its own independent endpoint (config: connection-config
+     * api6.kitEndpoints; fallback /kits/<ood>). Components are quantities PER ONE KIT, as the ERP's
+     * BOM holds them; scaling by the ordered kit quantity is the caller's job (as SAP does it).
+     *
+     * Returns { status: 'OK'|'NOT_FOUND'|'FAILED', endpoint, ood, components, message? }. Never
+     * throws on an API6/ERP fault and never invents components. Recorded mode simulates the per-OOD
+     * endpoint from recorded/kits-default.json ({ <ood>: { <partNumber>: { components: [...] } } });
+     * live mode is one authenticated POST { ood, partNumber } to the configured endpoint, answer
+     * { components: [{ partNumber, quantity, uom?, description? }] } (shape TO CONFIRM against the real API6 kit services).
+     */
+    async fetchKitComponents({ ood, partNumber, scenario }) {
+      const endpoint = kitEndpointFor(ood);
+      const normalize = (list) => (Array.isArray(list) ? list : [])
+        .filter((c) => c && c.partNumber)
+        .map((c) => ({ partNumber: String(c.partNumber), quantity: c.quantity, ...(c.uom ? { uom: c.uom } : {}), ...(c.description ? { description: c.description } : {}) }));
+      try {
+        let components;
+        if (connector.mode === 'recorded') {
+          const payload = await connector.call(scenario || 'kits-default');
+          const entry = payload && payload[ood] && payload[ood][partNumber];
+          components = normalize(entry && entry.components);
+        } else {
+          const res = await connector.call(null, { method: 'POST', path: endpoint, body: { ood, partNumber } });
+          components = normalize(res && res.components);
+        }
+        if (components.length === 0) return { status: 'NOT_FOUND', endpoint, ood, components: [], message: `No components returned for ${partNumber} from the ${ood} kit endpoint.` };
+        return { status: 'OK', endpoint, ood, components };
+      } catch (err) {
+        return { status: 'FAILED', endpoint, ood, components: [], message: err.message };
+      }
     },
 
     /**

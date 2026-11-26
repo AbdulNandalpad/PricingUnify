@@ -3,6 +3,7 @@ const { pickOriginOfData, stockClassFromPicked, stockClassRulesForOod, warehouse
 const Decimal = require('decimal.js');
 const { buildBiBody, applyBiCandidates } = require('./lib/bi-cost');
 const { factsKeyOf, materializeLineFacts } = require('./lib/line-facts');
+const { isKitHeader, numberKitComponents, rollUp } = require('./lib/kit');
 const { price, resolveAccessSequence, roundTotal } = require('@tss-pricing/engine-core');
 const { store } = require('./lib/store');
 const { api6 } = require('./lib/api6');
@@ -13,7 +14,6 @@ const { translateCustomerPriceListRequest, renderCalculatedPriceList, buildPrice
 // (JDE E1) and China (JDE) — Europe's BOM explosion is handled natively inside S4 (see the S4
 // Pricing sheet), and India has no kit mechanism in the reference docs at all. A kit item
 // requested for any other region is a typed MISSING, not a silent (wrong) price.
-const KIT_SUPPORTED_REGIONS = ['AMERICAS', 'CHINA'];
 
 // Owner decision 2026-11-24: supported pricing types reduced to exactly these two. COST_PLUS
 // is the default (the normal landed-cost build-up over the resolved ERP cost); PRICE_LIST is
@@ -422,38 +422,93 @@ async function applySequenceRouting(facts, items, config, { region, salesOrg }) 
 }
 
 /**
- * Kit/BOM (topic 8): a kit header item (item.components: [{partNumber, quantity, ...}]) is
- * quoted as ONE line to the customer, priced as the sum of its components — each priced
- * through its own full, normal landed-cost build-up (a component can have its own supplier,
- * COO, stock class, exactly like an independent line), per the S4 Pricing sheet: "Users only
- * need to input the kit's main item... consolidation occurs at the header level." Lives here
- * in srv, as orchestration around engine-core's existing per-part price() — not a new kernel
- * concept — per the owner's explicit call.
+ * KIT / BOM, generic for EVERY region (owner decision 2026-11-26; supersedes topic 8's AMERICAS/CHINA-only
+ * whitelist) and modeled on standard SAP SD — see lib/kit.js for the rules:
  *
- * Every component across every kit in the request is flattened into ONE extra batch alongside
- * the regular (non-kit) items, so the existing per-item fact resolution (supplier overrides,
- * stock class, quantity-break cost) and a single price() call cover components exactly the
- * same way they cover any other line — no separate code path for "component pricing."
+ *  - A kit header (item.components, or itemType ZKIT with no components yet) is EXPLODED: when it carries no
+ *    components they are fetched from the ERP behind its ORIGIN OF DATA, through that OOD's own configured
+ *    endpoint (connection-config api6.kitEndpoints). No endpoint answer = a typed MISSING, never an invented BOM.
+ *  - Each component is priced as an ordinary line at quantity = kit quantity x quantity per kit (so
+ *    quantity breaks, MOLV and pick charges see the REAL total quantity), inheriting the header's OOD and,
+ *    unless it has its own, the header's margin.
+ *  - Pricing is at HEADER level: the header's cost, price and margin are the roll-up of its components
+ *    (per kit; scaled by the header's own price unit). Header-level manual price is not supported (it would
+ *    have to be allocated across components) — a typed MISSING that says so.
+ *
+ * Every component across every kit is flattened into ONE extra batch alongside the regular items, so the
+ * existing per-line fact resolution (supplier terms, stock class, quantity-break cost, BI cost) and a single
+ * price() call cover components exactly the way they cover any other line — no separate pricing path.
  */
 async function priceWithKits({ region, salesOrg, priceDate, facts, config, request, biContext }) {
   const items = request.items;
   const kitIndices = [];
-  items.forEach((it, i) => {
-    if (Array.isArray(it.components) && it.components.length > 0) kitIndices.push(i);
+  items.forEach((it, i) => { if (isKitHeader(it)) kitIndices.push(i); });
+  const isKit = new Set(kitIndices);
+
+  const kitFailure = (kitItem, reason, extra = {}) => ({
+    partNumber: kitItem.partNumber,
+    status: 'MISSING',
+    missing: { reason, ...extra },
+    trace: { kit: true, region, configVersion: config.version, components: [] },
   });
 
-  // With no kits in this batch, nonKitItems is every item and componentItems is empty — the
-  // rest of this function degrades to exactly one price() call over the original items,
-  // same as before kits existed. No separate no-kit code path needed.
-  const nonKitItems = items.filter((_, i) => !kitIndices.includes(i));
-  const componentItems = [];
-  const componentOwner = []; // parallel array: which kit's request-array index each componentItems[i] belongs to
+  // 1. Explode headers and build the component lines (or a typed failure for that kit).
+  const kitPlans = new Map(); // kitIndex -> { failure } | { ood, components: [{ input, perKitQuantity }], headerQty }
   for (const kitIndex of kitIndices) {
-    // A kit in a region without kit support answers MISSING below — its components are not priced at all.
-    if (!KIT_SUPPORTED_REGIONS.includes(region)) continue;
-    for (const comp of items[kitIndex].components) {
-      componentItems.push(comp);
+    const kitItem = items[kitIndex];
+    const regionOods = store.listOodsForRegion(region, priceDate);
+    const ood = (kitItem.ood && String(kitItem.ood).trim()) || (regionOods.length === 1 ? regionOods[0] : null);
+
+    let headerQty;
+    try { headerQty = new Decimal(kitItem.quantity); } catch (e) { headerQty = null; }
+    if (kitItem.quantity === null || kitItem.quantity === undefined || kitItem.quantity === '' || !headerQty || !headerQty.isFinite() || headerQty.lte(0)) {
+      kitPlans.set(kitIndex, { failure: kitFailure(kitItem, 'QUANTITY_INVALID', { detail: `quantity = ${JSON.stringify(kitItem.quantity === undefined ? null : kitItem.quantity)} (must be a number greater than 0)` }) });
+      continue;
+    }
+    if (kitItem.manualPrice !== undefined && kitItem.manualPrice !== null && kitItem.manualPrice !== '') {
+      kitPlans.set(kitIndex, { failure: kitFailure(kitItem, 'KIT_HEADER_PRICE_UNSUPPORTED', { detail: 'A kit price is the sum of its components: enter a margin on the header, or a price on a component.' }) });
+      continue;
+    }
+
+    let components = Array.isArray(kitItem.components) ? kitItem.components : [];
+    if (components.length === 0) {
+      if (!ood) { kitPlans.set(kitIndex, { failure: kitFailure(kitItem, 'KIT_OOD_UNKNOWN', { detail: 'The kit has no Origin of Data, so there is no ERP to fetch its components from.' }) }); continue; }
+      const exploded = await api6.fetchKitComponents({ ood, partNumber: kitItem.partNumber });
+      if (exploded.status !== 'OK') {
+        kitPlans.set(kitIndex, { failure: kitFailure(kitItem, exploded.status === 'NOT_FOUND' ? 'KIT_COMPONENTS_NOT_FOUND' : 'KIT_FETCH_FAILED', { ood, endpoint: exploded.endpoint, detail: exploded.message }) });
+        continue;
+      }
+      components = exploded.components;
+    }
+
+    kitPlans.set(kitIndex, {
+      ood,
+      headerQty,
+      components: components.map((c) => {
+        const perKit = c.quantity;
+        let total = null;
+        try { const d = new Decimal(perKit).times(headerQty); total = d.isFinite() ? d : null; } catch (e) { total = null; }
+        const input = { ...c }; // never mutate the caller's component
+        if (!input.ood && ood) input.ood = ood;
+        if (input.margin === undefined && input.manualPrice === undefined && kitItem.margin) input.margin = kitItem.margin; // header margin applies to its components
+        // Pass an unusable per-kit quantity through unchanged so the kernel answers its typed QUANTITY_INVALID.
+        input.quantity = total === null ? perKit : total.toNumber();
+        return { input, perKitQuantity: perKit };
+      }),
+    });
+  }
+
+  const nonKitItems = items.filter((_, i) => !isKit.has(i));
+  const componentItems = [];
+  const componentOwner = [];  // which kit's request-array index each componentItems[i] belongs to
+  const componentPerKit = []; // quantity of that component in ONE kit
+  for (const kitIndex of kitIndices) {
+    const plan = kitPlans.get(kitIndex);
+    if (plan.failure) continue;
+    for (const c of plan.components) {
+      componentItems.push(c.input);
       componentOwner.push(kitIndex);
+      componentPerKit.push(c.perKitQuantity);
     }
   }
 
@@ -491,55 +546,49 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   });
   const nonKitLines = flatResult.items.slice(0, nonKitItems.length);
   const componentLines = flatResult.items.slice(nonKitItems.length);
+  componentLines.forEach((line, i) => { line.perKitQuantity = componentPerKit[i]; });
 
+  // 2. Roll each kit's component results up into its header line.
   const kitLines = kitIndices.map((kitIndex) => {
     const kitItem = items[kitIndex];
-    if (!KIT_SUPPORTED_REGIONS.includes(region)) {
-      return {
-        partNumber: kitItem.partNumber,
-        status: 'MISSING',
-        missing: { reason: 'KIT_NOT_SUPPORTED_FOR_REGION', region, supportedRegions: KIT_SUPPORTED_REGIONS },
-        trace: { kit: true, region, configVersion: config.version, components: [] },
-      };
-    }
+    const plan = kitPlans.get(kitIndex);
+    if (plan.failure) return plan.failure;
 
-    const myComponentLines = componentLines.filter((_, i) => componentOwner[i] === kitIndex);
-    const failed = myComponentLines.find((l) => l.status !== 'PRICED');
+    const myLines = componentLines.filter((_, i) => componentOwner[i] === kitIndex);
+    const traceBase = { kit: true, region, configVersion: config.version, ood: plan.ood, components: myLines };
+    const failed = myLines.find((l) => l.status !== 'PRICED');
     if (failed) {
       return {
         partNumber: kitItem.partNumber,
         status: failed.status,
         missing: { reason: 'KIT_COMPONENT_UNRESOLVED', componentPartNumber: failed.partNumber, componentIssue: failed.missing },
-        trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
+        trace: traceBase,
       };
     }
-
-    const currencies = [...new Set(myComponentLines.map((l) => l.result.currency))];
+    const currencies = [...new Set(myLines.map((l) => l.result.currency))];
     if (currencies.length > 1) {
-      return {
-        partNumber: kitItem.partNumber,
-        status: 'MISSING',
-        missing: { reason: 'KIT_CURRENCY_MISMATCH', currencies },
-        trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
-      };
+      return { partNumber: kitItem.partNumber, status: 'MISSING', missing: { reason: 'KIT_CURRENCY_MISMATCH', currencies }, trace: traceBase };
     }
 
-    // Kit price = sum over components of (price per PIECE x the quantity of that component the kit
-    // needs). Two things the engine's own line result must not be taken at face value for:
-    //  - unitPrice is per `priceUnit` pieces (C4C uses 100), so it is divided down to one piece first;
-    //  - result.quantity can have been RAISED by an order rule (a MOLV in QUANTITY mode). That is a
-    //    purchasing quantity for the component line, not how many the kit contains — the kit needs the
-    //    quantity it asked for. The raised quantity stays visible in each component's own trace entry.
-    const myComponentInputs = componentItems.filter((_, i) => componentOwner[i] === kitIndex);
-    const total = roundTotal(myComponentLines.reduce((sum, l, i) => {
-      const perPiece = new Decimal(l.result.unitPrice).div(l.result.priceUnit || 1);
-      return sum.plus(perPiece.times(new Decimal(myComponentInputs[i].quantity)));
-    }, new Decimal(0)), config.rounding);
+    // Header figures per KIT (one kit of the ordered quantity), then the header's own price unit.
+    // A component line's own result.quantity may have been RAISED by an order rule (a MOLV in QUANTITY
+    // mode) — that is a purchasing quantity for that line, not what the kit contains, so the roll-up
+    // uses the BOM quantity; the raised figure stays visible in the component's own entry.
+    const { landed, selling, marginPct } = rollUp(myLines.map((line) => ({ line, perKitQuantity: line.perKitQuantity })));
+    let headerUnit = new Decimal(1);
+    try { const u = new Decimal(kitItem.priceUnit === undefined || kitItem.priceUnit === null || kitItem.priceUnit === '' ? 1 : kitItem.priceUnit); if (u.isFinite() && u.gt(0)) headerUnit = u; } catch (e) { /* default 1 */ }
+    const scaled = (d) => roundTotal(d.times(headerUnit), config.rounding).toString();
     return {
       partNumber: kitItem.partNumber,
       status: 'PRICED',
-      result: { unitPrice: total.toString(), currency: currencies[0], quantity: kitItem.quantity },
-      trace: { kit: true, region, configVersion: config.version, components: myComponentLines },
+      result: {
+        unitPrice: scaled(landed),
+        currency: currencies[0],
+        quantity: plan.headerQty.toNumber(),
+        ...(headerUnit.eq(1) ? {} : { priceUnit: headerUnit.toString() }),
+        ...(selling !== null ? { sellingPrice: scaled(selling), marginPct: marginPct.toDecimalPlaces(2).toString(), priceBy: 'KIT_COMPONENTS' } : {}),
+      },
+      trace: traceBase,
     };
   });
 
@@ -547,7 +596,7 @@ async function priceWithKits({ region, salesOrg, priceDate, facts, config, reque
   let nonKitCursor = 0;
   let kitCursor = 0;
   for (let i = 0; i < items.length; i++) {
-    merged.push(kitIndices.includes(i) ? kitLines[kitCursor++] : nonKitLines[nonKitCursor++]);
+    merged.push(isKit.has(i) ? kitLines[kitCursor++] : nonKitLines[nonKitCursor++]);
   }
   return { items: merged };
 }
@@ -654,10 +703,14 @@ async function runPricing({ payload, userId }) {
   const costOnly = (hostObjectType || 'QUOTE') === 'OPPORTUNITY';
   if (costOnly) {
     for (const line of result.items) {
-      if (line.result) {
-        const { unitPrice, sellingPrice, marginPct, priceBy, ...rest } = line.result; // an opportunity never carries a price or margin
-        line.result = { landedCost: unitPrice, ...rest };
-      }
+      const stripPrice = (l) => {
+        if (!l.result) return;
+        const { unitPrice, sellingPrice, marginPct, priceBy, ...rest } = l.result; // an opportunity never carries a price or margin
+        l.result = { landedCost: unitPrice, ...rest };
+      };
+      stripPrice(line);
+      // A kit's components live in its trace: a cost-only object must not leak a component price either.
+      if (line.trace && Array.isArray(line.trace.components)) line.trace.components.forEach(stripPrice);
     }
   }
 
@@ -721,6 +774,33 @@ module.exports = (srv) => {
     } catch (e) {
       return asFacadeFailure(e);
     }
+  });
+
+  srv.on('fetchKitComponents', async (req) => {
+    const payload = req.data.payload || {};
+    const { kits, region, usedItemNos } = payload;
+    if (!Array.isArray(kits) || kits.length === 0) return req.reject(400, 'payload.kits must be a non-empty array of { partNumber, ood?, itemNo? }.');
+    if (kits.length > 50) return req.reject(413, 'payload.kits has more than 50 entries; split the request.');
+    const regionOods = region ? store.listOodsForRegion(region, todayIso()) : [];
+    const used = Array.isArray(usedItemNos) ? [...usedItemNos] : [];
+
+    const out = [];
+    for (const kit of kits) {
+      const partNumber = kit && kit.partNumber ? String(kit.partNumber).trim() : '';
+      if (!partNumber) { out.push({ partNumber: '', status: 'FAILED', message: 'partNumber is required.', components: [] }); continue; }
+      const ood = (kit.ood && String(kit.ood).trim()) || (regionOods.length === 1 ? regionOods[0] : null);
+      if (!ood) { out.push({ partNumber, status: 'OOD_UNKNOWN', message: 'The kit has no Origin of Data, so there is no ERP to fetch its components from.', components: [] }); continue; }
+
+      const res = await api6.fetchKitComponents({ ood, partNumber });
+      // SAP-style numbering: header 10 -> 11, 12, 13 ...; numbers already used by other lines are skipped.
+      const numbers = numberKitComponents(kit.itemNo, res.components.length, used);
+      numbers.forEach((n) => { if (n !== null) used.push(n); });
+      out.push({
+        partNumber, ood, status: res.status, endpoint: res.endpoint, ...(res.message ? { message: res.message } : {}),
+        components: res.components.map((c, i) => ({ ...c, itemNo: numbers[i] })),
+      });
+    }
+    return { kits: out };
   });
 
   srv.on('searchC4cProducts', async (req) => {

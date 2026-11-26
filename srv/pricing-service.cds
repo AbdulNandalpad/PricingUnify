@@ -61,6 +61,13 @@ service PricingService {
   @requires: 'PricingViewer'
   action writeBackToC4C(payload: Map) returns Map;
 
+  // KIT / BOM explosion (generic, every region): the components of one or more kit headers, fetched from the ERP
+  // behind each header's Origin of Data through that OOD's own endpoint (connection-config api6.kitEndpoints).
+  // Components come back with SAP-style item numbers (header 10 -> 11, 12, 13 ...). A typed status per kit
+  // (OK | NOT_FOUND | FAILED | OOD_UNKNOWN) — never an invented component list.
+  @requires: 'PricingViewer'
+  action fetchKitComponents(payload: Map) returns Map;
+
   // Who am I + which of the two roles do I hold — the UI routes to the Viewer or Admin view
   // from this (app-c4c/'s Component.js). Deliberately open to any authenticated user: a user
   // with neither role still needs the answer to be told they have no access (the service-level
