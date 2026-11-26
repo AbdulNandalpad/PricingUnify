@@ -161,7 +161,8 @@ function createApi6Client({
      * Routing is config: the COMMON endpoint (API6 routes to the ERP by originOfData) unless
      * `kitEndpoints[ood]` names an INDIVIDUAL one (assumed to speak the same contract). Components are
      * quantities PER ONE KIT, as the BOM holds them (zero-padding stripped); scaling by the ordered kit
-     * quantity is the caller's job, as in SAP. `usage` and `itemShortNumber` are carried through untouched.
+     * quantity is the caller's job, as in SAP. Only the part number and quantity are used: the answer's `usage` (S/O)
+     * and `itemShortNumber` are deliberately ignored (owner decision 2026-11-26) — every component is priced.
      *
      * Returns { status: 'OK'|'NOT_FOUND'|'FAILED', endpoint, routing, ood, request, components, message? }.
      * Never throws on an API6/ERP fault and never invents components. Recorded mode replays
@@ -198,8 +199,6 @@ function createApi6Client({
           .map((c) => ({
             partNumber: String(c.tssArticleNumber),
             quantity: parseKitQuantity(c.quantity),
-            ...(c.usage ? { usage: String(c.usage) } : {}),
-            ...(c.itemShortNumber !== undefined && c.itemShortNumber !== null ? { itemShortNumber: c.itemShortNumber } : {}),
           }));
         if (components.length === 0) return { status: 'NOT_FOUND', ...base, components: [], message: `No components returned for ${partNumber} from the ${routing.toLowerCase()} kit endpoint (${ood}).` };
         return { status: 'OK', ...base, components };

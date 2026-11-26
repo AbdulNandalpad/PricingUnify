@@ -25,7 +25,7 @@ const fakeFetch = (calls, answer = realAnswer, ok = true) => async (url, init) =
   return { ok, status: ok ? 200 : 503, statusText: ok ? 'OK' : 'Service Unavailable', json: async () => answer };
 };
 
-test('live, COMMON endpoint: POSTs the real request body; zero-padded quantities are numbers; usage/itemShortNumber are carried; unnamed rows dropped', async () => {
+test('live, COMMON endpoint: POSTs the real request body; zero-padded quantities are numbers; only part and quantity are kept (usage/itemShortNumber ignored); unnamed rows dropped', async () => {
   const calls = [];
   const c = createApi6Client({ mode: 'live', baseUrl: 'https://api6.example', fetchImpl: fakeFetch(calls) });
   const res = await c.fetchKitComponents({ ood: 'CN', partNumber: 'PQ0301400-T46NK', warehouse: 'CNSHF1' });
@@ -35,9 +35,9 @@ test('live, COMMON endpoint: POSTs the real request body; zero-padded quantities
   assert.equal(res.status, 'OK');
   assert.equal(res.routing, 'COMMON');
   assert.deepEqual(res.components, [
-    { partNumber: 'ORAR00351-N7083', quantity: 20, usage: 'S', itemShortNumber: 3694 },
-    { partNumber: 'PQ0301400-T46', quantity: 10, usage: 'S', itemShortNumber: 295 },
-    { partNumber: 'QRAR04250-N7004', quantity: 10, usage: 'O', itemShortNumber: 5391 },
+    { partNumber: 'ORAR00351-N7083', quantity: 20 },
+    { partNumber: 'PQ0301400-T46', quantity: 10 },
+    { partNumber: 'QRAR04250-N7004', quantity: 10 }, // usage "O" is ignored: every component is priced
   ]);
 });
 
@@ -86,7 +86,7 @@ test('recorded mode replays the raw API6 answer from kits-default.json and makes
   assert.equal(cn.status, 'OK');
   assert.deepEqual(cn.components.map((x) => [x.partNumber, x.quantity]), [['CN-K001-A', 2], ['CN-K001-B', 1]]);
   const real = await c.fetchKitComponents({ ood: 'CN', partNumber: 'PQ0301400-T46NK' });
-  assert.deepEqual(real.components.map((x) => [x.partNumber, x.quantity, x.usage]), [['ORAR00351-N7083', 20, 'S'], ['PQ0301400-T46', 10, 'S'], ['QRAR04250-N7004', 10, 'O']]);
+  assert.deepEqual(real.components.map((x) => [x.partNumber, x.quantity]), [['ORAR00351-N7083', 20], ['PQ0301400-T46', 10], ['QRAR04250-N7004', 10]]);
   // the same part under ANOTHER OOD is a different ERP's BOM: not there
   assert.equal((await c.fetchKitComponents({ ood: 'SAP', partNumber: 'CN-K001' })).status, 'NOT_FOUND');
 });
