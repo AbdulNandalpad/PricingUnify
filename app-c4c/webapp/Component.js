@@ -18,13 +18,33 @@ sap.ui.define([
       UIComponent.prototype.init.apply(this, arguments);
 
       var params = new URLSearchParams(window.location.search);
-      var objectType = (params.get("objectType") || "QUOTE").toUpperCase() === "OPPORTUNITY" ? "OPPORTUNITY" : "QUOTE";
+      var REGIONS = ["EUROPE", "CHINA", "INDIA", "AMERICAS"];
+      var problems = [];
+
+      // What C4C passes into the iframe. Unknown values are SAID, never silently turned into a
+      // default that would show a quote's prices on what was meant to be a cost-only opportunity.
+      var rawType = (params.get("objectType") || "QUOTE").toUpperCase();
+      var objectType = rawType === "OPPORTUNITY" ? "OPPORTUNITY" : "QUOTE";
+      if (rawType !== "QUOTE" && rawType !== "OPPORTUNITY") {
+        problems.push("objectType \"" + params.get("objectType") + "\" is not supported (QUOTE or OPPORTUNITY) — showing QUOTE.");
+      }
+      var rawRegion = (params.get("region") || "EUROPE").toUpperCase();
+      var region = REGIONS.indexOf(rawRegion) >= 0 ? rawRegion : "EUROPE";
+      if (REGIONS.indexOf(rawRegion) < 0) {
+        problems.push("region \"" + params.get("region") + "\" is not known (" + REGIONS.join(", ") + ") — using EUROPE.");
+      }
+      var objectId = (params.get("objectId") || "").trim();
+      var mode = (params.get("mode") || "").toLowerCase();
+
       var session = new JSONModel({
         objectType: objectType,
-        objectId: params.get("objectId") || "",
-        mode: (params.get("mode") || "").toLowerCase(),
-        region: (params.get("region") || "EUROPE").toUpperCase(),
+        objectId: objectId,
+        hostContext: objectId !== "", // opened by a host (C4C) for ONE object: region/search stay locked to it
+        mode: mode,
+        region: region,
         salesOrg: params.get("salesOrg") || "*",
+        paramError: problems.join(" "),
+        sessionExpired: false,
         user: null,
         roles: { PricingViewer: false, PricingAdmin: false },
         meLoaded: false,
@@ -35,8 +55,11 @@ sap.ui.define([
       this.getRouter().initialize();
 
       var that = this;
-      fetch("/rest/pricing/me", { headers: { Accept: "application/json" } })
+      // X-Requested-With makes the approuter answer an expired session with 401 instead of a
+      // cross-origin redirect to the login page (which fetch() cannot follow inside an iframe).
+      fetch("/rest/pricing/me", { headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } })
         .then(function (res) {
+          if (res.status === 401) { session.setProperty("/sessionExpired", true); throw new Error("Not signed in."); }
           if (!res.ok) { throw new Error("Not signed in (HTTP " + res.status + ")."); }
           return res.json();
         })
@@ -44,18 +67,15 @@ sap.ui.define([
           session.setProperty("/user", me.id);
           session.setProperty("/roles", me.roles || {});
           session.setProperty("/meLoaded", true);
-          if (session.getProperty("/mode") === "admin" && me.roles && me.roles.PricingAdmin) {
-            that.getRouter().navTo("admin");
+          if (mode === "admin") {
+            if (me.roles && me.roles.PricingAdmin) { that.getRouter().navTo("admin"); }
+            else { session.setProperty("/paramError", (session.getProperty("/paramError") + " mode=admin needs the PricingAdmin role — showing pricing.").trim()); }
           }
         })
         .catch(function (err) {
           session.setProperty("/meError", String(err.message || err));
           session.setProperty("/meLoaded", true);
         });
-    },
-
-    getContentDensityClass: function () {
-      return "sapUiSizeCompact";
     }
   });
 });

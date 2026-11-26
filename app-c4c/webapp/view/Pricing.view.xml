@@ -20,6 +20,14 @@
         text="{i18n>noRoleHint}" type="Warning" showIcon="true"
         visible="{= ${session>/meLoaded} &amp;&amp; !${session>/meError} &amp;&amp; !${session>/roles/PricingViewer} &amp;&amp; !${session>/roles/PricingAdmin} }"/>
 
+      <MessageStrip id="paramStrip" class="sapUiSmallMargin" text="{session>/paramError}" type="Warning" showIcon="true"
+        visible="{= !!${session>/paramError} }"/>
+
+      <MessageStrip id="sessionStrip" class="sapUiSmallMargin" text="{i18n>sessionExpired}" type="Error" showIcon="true"
+        visible="{= !!${session>/sessionExpired} }">
+        <link><Link text="{i18n>reloadPage}" press=".onReloadPage"/></link>
+      </MessageStrip>
+
       <!-- Context header: object-page style — title row + horizontal facts strip. Read-only
            context (C4C passes it); standalone gets the region select + object search. -->
       <VBox id="contextHeader" class="ctxHeader">
@@ -36,6 +44,8 @@
           </HBox>
           <HBox alignItems="Center">
             <Text text="{i18n>signedInAs}: {session>/user}" visible="{= !!${session>/user} }" class="sapUiSmallMarginEnd ctxUser"/>
+            <Button id="reloadObjectBtn" text="{i18n>reloadObject}" type="Transparent" icon="sap-icon://refresh"
+              visible="{= !!${session>/objectId} }" enabled="{= !${vm>/busy} }" press=".onReloadObject" class="sapUiTinyMarginEnd"/>
             <Button id="openAdminBtn" text="{i18n>openAdmin}" type="Transparent" icon="sap-icon://action-settings"
               visible="{session>/roles/PricingAdmin}" press=".onOpenAdmin"/>
           </HBox>
@@ -79,8 +89,8 @@
           </VBox>
           <VBox class="ctxFact">
             <Label text="{i18n>region}"/>
-            <Text text="{session>/region}" class="ctxValue" visible="{= !!${session>/objectId} }"/>
-            <Select selectedKey="{session>/region}" visible="{= !${session>/objectId} }" change=".onRegionChange">
+            <Text text="{session>/region}" class="ctxValue" visible="{session>/hostContext}"/>
+            <Select selectedKey="{session>/region}" visible="{= !${session>/hostContext} }" change=".onRegionChange">
               <core:Item key="EUROPE" text="EUROPE"/>
               <core:Item key="CHINA" text="CHINA"/>
               <core:Item key="INDIA" text="INDIA"/>
@@ -88,11 +98,11 @@
             </Select>
           </VBox>
           <!-- Standalone (3c): no objectId -> search field for a Quote/Opportunity id. -->
-          <VBox class="ctxFact" visible="{= !${session>/objectId} }">
+          <VBox class="ctxFact" visible="{= !${session>/hostContext} }">
             <Label text="{i18n>standaloneSearch}"/>
             <HBox>
               <Input id="objectSearch" width="13rem" placeholder="{i18n>standaloneSearchPlaceholder}" submit=".onLoadObject"/>
-              <Button text="{i18n>load}" press=".onLoadObject" class="sapUiTinyMarginBegin"/>
+              <Button text="{i18n>load}" press=".onLoadObject" class="sapUiTinyMarginBegin" enabled="{= !${vm>/busy} }"/>
             </HBox>
           </VBox>
         </HBox>
@@ -101,31 +111,48 @@
       </VBox>
 
       <!-- Item table: input columns (manual until the Phase 5 C4C adapter fills them) + result columns. -->
-      <Panel class="itemsSection" backgroundDesign="Solid">
+      <Panel class="itemsSection" backgroundDesign="Solid" width="auto">
         <headerToolbar>
           <OverflowToolbar>
             <Title text="{= ${i18n>items} + ' (' + ( ${vm>/search} ? ${vm>/shownCount} + ' / ' + ${vm>/itemCount} : ${vm>/itemCount} ) + ')' }" level="H4"/>
             <SearchField width="17rem" placeholder="{i18n>searchLinesPlaceholder}" liveChange=".onSearchItems" search=".onSearchItems" class="sapUiSmallMarginBegin"/>
             <ObjectStatus text="{vm>/orderTotal}" state="Information" class="sapUiSmallMarginBegin" visible="{= !!${vm>/orderTotal} }"/>
             <ToolbarSpacer/>
-            <ToggleButton id="moreColsBtn" text="{i18n>moreColumns}" icon="sap-icon://table-column" type="Transparent" pressed="{vm>/showAdvanced}"/>
-            <Button id="importBtn" icon="sap-icon://excel-attachment" text="{i18n>importItems}" press=".onOpenImport" type="Transparent"/>
-            <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onOpenAddItem" type="Transparent"/>
+            <ToggleButton id="moreColsBtn" type="Transparent" pressed="{vm>/showAdvanced}"
+              text="{= ${vm>/showAdvanced} ? ${i18n>fewerColumns} : ${i18n>moreColumns} }"
+              icon="{= ${vm>/showAdvanced} ? 'sap-icon://collapse-group' : 'sap-icon://expand-group' }">
+              <layoutData><OverflowToolbarLayoutData priority="Low"/></layoutData>
+            </ToggleButton>
+            <Button id="importBtn" icon="sap-icon://excel-attachment" text="{i18n>importItems}" press=".onOpenImport" type="Transparent" enabled="{= !${vm>/busy} }">
+              <layoutData><OverflowToolbarLayoutData priority="Low"/></layoutData>
+            </Button>
+            <Button id="addRowBtn" icon="sap-icon://add" text="{i18n>addItem}" press=".onOpenAddItem" type="Transparent" enabled="{= !${vm>/busy} }">
+              <layoutData><OverflowToolbarLayoutData priority="High"/></layoutData>
+            </Button>
             <Button id="removeSelectedBtn" icon="sap-icon://delete" text="{i18n>removeSelected} ({vm>/selectedCount})" press=".onRemoveSelected" type="Transparent"
-              visible="{= ${vm>/selectedCount} > 0 }"/>
+              visible="{= ${vm>/selectedCount} > 0 }" enabled="{= !${vm>/busy} }">
+              <layoutData><OverflowToolbarLayoutData priority="High"/></layoutData>
+            </Button>
             <Button id="fetchCostsBtn" text="{i18n>fetchCosts}" type="Emphasized" icon="sap-icon://money-bills"
-              press=".onFetchCosts" enabled="{= !${vm>/busy} }"/>
+              press=".onFetchCosts" enabled="{= !${vm>/busy} }">
+              <layoutData><OverflowToolbarLayoutData priority="NeverOverflow"/></layoutData>
+            </Button>
             <Button id="calcPricesBtn" text="{i18n>calcPrices}" type="Emphasized" icon="sap-icon://simulate"
               press=".onCalculatePrices" enabled="{= !${vm>/busy} }"
-              visible="{= ${session>/objectType} !== 'OPPORTUNITY' }"/>
+              visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
+              <layoutData><OverflowToolbarLayoutData priority="NeverOverflow"/></layoutData>
+            </Button>
             <Button id="writeBackBtn" text="{i18n>writeBack}" icon="sap-icon://journey-arrive"
-              press=".onWriteBack" enabled="{= !${vm>/busy} &amp;&amp; ${vm>/hasResults} }"/>
+              press=".onWriteBack" enabled="{= !${vm>/busy} &amp;&amp; ${vm>/writableCount} > 0 }"
+              tooltip="{= ${vm>/writableCount} > 0 ? '' : ${i18n>writeBackDisabledTip} }">
+              <layoutData><OverflowToolbarLayoutData priority="High"/></layoutData>
+            </Button>
           </OverflowToolbar>
         </headerToolbar>
         <content>
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
-            visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 20) }" rowHeight="36" alternateRowColors="true"
-            rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" cellClick=".onCellClick" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
+            fixedColumnCount="2" visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 20) }" rowHeight="36" alternateRowColors="true"
+            rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
             <t:columns>
               <t:Column width="3.5rem">
                 <Label text="{i18n>colItem}"/>
@@ -133,7 +160,7 @@
               </t:Column>
               <t:Column minWidth="130">
                 <Label text="{i18n>colProduct}"/>
-                <t:template><Input value="{vm>partNumber}" placeholder="EU-T100"/></t:template>
+                <t:template><Input value="{vm>partNumber}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column minWidth="140" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colDescription}"/>
@@ -141,7 +168,7 @@
               </t:Column>
               <t:Column width="5rem">
                 <Label text="{i18n>colQty}"/>
-                <t:template><Input value="{vm>quantity}" type="Number" textAlign="End"/></t:template>
+                <t:template><Input value="{vm>quantity}" type="Number" textAlign="End" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column width="4.5rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colUom}"/>
@@ -149,12 +176,12 @@
               </t:Column>
               <t:Column width="8rem" hAlign="End">
                 <Label text="{i18n>colPriceUnit}" tooltip="{i18n>colPriceUnitTip}"/>
-                <t:template><Input value="{vm>priceUnit}" type="Number" textAlign="End"/></t:template>
+                <t:template><Input value="{vm>priceUnit}" type="Number" textAlign="End" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column width="9rem">
                 <Label text="{i18n>colItemType}" tooltip="{i18n>colItemTypeTip}"/>
                 <t:template>
-                  <Select selectedKey="{vm>itemType}" width="100%" tooltip="{i18n>colItemTypeTip}" items="{path: 'vm>/itemTypes'}">
+                  <Select selectedKey="{vm>itemType}" width="100%" tooltip="{i18n>colItemTypeTip}" items="{path: 'vm>/itemTypes', templateShareable: false}" change=".onRowEdited">
                     <core:Item key="{vm>key}" text="{vm>text}"/>
                   </Select>
                 </t:template>
@@ -173,11 +200,11 @@
               </t:Column>
               <t:Column minWidth="110">
                 <Label text="{i18n>colSupplier}"/>
-                <t:template><Input value="{vm>supplier}" placeholder="ACME"/></t:template>
+                <t:template><Input value="{vm>supplier}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column minWidth="110">
                 <Label text="{i18n>colSupplierExt}"/>
-                <t:template><Input value="{vm>supplierExternalId}"/></t:template>
+                <t:template><Input value="{vm>supplierExternalId}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column minWidth="150" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colSupplierName}"/>
@@ -185,7 +212,7 @@
               </t:Column>
               <t:Column width="7rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colCategory}"/>
-                <t:template><Input value="{vm>productCategory}" placeholder="SEALS"/></t:template>
+                <t:template><Input value="{vm>productCategory}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column width="5.5rem" visible="{vm>/showAdvanced}" hAlign="Center">
                 <Label text="{i18n>colPriceBreak}"/>
@@ -201,11 +228,11 @@
               </t:Column>
               <t:Column width="6rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colDataOrigin}"/>
-                <t:template><Input value="{vm>ood}" placeholder="SAP"/></t:template>
+                <t:template><Input value="{vm>ood}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column width="6rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colWarehouse}"/>
-                <t:template><Input value="{vm>warehouse}" placeholder="EU01"/></t:template>
+                <t:template><Input value="{vm>warehouse}" change=".onRowEdited"/></t:template>
               </t:Column>
               <t:Column width="4.5rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colPicks}"/>
@@ -215,14 +242,20 @@
                 <Label text="{i18n>colLeadTime}"/>
                 <t:template><Input value="{vm>leadTime}"/></t:template>
               </t:Column>
-              <t:Column width="5.5rem" visible="{vm>/showAdvanced}">
+              <t:Column width="11rem" visible="{vm>/showAdvanced}">
                 <Label text="{i18n>colAddlCost}"/>
-                <t:template><Input value="{vm>additionalCost}" placeholder="0–4"/></t:template>
+                <t:template><Select selectedKey="{vm>additionalCost}" width="100%" change=".onRowEdited" tooltip="{i18n>colAddlCostTip}">
+                    <core:Item key="0" text="{i18n>addlCost0}"/>
+                    <core:Item key="1" text="{i18n>addlCost1}"/>
+                    <core:Item key="3" text="{i18n>addlCost3}"/>
+                    <core:Item key="4" text="{i18n>addlCost4}"/>
+                    <core:Item key="5" text="{i18n>addlCost5}" enabled="false"/>
+                  </Select></t:template>
               </t:Column>
               <t:Column width="8rem">
                 <Label text="{i18n>colPricingType}"/>
                 <t:template>
-                  <Select selectedKey="{vm>pricingType}" width="100%">
+                  <Select selectedKey="{vm>pricingType}" width="100%" change=".onRowEdited">
                     <core:Item key="COST_PLUS" text="{i18n>costPlus}"/>
                     <core:Item key="PRICE_LIST" text="{i18n>priceList}"/>
                   </Select>
@@ -255,19 +288,22 @@
               <t:Column width="7rem">
                 <Label text="{i18n>colStatus}"/>
                 <t:template>
-                  <ObjectStatus
-                    text="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusText'}"
-                    state="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusState'}"
-                    active="{= !!${vm>line} }" press=".onShowTrace"/>
+                  <HBox>
+                    <ObjectStatus visible="{= !${vm>stale} }"
+                      text="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusText'}"
+                      state="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusState'}"
+                      active="{= !!${vm>line} }" press=".onShowTrace"/>
+                    <ObjectStatus visible="{vm>stale}" text="{i18n>statusOutdated}" state="Warning" icon="sap-icon://refresh" tooltip="{i18n>statusOutdatedTip}"/>
+                  </HBox>
                 </t:template>
               </t:Column>
               <t:Column width="5.5rem">
-                <Label text=""/>
+                <Label text="{i18n>colActions}"/>
                 <t:template>
                   <HBox>
                     <Button icon="sap-icon://detail-view" type="Transparent" tooltip="{i18n>showTrace}"
                       press=".onShowTrace" visible="{= !!${vm>line} }"/>
-                    <Button icon="sap-icon://decline" type="Transparent" tooltip="{i18n>removeItem}" press=".onRemoveRow"/>
+                    <Button icon="sap-icon://decline" type="Transparent" tooltip="{i18n>removeItem}" press=".onRemoveRow" enabled="{= !${vm>/busy} }"/>
                   </HBox>
                 </t:template>
               </t:Column>

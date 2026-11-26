@@ -4,8 +4,6 @@ sap.ui.define([
 ], function (BaseController, JSONModel) {
   "use strict";
 
-  var REGIONS = ["EUROPE", "CHINA", "INDIA", "AMERICAS"];
-
   function joinSeq(arr) { return Array.isArray(arr) ? arr.join(", ") : ""; }
   function parseSeq(text) {
     var parts = String(text || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
@@ -27,7 +25,7 @@ sap.ui.define([
    * the config-model validator (schema + business rules like FACTOR-needs-basis) — a 422
    * surfaces inline, the store stays untouched, and a successful save IS the activate step
    * (new effective-dated version, old one superseded; there is no separate draft stage yet).
-   * Price Lists is a read-only browser over the WSO2 lookup (owner decision 2026-11-24).
+   * Three tabs only: Region rules (incl. version history), Suppliers, Connections.
    */
   return BaseController.extend("com.tss.pricing.c4c.controller.Admin", {
 
@@ -36,13 +34,10 @@ sap.ui.define([
       var vm = new JSONModel({
         busy: false, message: "", messageType: "Information",
         selectedRegion: "EUROPE",
-        regions: [],
         sheet: { seqDefault: "", seqMTS: "", seqNonMTS: "", buildUp: [], constraintCount: 0, version: "", validFrom: today, loaded: null },
         versions: [],
-        priceList: { supplier: "", productCategory: "", partNumber: "", quantity: "1", asOf: "", looked: false, entry: null, matchedBy: "", triedText: "" },
         connections: null,
-        suppliers: { list: [], doc: null, isNew: false, versionCount: 0 },
-        sim: { partNumber: "EU-T100", quantity: "10", supplier: "", productCategory: "", pricingType: "COST_PLUS", objectType: "QUOTE", line: null, resultText: "", resultState: "None" }
+        suppliers: { list: [], doc: null, isNew: false, versionCount: 0 }
       });
       this.getView().setModel(vm, "vm");
 
@@ -61,7 +56,6 @@ sap.ui.define([
     onCloseMessage: function () { this._message(""); },
 
     _reloadAll: function () {
-      this._loadRegions();
       this._loadSheet();
       this._loadVersions();
       this._loadConnections();
@@ -227,35 +221,6 @@ sap.ui.define([
       this._loadVersions();
     },
 
-    onRegionRowPress: function (oEvent) {
-      var item = oEvent.getParameter("listItem") || oEvent.getSource();
-      var ctx = item.getBindingContext("vm");
-      if (!ctx) { return; }
-      this._vm().setProperty("/selectedRegion", ctx.getObject().region);
-      this.onRegionSelect();
-      this.byId("adminTabs").setSelectedKey("costRules");
-    },
-
-    _loadRegions: function () {
-      var that = this;
-      Promise.all(REGIONS.map(function (region) {
-        return that.callRest("/rest/config/getEffectiveConfig?region=" + region + "&salesOrg=*")
-          .then(function (config) {
-            var seq = config.costAccessSequence;
-            var seqText = Array.isArray(seq) ? joinSeq(seq)
-              : seq ? Object.keys(seq).map(function (k) { return k + ": " + joinSeq(seq[k]); }).join(" | ")
-              : "—";
-            return {
-              region: region, version: config.version, validFrom: config.validFrom || "",
-              stepCount: (config.buildUp || []).length, sequence: seqText
-            };
-          })
-          .catch(function () { return { region: region, version: "— none —", validFrom: "", stepCount: 0, sequence: "" }; });
-      })).then(function (rows) {
-        that._vm().setProperty("/regions", rows);
-      });
-    },
-
     _loadSheet: function () {
       var that = this;
       var vm = this._vm();
@@ -375,61 +340,6 @@ sap.ui.define([
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })
         .finally(function () { vm.setProperty("/busy", false); });
-    },
-
-    onLookupPriceList: function () {
-      var that = this;
-      var vm = this._vm();
-      var pl = vm.getProperty("/priceList");
-      var params = new URLSearchParams({ region: vm.getProperty("/selectedRegion"), partNumber: pl.partNumber, quantity: pl.quantity || "1" });
-      if (pl.supplier) { params.set("supplier", pl.supplier); }
-      if (pl.productCategory) { params.set("productCategory", pl.productCategory); }
-      if (pl.asOf) { params.set("asOf", pl.asOf); }
-
-      vm.setProperty("/busy", true);
-      this.callRest("/rest/config/lookupPriceList?" + params.toString())
-        .then(function (res) {
-          vm.setProperty("/priceList/looked", true);
-          vm.setProperty("/priceList/entry", res.entry || null);
-          vm.setProperty("/priceList/matchedBy", res.matchedBy || "");
-          vm.setProperty("/priceList/triedText", (res.tried || []).join(", ") || "—");
-        })
-        .catch(function (err) { that._message(String(err.message || err), "Error"); })
-        .finally(function () { vm.setProperty("/busy", false); });
-    },
-
-    onSimulate: function () {
-      var that = this;
-      var vm = this._vm();
-      var sim = vm.getProperty("/sim");
-      var item = { partNumber: (sim.partNumber || "").trim(), quantity: Number(sim.quantity) || 1, pricingType: sim.pricingType };
-      if ((sim.supplier || "").trim()) { item.supplier = sim.supplier.trim(); }
-      if ((sim.productCategory || "").trim()) { item.productCategory = sim.productCategory.trim(); }
-
-      vm.setProperty("/busy", true);
-      this.callRest("/rest/pricing/price", {
-        body: { payload: { region: vm.getProperty("/selectedRegion"), salesOrg: "*", hostSystem: "C4C", hostObjectType: sim.objectType, items: [item] } }
-      })
-        .then(function (res) {
-          var line = res.items[0];
-          vm.setProperty("/sim/line", line);
-          if (line.status === "PRICED") {
-            var amount = line.result.landedCost !== undefined ? line.result.landedCost : line.result.unitPrice;
-            var label = line.result.landedCost !== undefined ? "landed cost" : "unit price";
-            vm.setProperty("/sim/resultText", line.partNumber + ": " + label + " " + that.formatter.fmt2(amount) + " " + line.result.currency);
-            vm.setProperty("/sim/resultState", "Success");
-          } else {
-            vm.setProperty("/sim/resultText", line.status + " — " + (line.missing ? line.missing.reason : ""));
-            vm.setProperty("/sim/resultState", "Error");
-          }
-        })
-        .catch(function (err) { that._message(String(err.message || err), "Error"); })
-        .finally(function () { vm.setProperty("/busy", false); });
-    },
-
-    onShowSimTrace: function () {
-      var line = this._vm().getProperty("/sim/line");
-      if (line) { this.openTraceDialog(this.getView(), line); }
     },
 
     onOpenPricing: function () {

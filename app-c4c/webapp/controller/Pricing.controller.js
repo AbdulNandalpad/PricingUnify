@@ -3,8 +3,9 @@ sap.ui.define([
   "sap/ui/model/json/JSONModel",
   "sap/ui/core/Fragment",
   "sap/ui/model/Filter",
-  "sap/ui/model/FilterOperator"
-], function (BaseController, JSONModel, Fragment, Filter, FilterOperator) {
+  "sap/ui/model/FilterOperator",
+  "sap/m/MessageBox"
+], function (BaseController, JSONModel, Fragment, Filter, FilterOperator, MessageBox) {
   "use strict";
 
   /**
@@ -24,7 +25,7 @@ sap.ui.define([
         busy: false,
         hasResults: false,
         showAdvanced: false,
-        itemCount: 0, search: "", shownCount: 0,
+        itemCount: 0, search: "", shownCount: 0, writableCount: 0,
         // C4C's own item (processing) types — the code is what the gateway receives, the label is what the user reads.
         itemTypes: [
           { key: "AGN", text: "AGN - Product" }, { key: "ZCOM", text: "ZCOM - Kit Components" }, { key: "ZKIT", text: "ZKIT - Kit" },
@@ -35,8 +36,19 @@ sap.ui.define([
         message: "",
         messageType: "Information"
       });
+      // Overlapping async calls (load -> enrich -> enrich) each hold the grid busy; it only
+      // frees when the LAST one finishes — a plain boolean cleared early under a running call.
+      vm.busyStart = function () { this._busyN = (this._busyN || 0) + 1; this.setProperty("/busy", true); };
+      vm.busyEnd = function () { this._busyN = Math.max(0, (this._busyN || 1) - 1); this.setProperty("/busy", this._busyN > 0); };
       this.getView().setModel(vm, "vm");
       this._addRow();
+
+      // Opened from C4C with a quote/opportunity: load it straight away (no extra click) — the
+      // host already told us which object this is. Standalone (no objectId) waits for a search.
+      var session = this.getSession();
+      if (session.getProperty("/hostContext") && session.getProperty("/objectId")) {
+        this._loadObject(session.getProperty("/objectId"));
+      }
     },
 
     _newRow: function () {
@@ -45,7 +57,7 @@ sap.ui.define([
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
-        priceBreak: false, alternativeToLine: "",
+        priceBreak: false, alternativeToLine: "", fromC4c: false, stale: false, // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
         supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         priceBy: "", marginNote: "", costManual: false, currency: "", // priceBy: "MARGIN" | "PRICE" = what the user typed last; costManual = a typed cost replaces the fetched one
@@ -77,6 +89,8 @@ sap.ui.define([
       var table = this.byId("itemTable");
       if (table) { table.clearSelection(); }
       this._vm().setProperty("/selectedCount", 0);
+      this._vm().setProperty("/itemCount", items.length);
+      this._vm().setProperty("/writableCount", items.filter(function (r) { return r.line && r.line.status === "PRICED" && !r.stale; }).length);
       return items;
     },
 
@@ -169,7 +183,7 @@ sap.ui.define([
               setTimeout(function () { input.showItems(function () { return true; }); }, 0);
             }
           })
-          .catch(function () { /* suggestions are a convenience — typing stays possible */ })
+          .catch(function (err) { that._vm().setProperty("/addItem/sourceNote", String((err && err.message) || err)); }) // typing stays possible
           .finally(function () { that._vm().setProperty("/addItem/searching", false); });
       }, 300);
     },
@@ -225,11 +239,32 @@ sap.ui.define([
       this._enrichFromProductMaster(); // stock type, supplier, description — filled as soon as the line is added
     },
 
+    /** A priced line whose inputs changed no longer matches its result: mark it outdated so it
+     *  is neither shown as current nor written back until it is calculated again. */
+    onRowEdited: function (oEvent) {
+      var ctx = oEvent.getSource().getBindingContext("vm");
+      if (!ctx) { return; }
+      var row = ctx.getObject();
+      if (row.line && !row.stale) { this._vm().setProperty(ctx.getPath() + "/stale", true); }
+      this._updateWritable();
+    },
+
+    /** Lines that can be written back: priced, and still matching their inputs. */
+    _writableRows: function () {
+      return this._vm().getProperty("/items").filter(function (row) {
+        return row.line && row.line.status === "PRICED" && !row.stale;
+      });
+    },
+    _updateWritable: function () {
+      this._vm().setProperty("/writableCount", this._writableRows().length);
+    },
+
     /** The user picks the stock class by hand — it always wins over any automatic value. */
     onStockClassChange: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");
       var row = this._vm().getProperty(ctx.getPath());
       this._vm().setProperty(ctx.getPath() + "/stockClassHow", row.stockClassSel ? "Chosen by you" : "");
+      this.onRowEdited(oEvent);
     },
 
     onRemoveRow: function (oEvent) {
@@ -292,7 +327,7 @@ sap.ui.define([
       });
       if (lines.length === 0) { return Promise.resolve(); }
       var session = this.getSession();
-      vm.setProperty("/busy", true);
+      vm.busyStart();
       return this.callRest("/rest/pricing/fetchC4cOriginOfData", {
         body: { payload: { items: lines, region: session.getProperty("/region"), salesOrg: session.getProperty("/salesOrg") } }
       })
@@ -353,8 +388,14 @@ sap.ui.define([
             that._message(bundle.getText("originOfDataNotes", [text]), "Warning");
           }
         })
-        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
-        .finally(function () { vm.setProperty("/busy", false); });
+        .catch(function (err) { that._enrichmentFailed(err); })
+        .finally(function () { vm.busyEnd(); });
+    },
+
+    /** Enrichment is a convenience — the grid stays usable — but a failure is SAID, never an empty cell with no reason. */
+    _enrichmentFailed: function (err) {
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      this._message(bundle.getText("enrichFailed", [String((err && err.message) || err)]), "Warning");
     },
 
     _enrichFromProductDetails: function () {
@@ -368,7 +409,7 @@ sap.ui.define([
         .map(function (r) { return r.partNumber.trim(); });
       if (parts.length === 0) { return Promise.resolve(); }
       var session = this.getSession();
-      vm.setProperty("/busy", true);
+      vm.busyStart();
       return this.callRest("/rest/pricing/fetchC4cProductDetails", {
         body: { payload: { partNumbers: parts, region: session.getProperty("/region"), salesOrg: session.getProperty("/salesOrg") } }
       })
@@ -384,8 +425,8 @@ sap.ui.define([
           });
           vm.setProperty("/items", items);
         })
-        .catch(function () { /* enrichment is a convenience — the grid stays usable without it */ })
-        .finally(function () { vm.setProperty("/busy", false); });
+        .catch(function (err) { that._enrichmentFailed(err); })
+        .finally(function () { vm.busyEnd(); });
     },
 
     _message: function (text, type) {
@@ -485,7 +526,7 @@ sap.ui.define([
         };
       }
 
-      vm.setProperty("/busy", true);
+      vm.busyStart();
       this._message("");
 
       // Two-call contract (same as production C4C integration): resolve item attributes first,
@@ -516,6 +557,7 @@ sap.ui.define([
             if (!row) { return; }
             row.line = line;
             row.status = line.status;
+            row.stale = false;
 
             var cc = (line.trace && line.trace.costCandidate) || null;
             row.confidence = cc ? cc.confidence : "";
@@ -555,6 +597,7 @@ sap.ui.define([
           vm.setProperty("/items", rows);
           vm.setProperty("/hasResults", priced > 0);
           vm.setProperty("/orderTotal", that._orderTotal(rows));
+          that._updateWritable();
           if (res.region && res.region.value) { that.getSession().setProperty("/region", res.region.value); }
           var bundle = that.getView().getModel("i18n").getResourceBundle();
           var summary = bundle.getText(fillPrices ? "pricedSummary" : "costedSummary", [priced, (res.items || []).length]);
@@ -564,31 +607,48 @@ sap.ui.define([
           that._message(summary, (priced === (res.items || []).length && !recorded) ? "Success" : "Warning");
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })
-        .finally(function () { vm.setProperty("/busy", false); });
+        .finally(function () { vm.busyEnd(); });
     },
 
-    /** Phase 5 wires this to the real C4C adapter; the endpoint answers with a typed
-     *  C4C_NOT_CONFIGURED until a destination exists, which is shown honestly. */
+    /** Write the priced, still-current lines back to the C4C object. Asks first (it changes
+     *  the host system), matches C4C items by their own item number, and reports the result. */
     onWriteBack: function () {
+      var that = this;
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      var session = this.getSession();
+      var objectId = session.getProperty("/objectId") || "";
+      var lines = this._writableRows();
+      if (lines.length === 0) { return; }
+      if (!objectId) { this._message(bundle.getText("writeBackNeedsObject"), "Warning"); return; }
+      var skipped = this._vm().getProperty("/items").filter(function (r) { return r.line && r.line.status === "PRICED" && r.stale; }).length;
+
+      MessageBox.confirm(bundle.getText("writeBackConfirm", [lines.length, objectId]) + (skipped ? " " + bundle.getText("writeBackSkipped", [skipped]) : ""), {
+        title: bundle.getText("writeBack"),
+        actions: [bundle.getText("writeBack"), MessageBox.Action.CANCEL],
+        emphasizedAction: bundle.getText("writeBack"),
+        onClose: function (action) { if (action !== MessageBox.Action.CANCEL) { that._doWriteBack(lines, objectId); } }
+      });
+    },
+
+    _doWriteBack: function (lines, objectId) {
       var that = this;
       var session = this.getSession();
       var vm = this._vm();
-      var lines = vm.getProperty("/items").filter(function (row) { return row.line && row.line.status === "PRICED"; });
-      if (lines.length === 0) { return; }
-
-      vm.setProperty("/busy", true);
+      vm.busyStart();
       this.callRest("/rest/pricing/writeBackToC4C", {
         body: {
           payload: {
             objectType: session.getProperty("/objectType"),
-            objectId: session.getProperty("/objectId") || "",
+            objectId: objectId,
             items: lines.map(function (row) {
               return {
                 partNumber: row.line.partNumber,
+                itemId: row.fromC4c ? row.itemNo : undefined, // C4C's own item number: price-break lines share a product
                 cost: row.cost,
                 landedCost: row.landedCost,
                 price: row.price || undefined,
                 marginPct: row.marginPct || undefined,
+                priceUnit: row.priceUnit || undefined,
                 pricingType: row.pricingType,
                 currency: row.line.result ? row.line.result.currency : undefined
               };
@@ -609,18 +669,25 @@ sap.ui.define([
           }
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })
-        .finally(function () { vm.setProperty("/busy", false); });
+        .finally(function () { vm.busyEnd(); });
     },
 
     /** Load a quote/opportunity's items straight from C4C (fetchC4cObject) — the
      *  "replace the C4C Products tab" flow. Typed non-OK outcomes show honestly: not
      *  configured / credentials missing / object not found — items are never invented. */
     onLoadObject: function () {
+      this._loadObject((this.byId("objectSearch").getValue() || "").trim());
+    },
+
+    onReloadObject: function () {
+      this._loadObject(this.getSession().getProperty("/objectId"));
+    },
+
+    _loadObject: function (value) {
       var that = this;
-      var value = (this.byId("objectSearch").getValue() || "").trim();
       if (!value) { return; }
       var vm = this._vm();
-      vm.setProperty("/busy", true);
+      vm.busyStart();
       this.callRest("/rest/pricing/fetchC4cObject", {
         body: { payload: { objectType: this.getSession().getProperty("/objectType"), objectId: value } }
       })
@@ -633,6 +700,7 @@ sap.ui.define([
             var rows = (res.items || []).map(function (it) {
               var row = that._newRow();
               row.itemNo = (it.itemId || "").trim(); // keep C4C's own item number (blank -> auto)
+              row.fromC4c = row.itemNo !== ""; // write-back matches these lines to C4C by item number
               row.partNumber = it.partNumber || "";
               row.description = it.description || "";
               // OData decimals come as '50000.00000000000000' — normalize for the grid.
@@ -667,7 +735,7 @@ sap.ui.define([
           }
         })
         .catch(function (err) { that._message(String(err.message || err), "Error"); })
-        .finally(function () { vm.setProperty("/busy", false); });
+        .finally(function () { vm.busyEnd(); });
     },
 
     // ---- Excel/CSV import: paste from Excel (tab-separated) or upload a CSV export of the
@@ -796,15 +864,12 @@ sap.ui.define([
       this.getRouter().navTo("admin");
     },
 
-    onCellClick: function () { /* row press handled via the trace button/status */ },
 
     onShowTrace: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");
       var row = ctx.getObject();
       if (!row.line) { return; }
       this.openTraceDialog(this.getView(), row.line);
-    },
-
-    onExit: function () { /* trace dialog lifecycle handled in BaseController */ }
+    }
   });
 });

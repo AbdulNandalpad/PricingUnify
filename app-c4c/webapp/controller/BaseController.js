@@ -22,18 +22,31 @@ sap.ui.define([
 
     callRest: function (path, options) {
       options = options || {};
+      var that = this;
       var init = {
         method: options.method || (options.body ? "POST" : "GET"),
-        headers: { Accept: "application/json" }
+        // X-Requested-With: an expired session answers 401 (not a cross-origin login redirect fetch cannot follow).
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" }
       };
       if (options.body) {
         init.headers["Content-Type"] = "application/json";
         init.body = JSON.stringify(options.body);
       }
-      return fetch(path, init).then(function (res) {
+      return fetch(path, init).catch(function () {
+        // fetch only rejects when the request never got an answer (offline, gateway down, blocked redirect).
+        var e = new Error("The pricing service could not be reached. Check your connection and try again; if the problem continues your session may have expired — reload the page.");
+        e.status = 0;
+        throw e;
+      }).then(function (res) {
         return res.text().then(function (text) {
           var data = null;
           try { data = text ? JSON.parse(text) : null; } catch (e) { /* non-JSON error body */ }
+          if (res.status === 401) {
+            that.getSession().setProperty("/sessionExpired", true);
+            var expired = new Error("Your session has expired — reload the page to sign in again.");
+            expired.status = 401;
+            throw expired;
+          }
           if (!res.ok) {
             var message = (data && data.error && data.error.message) || text || ("HTTP " + res.status);
             var err = new Error(message);
@@ -44,6 +57,8 @@ sap.ui.define([
         });
       });
     },
+
+    onReloadPage: function () { window.location.reload(); },
 
     toast: function (text) {
       MessageToast.show(text);

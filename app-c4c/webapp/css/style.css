@@ -20,7 +20,7 @@
   background: var(--sapObjectHeader_Background, #fff);
   border-radius: 0;
   box-shadow: var(--sapContent_HeaderShadow, inset 0 -0.0625rem var(--sapPageHeader_BorderColor, #d9d9d9), 0 0.125rem 0.25rem 0 rgba(34, 54, 73, 0.08));
-  padding: 0.875rem 2rem 1rem;
+  padding: 0.875rem clamp(0.75rem, 2.5vw, 2rem) 1rem;
 }
 .itemsSection.sapMPanel {
   margin: 1rem;
@@ -41,7 +41,7 @@
   row-gap: 0.625rem;
 }
 .ctxFact {
-  margin-right: 3rem;
+  margin-right: clamp(1rem, 3vw, 3rem);
   min-width: 5.5rem;
 }
 .ctxFact .sapMLabel {
@@ -61,8 +61,64 @@
     margin-left: 0.25rem !important;
     margin-right: 0.25rem !important;
   }
-  .ctxHeader {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
+}
+
+/* ---- Administration: same List-Report look as the pricing screen ---- */
+.adminTabs.sapMITB {
+  background: transparent;
+}
+.adminTabs > .sapMITBContainerContent,
+.adminTabs .sapMITBContent {
+  background: transparent;
+}
+.adminBody {
+  padding: 1rem 1.5rem 0.5rem;
+  max-width: 96rem;
+}
+.adminRegionBar {
+  margin-bottom: 1rem;
+}
+.adminCard.sapMPanel {
+  margin-bottom: 1rem;
+  background: var(--sapObjectHeader_Background, #fff);
+}
+.adminHint {
+  color: var(--sapContent_LabelColor, #556b82);
+  font-size: 0.8125rem;
+}
+.adminFields {
+  row-gap: 0.75rem;
+}
+.adminField {
+  margin-right: 2rem;
+}
+.adminTable .sapMListTblCell {
+  vertical-align: middle;
+}
+/* Save bar stays in view while a long sheet scrolls. */
+.adminSaveBar.sapMTB {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--sapObjectHeader_Background, #fff);
+  border-top: 1px solid var(--sapGroup_TitleBorderColor, #d9d9d9);
+  border-radius: 0.5rem;
+  box-shadow: 0 -0.25rem 0.5rem rgba(34, 54, 73, 0.06);
+  margin-top: 1rem;
+}
+
+/* Narrow iframes: shorter header padding and wrap, so the grid keeps the room. */
+@media (max-width: 900px) {
+  .adminBody { padding-left: 0.5rem; padding-right: 0.5rem; }
+}
+
+.adminEmpty {
+  min-height: 14rem;
+  border: 1px dashed var(--sapGroup_TitleBorderColor, #d9d9d9);
+  border-radius: 0.5rem;
+  background: var(--sapObjectHeader_Background, #fff);
+}
+.adminEmptyIcon {
+  color: var(--sapContent_LabelColor, #556b82);
+  margin-bottom: 0.5rem;
 }

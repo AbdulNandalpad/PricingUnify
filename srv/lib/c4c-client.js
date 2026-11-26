@@ -21,6 +21,12 @@
  * names is a `C4C_FIELD_MAP` / `C4C_SERVICE_PATH` env change, not a code change.
  */
 
+/** Value for use INSIDE an OData single-quoted string literal in a URL: the quote is doubled
+ *  (otherwise a value could close the literal and rewrite the filter) and the rest URL-encoded. */
+function odataLit(value) {
+  return encodeURIComponent(String(value === undefined || value === null ? '' : value).replace(/'/g, "''"));
+}
+
 const DEFAULT_SERVICE_PATH = '/sap/c4c/odata/v1/c4codataapi';
 
 const DEFAULT_FIELD_MAP = {
@@ -213,7 +219,7 @@ function createC4cClient({
 
     try {
       const headerRes = await fetchImpl(
-        `${root}/${collections.header}?$filter=${fields.headerIdField} eq '${encodeURIComponent(objectId)}'`,
+        `${root}/${collections.header}?$filter=${fields.headerIdField} eq '${odataLit(objectId)}'`,
         { method: 'GET', headers: base },
       );
       if (!headerRes.ok) { return { status: 'C4C_ERROR', message: `C4C header lookup failed (HTTP ${headerRes.status}).` }; }
@@ -240,7 +246,7 @@ function createC4cClient({
         customer = { accountId: buyerId, quoteId: String(objectId), note: '' };
         try {
           const accRes = await fetchImpl(
-            `${root}/${r.accountCollection}?$filter=${r.accountKey} eq '${encodeURIComponent(buyerId)}'&$format=json`,
+            `${root}/${r.accountCollection}?$filter=${r.accountKey} eq '${odataLit(buyerId)}'&$format=json`,
             { method: 'GET', headers: base },
           );
           const accRows = accRes.ok ? (((await accRes.json()).d || {}).results || []) : [];
@@ -266,7 +272,7 @@ function createC4cClient({
             if (r.accountPriceGroup && a.ObjectID) {
               try {
                 const sdRes = await fetchImpl(
-                  `${root}/${r.accountCollection}('${encodeURIComponent(a.ObjectID)}')/${r.accountSalesDataNav}?$format=json`,
+                  `${root}/${r.accountCollection}('${odataLit(a.ObjectID)}')/${r.accountSalesDataNav}?$format=json`,
                   { method: 'GET', headers: base },
                 );
                 const sd = sdRes.ok ? (((await sdRes.json()).d || {}).results || []) : [];
@@ -346,7 +352,7 @@ function createC4cClient({
 
       // 2. Resolve the header by its visible ID -> internal ObjectID.
       const headerRes = await call('GET',
-        `${root}/${collections.header}?$filter=${fields.headerIdField} eq '${encodeURIComponent(objectId)}'&$select=ObjectID`);
+        `${root}/${collections.header}?$filter=${fields.headerIdField} eq '${odataLit(objectId)}'&$select=ObjectID`);
       if (!headerRes.ok) { return { status: 'C4C_ERROR', message: `C4C header lookup failed (HTTP ${headerRes.status}).` }; }
       const headerBody = await headerRes.json();
       const headerRows = (headerBody.d && headerBody.d.results) || [];
@@ -362,16 +368,37 @@ function createC4cClient({
       if (!itemsRes.ok) { return { status: 'C4C_ERROR', message: `C4C item lookup failed (HTTP ${itemsRes.status}).` }; }
       const itemsBody = await itemsRes.json();
       const c4cItems = (itemsBody.d && itemsBody.d.results) || [];
-      const byProduct = new Map(c4cItems.map((it) => [String(it[fields.itemProductField]), it]));
+      const norm = (v) => String(v === undefined || v === null ? '' : v).trim().replace(/^0+(?=\d)/, '');
 
-      // 4. PATCH each priced line's item, ETag-guarded.
+      // 4a. Resolve every line's C4C item BEFORE the first PATCH — a bad line must not leave
+      //     the quote half written. By C4C ItemID when the caller sends one (price-break lines
+      //     share a product, so the product alone is ambiguous); by product only when exactly
+      //     one C4C item carries it.
+      const itemIdField = (fields.read && fields.read.itemId) || 'ItemID';
+      const targets = [];
+      for (const line of items) {
+        let candidates;
+        if (norm(line.itemId) !== '') {
+          candidates = c4cItems.filter((it) => norm(it[itemIdField]) === norm(line.itemId));
+          if (candidates.length === 0) {
+            return { status: 'C4C_ERROR', message: `Item ${line.itemId} ("${line.partNumber}") is not an item of ${kind} "${objectId}" in C4C.`, written: 0 };
+          }
+        } else {
+          candidates = c4cItems.filter((it) => String(it[fields.itemProductField]) === String(line.partNumber));
+          if (candidates.length === 0) {
+            return { status: 'C4C_ERROR', message: `Product "${line.partNumber}" is not an item of ${kind} "${objectId}" in C4C.`, written: 0 };
+          }
+          if (candidates.length > 1) {
+            return { status: 'C4C_ERROR', message: `Product "${line.partNumber}" appears on ${candidates.length} items of ${kind} "${objectId}" — send the item number to say which one.`, written: 0 };
+          }
+        }
+        targets.push({ line, target: candidates[0] });
+      }
+
+      // 4b. PATCH each priced line's item, ETag-guarded.
       const conflicts = [];
       let written = 0;
-      for (const line of items) {
-        const target = byProduct.get(String(line.partNumber));
-        if (!target) {
-          return { status: 'C4C_ERROR', message: `Product "${line.partNumber}" is not an item of ${kind} "${objectId}" in C4C.` };
-        }
+      for (const { line, target } of targets) {
         const body = {
           [fields.cost]: line.cost !== undefined && line.cost !== '' ? String(line.cost) : undefined,
           [fields.landedCost]: line.landedCost !== undefined && line.landedCost !== '' ? String(line.landedCost) : undefined,
@@ -438,7 +465,7 @@ function createC4cClient({
     const root = destination.url.replace(/\/$/, '') + productPath;
     try {
       const res = await fetchImpl(
-        `${root}/${r.productCollection}?$filter=startswith(${r.productId},'${encodeURIComponent(q)}')&$top=10&$select=${r.productId},${r.productDescription}`,
+        `${root}/${r.productCollection}?$filter=startswith(${r.productId},'${odataLit(q)}')&$top=10&$select=${r.productId},${r.productDescription}`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } },
       );
       if (!res.ok) { return { status: 'C4C_ERROR', message: `C4C product search failed (HTTP ${res.status} on ${productPath}/${r.productCollection}).` }; }
@@ -472,7 +499,7 @@ function createC4cClient({
     const r = fields.read;
     const productPath = r.productServicePath || servicePath;
     const root = destination.url.replace(/\/$/, '') + productPath;
-    const filter = parts.map((p) => `${r.productId} eq '${encodeURIComponent(p)}'`).join(' or ');
+    const filter = parts.map((p) => `${r.productId} eq '${odataLit(p)}'`).join(' or ');
     const base = `${root}/${r.productCollection}?$filter=${filter}&$top=${parts.length}`;
     const get = (url) => fetchImpl(url, { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } });
     const str = (v) => (v !== undefined && v !== null ? String(v) : '');
@@ -521,7 +548,7 @@ function createC4cClient({
 
     const r = fields.read;
     const root = destination.url.replace(/\/$/, '') + r.originServicePath;
-    const filter = parts.map((p) => `${r.originMaterial} eq '${encodeURIComponent(p)}'`).join(' or ');
+    const filter = parts.map((p) => `${r.originMaterial} eq '${odataLit(p)}'`).join(' or ');
     const get = async (collection) => {
       const res = await fetchImpl(`${root}/${collection}?$filter=${filter}&$top=500`,
         { method: 'GET', headers: { ...authHeaders(destination), Accept: 'application/json' } });

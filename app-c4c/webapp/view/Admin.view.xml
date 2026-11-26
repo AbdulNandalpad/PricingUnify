@@ -10,65 +10,69 @@
   <Page id="adminPage" showHeader="false" backgroundDesign="List">
     <content>
 
-      <OverflowToolbar class="sapUiSmallMarginBeginEnd sapUiTinyMarginTop">
-        <Title text="{i18n>adminTitle}" level="H3"/>
-        <ToolbarSpacer/>
-        <Label text="{i18n>region}:"/>
-        <Select selectedKey="{vm>/selectedRegion}" change=".onRegionSelect">
-          <core:Item key="EUROPE" text="EUROPE"/>
-          <core:Item key="CHINA" text="CHINA"/>
-          <core:Item key="INDIA" text="INDIA"/>
-          <core:Item key="AMERICAS" text="AMERICAS"/>
-        </Select>
-        <Text text="{i18n>signedInAs}: {session>/user}"/>
-        <Button text="{i18n>openPricing}" icon="sap-icon://money-bills" type="Transparent" press=".onOpenPricing"/>
-      </OverflowToolbar>
+      <!-- Title bar: same List-Report look as the pricing screen. -->
+      <VBox class="ctxHeader">
+        <HBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap">
+          <HBox alignItems="Center">
+            <core:Icon src="sap-icon://action-settings" size="1.5rem" class="ctxIcon sapUiSmallMarginEnd"/>
+            <VBox>
+              <Title text="{i18n>adminTitle}" level="H3" class="ctxTitle"/>
+              <Text text="{i18n>adminSubtitle}" class="adminHint"/>
+            </VBox>
+          </HBox>
+          <HBox alignItems="Center">
+            <Text text="{i18n>signedInAs}: {session>/user}" class="sapUiSmallMarginEnd ctxUser"/>
+            <Button text="{i18n>openPricing}" icon="sap-icon://navigation-left-arrow" type="Transparent" press=".onOpenPricing"/>
+          </HBox>
+        </HBox>
+        <MessageStrip text="{vm>/message}" type="{vm>/messageType}" showIcon="true" showCloseButton="true"
+          class="sapUiTinyMarginTop" visible="{= !!${vm>/message} }" close=".onCloseMessage"/>
+        <MessageStrip text="{i18n>sessionExpired}" type="Error" showIcon="true" class="sapUiTinyMarginTop"
+          visible="{= !!${session>/sessionExpired} }">
+          <link><Link text="{i18n>reloadPage}" press=".onReloadPage"/></link>
+        </MessageStrip>
+      </VBox>
 
-      <MessageStrip text="{vm>/message}" type="{vm>/messageType}" showIcon="true" showCloseButton="true"
-        class="sapUiSmallMarginBeginEnd sapUiTinyMarginTop" visible="{= !!${vm>/message} }" close=".onCloseMessage"/>
-
-      <IconTabBar id="adminTabs" class="sapUiNoMargin" expandable="false" busy="{vm>/busy}">
+      <IconTabBar id="adminTabs" class="adminTabs" expandable="false" upperCase="false" busy="{vm>/busy}" busyIndicatorDelay="0">
         <items>
 
-          <!-- 1. Regions -->
-          <IconTabFilter text="{i18n>tabRegions}" key="regions" icon="sap-icon://world">
-            <Table items="{vm>/regions}" inset="false" itemPress=".onRegionRowPress" mode="SingleSelectMaster" selectionChange=".onRegionRowPress">
-              <columns>
-                <Column><Text text="{i18n>region}"/></Column>
-                <Column><Text text="{i18n>activeVersion}"/></Column>
-                <Column><Text text="{i18n>validFrom}"/></Column>
-                <Column><Text text="{i18n>buildUpSteps}"/></Column>
-                <Column><Text text="{i18n>costSourceOrder}"/></Column>
-              </columns>
-              <items>
-                <ColumnListItem type="Active">
-                  <cells>
-                    <ObjectIdentifier title="{vm>region}"/>
-                    <Text text="{vm>version}"/>
-                    <Text text="{vm>validFrom}"/>
-                    <Text text="{vm>stepCount}"/>
-                    <Text text="{vm>sequence}"/>
-                  </cells>
-                </ColumnListItem>
-              </items>
-            </Table>
-          </IconTabFilter>
+          <!-- Region rules: how a region turns a cost into a landed cost -->
+          <IconTabFilter text="{i18n>tabRegionRules}" key="regionRules" icon="sap-icon://money-bills">
+            <VBox class="adminBody">
+              <HBox alignItems="Center" wrap="Wrap" class="adminRegionBar">
+                <Label text="{i18n>region}" class="sapUiTinyMarginEnd"/>
+                <Select selectedKey="{vm>/selectedRegion}" change=".onRegionSelect" width="12rem">
+                  <core:Item key="EUROPE" text="EUROPE"/>
+                  <core:Item key="CHINA" text="CHINA"/>
+                  <core:Item key="INDIA" text="INDIA"/>
+                  <core:Item key="AMERICAS" text="AMERICAS"/>
+                </Select>
+                <ObjectStatus class="sapUiSmallMarginBegin" state="Success" icon="sap-icon://sys-enter-2"
+                  text="{i18n>activeVersion}: {vm>/sheet/loaded/version} · {i18n>validFrom} {vm>/sheet/loaded/validFrom}"
+                  visible="{= !!${vm>/sheet/loaded} }"/>
+              </HBox>
 
-          <!-- 2. Cost Rules -->
-          <IconTabFilter text="{i18n>tabCostRules}" key="costRules" icon="sap-icon://money-bills">
-            <VBox class="sapUiSmallMargin">
-              <Panel headerText="{i18n>costSources}" class="sapUiTinyMarginBottom">
-                <l:VerticalLayout width="100%">
-                  <Label text="{i18n>seqDefault}"/>
-                  <Input value="{vm>/sheet/seqDefault}" placeholder="C4C, ERP, CCD, CCP" width="26rem"/>
-                  <Label text="{i18n>seqMts}" class="sapUiTinyMarginTop"/>
-                  <Input value="{vm>/sheet/seqMTS}" placeholder="{i18n>seqOverridePlaceholder}" width="26rem"/>
-                  <Label text="{i18n>seqNonMts}" class="sapUiTinyMarginTop"/>
-                  <Input value="{vm>/sheet/seqNonMTS}" placeholder="{i18n>seqOverridePlaceholder}" width="26rem"/>
-                </l:VerticalLayout>
+              <Panel headerText="{i18n>costSources}" class="adminCard" width="auto">
+                <VBox class="sapUiSmallMargin">
+                  <Text text="{i18n>costSourcesHint}" class="adminHint sapUiSmallMarginBottom"/>
+                  <HBox wrap="Wrap" class="adminFields">
+                    <VBox class="adminField">
+                      <Label text="{i18n>seqDefault}"/>
+                      <Input value="{vm>/sheet/seqDefault}" width="20rem"/>
+                    </VBox>
+                    <VBox class="adminField">
+                      <Label text="{i18n>seqMts}"/>
+                      <Input value="{vm>/sheet/seqMTS}" placeholder="{i18n>seqOverridePlaceholder}" width="20rem"/>
+                    </VBox>
+                    <VBox class="adminField">
+                      <Label text="{i18n>seqNonMts}"/>
+                      <Input value="{vm>/sheet/seqNonMTS}" placeholder="{i18n>seqOverridePlaceholder}" width="20rem"/>
+                    </VBox>
+                  </HBox>
+                </VBox>
               </Panel>
 
-              <Panel headerText="{i18n>landedCostComponents}">
+              <Panel class="adminCard" width="auto">
                 <headerToolbar>
                   <OverflowToolbar>
                     <Title text="{i18n>landedCostComponents}" level="H5"/>
@@ -76,16 +80,17 @@
                     <Button icon="sap-icon://add" text="{i18n>addStep}" type="Transparent" press=".onAddStep"/>
                   </OverflowToolbar>
                 </headerToolbar>
-                <Table items="{vm>/sheet/buildUp}" inset="false">
+                <Table items="{vm>/sheet/buildUp}" inset="false" class="adminTable">
                   <columns>
-                    <Column width="10rem"><Text text="{i18n>stepId}"/></Column>
+                    <Column width="12rem"><Text text="{i18n>stepId}"/></Column>
                     <Column width="9rem"><Text text="{i18n>stepType}"/></Column>
-                    <Column width="6rem"><Text text="{i18n>rate}"/></Column>
-                    <Column width="7rem"><Text text="{i18n>rateRef}"/></Column>
-                    <Column width="6rem"><Text text="{i18n>amount}"/></Column>
-                    <Column width="7rem"><Text text="{i18n>amountRef}"/></Column>
-                    <Column width="11rem"><Text text="{i18n>basis}"/></Column>
-                    <Column><Text text="{i18n>when}"/></Column>
+                    <Column width="6rem" hAlign="End"><Text text="{i18n>rate}"/></Column>
+                    <Column width="5rem"><Text text="{i18n>rateHint}"/></Column>
+                    <Column width="8rem"><Text text="{i18n>rateRef}"/></Column>
+                    <Column width="6rem" hAlign="End"><Text text="{i18n>amount}"/></Column>
+                    <Column width="8rem"><Text text="{i18n>amountRef}"/></Column>
+                    <Column width="12rem"><Text text="{i18n>basis}"/></Column>
+                    <Column minWidth="12rem"><Text text="{i18n>when}"/></Column>
                     <Column width="3rem"><Text text=""/></Column>
                   </columns>
                   <items>
@@ -98,69 +103,61 @@
                           <core:Item key="ADDER" text="{i18n>typeAdder}"/>
                           <core:Item key="PER_LINE" text="{i18n>typePerLine}"/>
                         </Select>
-                        <Input value="{vm>rate}" placeholder="0.047"/>
-                        <Input value="{vm>rateRef}" placeholder="freight"/>
-                        <Input value="{vm>amount}"/>
-                        <Input value="{vm>amountRef}" placeholder="pickCharge"/>
-                        <Input value="{vm>basisText}" placeholder="BASE_COST, SCM_MARKUP"/>
-                        <Input value="{vm>whenText}" placeholder="item.stockClass === 'NonMTS'"/>
-                        <Button icon="sap-icon://decline" type="Transparent" press=".onRemoveStep"/>
+                        <Input value="{vm>rate}" textAlign="End"/>
+                        <Text text="{path: 'vm>rate', formatter: '.formatter.ratePct'}"/>
+                        <Input value="{vm>rateRef}"/>
+                        <Input value="{vm>amount}" textAlign="End"/>
+                        <Input value="{vm>amountRef}"/>
+                        <Input value="{vm>basisText}"/>
+                        <Input value="{vm>whenText}"/>
+                        <Button icon="sap-icon://decline" type="Transparent" tooltip="{i18n>removeStep}" press=".onRemoveStep"/>
                       </cells>
                     </ColumnListItem>
                   </items>
                 </Table>
-                <Text text="{i18n>constraintsCarried}: {vm>/sheet/constraintCount}" class="sapUiSmallMargin"/>
+                <Text text="{i18n>constraintsCarried}: {vm>/sheet/constraintCount}" class="adminHint sapUiSmallMargin"/>
               </Panel>
 
-              <OverflowToolbar class="sapUiTinyMarginTop">
+              <Panel headerText="{i18n>versionHistory}" class="adminCard" width="auto" expandable="true" expanded="false">
+                <Table items="{vm>/versions}" inset="false" noDataText="{i18n>noVersions}">
+                  <columns>
+                    <Column><Text text="{i18n>version}"/></Column>
+                    <Column><Text text="{i18n>status}"/></Column>
+                    <Column><Text text="{i18n>validFrom}"/></Column>
+                    <Column><Text text="{i18n>validTo}"/></Column>
+                    <Column><Text text="{i18n>authoredBy}"/></Column>
+                    <Column><Text text="{i18n>authoredAt}"/></Column>
+                  </columns>
+                  <items>
+                    <ColumnListItem>
+                      <cells>
+                        <ObjectIdentifier title="{vm>version}"/>
+                        <ObjectStatus text="{vm>status}" state="{= ${vm>status} === 'ACTIVE' ? 'Success' : 'None' }"/>
+                        <Text text="{vm>validFrom}"/>
+                        <Text text="{= ${vm>validTo} || '—' }"/>
+                        <Text text="{vm>authoredBy}"/>
+                        <Text text="{vm>authoredAt}"/>
+                      </cells>
+                    </ColumnListItem>
+                  </items>
+                </Table>
+              </Panel>
+
+              <OverflowToolbar class="adminSaveBar">
                 <Label text="{i18n>newVersion}"/>
                 <Input value="{vm>/sheet/version}" width="11rem"/>
                 <Label text="{i18n>validFrom}"/>
                 <Input value="{vm>/sheet/validFrom}" width="9rem" placeholder="YYYY-MM-DD"/>
+                <Text text="{i18n>saveCreatesVersion}" class="adminHint"/>
                 <ToolbarSpacer/>
                 <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" press=".onSaveSheet"/>
               </OverflowToolbar>
             </VBox>
           </IconTabFilter>
 
-          <!-- 3. Cost Plus Rules -->
-          <IconTabFilter text="{i18n>tabCostPlus}" key="costPlus" icon="sap-icon://sales-quote">
-            <VBox class="sapUiSmallMargin">
-              <MessageStrip text="{i18n>costPlusHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
-              <Table items="{path: 'vm>/sheet/buildUp', filters: [{path: 'type', operator: 'EQ', value1: 'FACTOR'}]}" inset="false">
-                <columns>
-                  <Column width="12rem"><Text text="{i18n>stepId}"/></Column>
-                  <Column width="8rem"><Text text="{i18n>rate}"/></Column>
-                  <Column width="8rem"><Text text="{i18n>rateHint}"/></Column>
-                  <Column width="9rem"><Text text="{i18n>rateRef}"/></Column>
-                  <Column><Text text="{i18n>basis}"/></Column>
-                  <Column><Text text="{i18n>when}"/></Column>
-                </columns>
-                <items>
-                  <ColumnListItem>
-                    <cells>
-                      <ObjectIdentifier title="{vm>id}"/>
-                      <Input value="{vm>rate}"/>
-                      <Text text="{path: 'vm>rate', formatter: '.formatter.ratePct'}"/>
-                      <Text text="{vm>rateRef}"/>
-                      <Text text="{vm>basisText}"/>
-                      <Text text="{vm>whenText}"/>
-                    </cells>
-                  </ColumnListItem>
-                </items>
-              </Table>
-              <OverflowToolbar class="sapUiTinyMarginTop">
-                <Label text="{i18n>newVersion}"/>
-                <Input value="{vm>/sheet/version}" width="11rem"/>
-                <ToolbarSpacer/>
-                <Button text="{i18n>saveActivate}" type="Emphasized" icon="sap-icon://save" press=".onSaveSheet"/>
-              </OverflowToolbar>
-            </VBox>
-          </IconTabFilter>
-
-          <!-- 3b. Suppliers: freight / duty / tariff rates per destination warehouse -->
+          <!-- Suppliers: freight / duty / tariff rates per destination warehouse -->
           <IconTabFilter text="{i18n>tabSuppliers}" key="suppliers" icon="sap-icon://supplier">
-            <VBox class="sapUiSmallMargin">
+            <VBox class="adminBody">
               <MessageStrip text="{i18n>suppliersHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
               <HBox wrap="NoWrap" alignItems="Start">
                 <VBox width="22rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
@@ -172,6 +169,10 @@
                   <List items="{vm>/suppliers/list}" mode="SingleSelectMaster" selectionChange=".onSupplierSelect" noDataText="{i18n>suppliersNone}">
                     <StandardListItem title="{vm>supplier}" description="{vm>supplierCountry} — {vm>warehouseText}"/>
                   </List>
+                </VBox>
+                <VBox visible="{= !${vm>/suppliers/doc} }" class="adminEmpty" width="100%" alignItems="Center" justifyContent="Center">
+                  <core:Icon src="sap-icon://supplier" size="2.5rem" class="adminEmptyIcon"/>
+                  <Text text="{i18n>supplierSelectHint}" class="adminHint"/>
                 </VBox>
                 <VBox visible="{= !!${vm>/suppliers/doc} }" class="sapUiSmallMarginBottom" width="100%">
                   <HBox wrap="Wrap" alignItems="End" class="sapUiTinyMarginBottom">
@@ -215,7 +216,7 @@
                       </ColumnListItem>
                     </items>
                   </Table>
-                  <OverflowToolbar class="sapUiTinyMarginTop">
+                  <OverflowToolbar class="adminSaveBar">
                     <Label text="{i18n>newVersion}"/>
                     <Input value="{vm>/suppliers/doc/version}" width="11rem"/>
                     <Label text="{i18n>validFrom}"/>
@@ -228,65 +229,9 @@
             </VBox>
           </IconTabFilter>
 
-          <!-- 4. Price Lists (read-only WSO2 browser) -->
-          <IconTabFilter text="{i18n>tabPriceLists}" key="priceLists" icon="sap-icon://list">
-            <VBox class="sapUiSmallMargin">
-              <MessageStrip text="{i18n>priceListReadOnlyHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
-              <l:HorizontalLayout allowWrapping="true">
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colSupplier}"/><Input value="{vm>/priceList/supplier}" width="9rem" placeholder="ACME"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colCategory}"/><Input value="{vm>/priceList/productCategory}" width="9rem" placeholder="SEALS"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colProduct}"/><Input value="{vm>/priceList/partNumber}" width="9rem" placeholder="EU-T100"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colQty}"/><Input value="{vm>/priceList/quantity}" width="5rem" type="Number"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>asOf}"/><Input value="{vm>/priceList/asOf}" width="8rem" placeholder="YYYY-MM-DD"/></VBox>
-                <VBox><Label text=""/><Button text="{i18n>lookUp}" type="Emphasized" press=".onLookupPriceList"/></VBox>
-              </l:HorizontalLayout>
-              <Panel headerText="{i18n>priceListResult}" class="sapUiTinyMarginTop" visible="{= !!${vm>/priceList/looked} }">
-                <VBox class="sapUiSmallMargin" visible="{= !!${vm>/priceList/entry} }">
-                  <ObjectStatus text="{vm>/priceList/entry/value} {vm>/priceList/entry/currency}" state="Success"/>
-                  <Text text="{i18n>matchedBy}: {vm>/priceList/matchedBy}"/>
-                  <Text text="{i18n>qtyBreakTier}: {vm>/priceList/entry/minQty}"/>
-                  <Text text="{i18n>validFrom}: {vm>/priceList/entry/validFrom} — {i18n>validTo}: {= ${vm>/priceList/entry/validTo} || 'open' }"/>
-                </VBox>
-                <MessageStrip text="{i18n>priceListMiss}: {vm>/priceList/triedText}" type="Warning" showIcon="true"
-                  class="sapUiSmallMargin" visible="{= ${vm>/priceList/looked} &amp;&amp; !${vm>/priceList/entry} }"/>
-              </Panel>
-            </VBox>
-          </IconTabFilter>
-
-          <!-- 5. Versions -->
-          <IconTabFilter text="{i18n>tabVersions}" key="versions" icon="sap-icon://history">
-            <VBox class="sapUiSmallMargin">
-              <MessageStrip text="{i18n>versionsHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
-              <Table items="{vm>/versions}" inset="false">
-                <columns>
-                  <Column><Text text="{i18n>version}"/></Column>
-                  <Column><Text text="{i18n>status}"/></Column>
-                  <Column><Text text="{i18n>validFrom}"/></Column>
-                  <Column><Text text="{i18n>validTo}"/></Column>
-                  <Column><Text text="{i18n>authoredBy}"/></Column>
-                  <Column><Text text="{i18n>authoredAt}"/></Column>
-                  <Column><Text text="{i18n>source}"/></Column>
-                </columns>
-                <items>
-                  <ColumnListItem>
-                    <cells>
-                      <ObjectIdentifier title="{vm>version}"/>
-                      <ObjectStatus text="{vm>status}" state="{= ${vm>status} === 'ACTIVE' ? 'Success' : 'None' }"/>
-                      <Text text="{vm>validFrom}"/>
-                      <Text text="{= ${vm>validTo} || 'open' }"/>
-                      <Text text="{vm>authoredBy}"/>
-                      <Text text="{vm>authoredAt}"/>
-                      <Text text="{vm>source}"/>
-                    </cells>
-                  </ColumnListItem>
-                </items>
-              </Table>
-            </VBox>
-          </IconTabFilter>
-
-          <!-- 6. Connections (read-only: integration endpoints and where each is maintained) -->
+          <!-- Connections: integration endpoints (credentials are never stored here) -->
           <IconTabFilter text="{i18n>tabConnections}" key="connections" icon="sap-icon://chain-link">
-            <VBox class="sapUiSmallMargin">
+            <VBox class="adminBody">
               <MessageStrip text="{i18n>connectionsHint}" type="Information" showIcon="true" class="sapUiTinyMarginBottom"/>
 
               <Panel headerText="{i18n>connApi6}" class="sapUiTinyMarginBottom">
@@ -380,7 +325,7 @@
                 </VBox>
               </Panel>
 
-              <OverflowToolbar class="sapUiTinyMarginBottom">
+              <OverflowToolbar class="adminSaveBar">
                 <Label text="{i18n>newVersion}"/>
                 <Input value="{vm>/connections/newVersion}" width="11rem" placeholder="{i18n>connVersionAuto}"/>
                 <Text text="{i18n>connInMemoryNote}" class="traceNote sapUiSmallMarginBegin"/>
@@ -394,39 +339,6 @@
                     text="{= ${vm>/connections/ai/configured} ? ${i18n>connConfigured} : ${i18n>connNotConfigured} }"
                     state="{= ${vm>/connections/ai/configured} ? 'Success' : 'None' }"/>
                   <Text text="{i18n>maintainedVia}: {vm>/connections/ai/maintainedVia}" class="sapUiTinyMarginTop traceNote"/>
-                </VBox>
-              </Panel>
-            </VBox>
-          </IconTabFilter>
-
-          <!-- 7. Simulate -->
-          <IconTabFilter text="{i18n>tabSimulate}" key="simulate" icon="sap-icon://simulate">
-            <VBox class="sapUiSmallMargin">
-              <l:HorizontalLayout allowWrapping="true">
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colProduct}"/><Input value="{vm>/sim/partNumber}" width="9rem"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colQty}"/><Input value="{vm>/sim/quantity}" width="5rem" type="Number"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colSupplier}"/><Input value="{vm>/sim/supplier}" width="8rem"/></VBox>
-                <VBox class="sapUiTinyMarginEnd"><Label text="{i18n>colCategory}"/><Input value="{vm>/sim/productCategory}" width="8rem"/></VBox>
-                <VBox class="sapUiTinyMarginEnd">
-                  <Label text="{i18n>colPricingType}"/>
-                  <Select selectedKey="{vm>/sim/pricingType}">
-                    <core:Item key="COST_PLUS" text="{i18n>costPlus}"/>
-                    <core:Item key="PRICE_LIST" text="{i18n>priceList}"/>
-                  </Select>
-                </VBox>
-                <VBox class="sapUiTinyMarginEnd">
-                  <Label text="{i18n>objectType}"/>
-                  <Select selectedKey="{vm>/sim/objectType}">
-                    <core:Item key="QUOTE" text="{i18n>titleQuote}"/>
-                    <core:Item key="OPPORTUNITY" text="{i18n>titleOpportunity}"/>
-                  </Select>
-                </VBox>
-                <VBox><Label text=""/><Button text="{i18n>runSimulation}" type="Emphasized" icon="sap-icon://simulate" press=".onSimulate"/></VBox>
-              </l:HorizontalLayout>
-              <Panel headerText="{i18n>simResult}" class="sapUiTinyMarginTop" visible="{= !!${vm>/sim/line} }">
-                <VBox class="sapUiSmallMargin">
-                  <ObjectStatus text="{vm>/sim/resultText}" state="{vm>/sim/resultState}" class="sapUiTinyMarginBottom"/>
-                  <Button text="{i18n>showTrace}" icon="sap-icon://detail-view" press=".onShowSimTrace" width="12rem"/>
                 </VBox>
               </Panel>
             </VBox>

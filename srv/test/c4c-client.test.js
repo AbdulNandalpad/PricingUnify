@@ -18,7 +18,7 @@ function jsonRes(body, { status = 200, headers = {} } = {}) {
 }
 
 /** A fake C4C: one quote Q-1 with items EU-T100 and P-10023, recording every request. */
-function fakeC4c({ patchStatus = 204 } = {}) {
+function fakeC4c({ patchStatus = 204, items } = {}) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, method: init.method, headers: init.headers, body: init.body ? JSON.parse(init.body) : null });
@@ -29,9 +29,9 @@ function fakeC4c({ patchStatus = 204 } = {}) {
       return jsonRes({ d: { results: [{ ObjectID: 'HDR-OBJ-1', __metadata: { etag: 'W/"hdr-1"' } }] } });
     }
     if (init.method === 'GET' && (url.includes('SalesQuoteItemCollection') || url.includes('OpportunityItemCollection'))) {
-      return jsonRes({ d: { results: [
-        { ObjectID: 'ITM-1', ProductInternalID: 'EU-T100', __metadata: { etag: 'W/"itm-1"' } },
-        { ObjectID: 'ITM-2', ProductInternalID: 'P-10023', __metadata: { etag: 'W/"itm-2"' } },
+      return jsonRes({ d: { results: items || [
+        { ObjectID: 'ITM-1', ItemID: '10', ProductInternalID: 'EU-T100', __metadata: { etag: 'W/"itm-1"' } },
+        { ObjectID: 'ITM-2', ItemID: '20', ProductInternalID: 'P-10023', __metadata: { etag: 'W/"itm-2"' } },
       ] } });
     }
     if (init.method === 'PATCH') {
@@ -335,4 +335,55 @@ test('a failed customer lookup never fails the item fetch — the customer carri
   assert.equal(res.items.length, 2);
   assert.equal(res.customer.accountId, '32539');
   assert.match(res.customer.note, /HTTP 403/);
+});
+
+const PRICE_BREAK_ITEMS = [
+  { ObjectID: 'ITM-A', ItemID: '10', ProductInternalID: 'EU-T100', __metadata: { etag: 'W/"a"' } },
+  { ObjectID: 'ITM-B', ItemID: '20', ProductInternalID: 'EU-T100', __metadata: { etag: 'W/"b"' } }, // price-break line: same product
+  { ObjectID: 'ITM-C', ItemID: '30', ProductInternalID: 'P-10023', __metadata: { etag: 'W/"c"' } },
+];
+
+test('write-back: a line carrying its C4C item number patches THAT item, even when the product repeats', async () => {
+  const c4c = fakeC4c({ items: PRICE_BREAK_ITEMS });
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  const res = await client.writeBack({
+    objectType: 'QUOTE', objectId: 'Q-1', user: 'alice',
+    items: [{ partNumber: 'EU-T100', itemId: '10', landedCost: '1.00' }, { partNumber: 'EU-T100', itemId: '20', landedCost: '2.00' }],
+  });
+  assert.equal(res.status, 'OK');
+  assert.equal(res.written, 2);
+  const patches = c4c.calls.filter((c) => c.method === 'PATCH' && c.url.includes('SalesQuoteItemCollection'));
+  assert.deepEqual(patches.map((c) => [c.url.match(/'(ITM-\w)'/)[1], c.body.LandedCost_SDK]), [['ITM-A', '1.00'], ['ITM-B', '2.00']]);
+});
+
+test('write-back: a repeated product with no item number is ambiguous -> typed error, and NOTHING is written', async () => {
+  const c4c = fakeC4c({ items: PRICE_BREAK_ITEMS });
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  const res = await client.writeBack({
+    objectType: 'QUOTE', objectId: 'Q-1', user: 'alice',
+    items: [{ partNumber: 'P-10023', itemId: '30', landedCost: '9.00' }, { partNumber: 'EU-T100', landedCost: '1.00' }],
+  });
+  assert.equal(res.status, 'C4C_ERROR');
+  assert.match(res.message, /appears on 2 items/);
+  assert.equal(c4c.calls.filter((c) => c.method === 'PATCH').length, 0, 'validated up front: no partial write');
+});
+
+test('write-back: an unknown item number fails before any PATCH (no half-written quote)', async () => {
+  const c4c = fakeC4c();
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  const res = await client.writeBack({
+    objectType: 'QUOTE', objectId: 'Q-1', user: 'alice',
+    items: [{ partNumber: 'EU-T100', itemId: '10', landedCost: '1.00' }, { partNumber: 'P-10023', itemId: '99', landedCost: '2.00' }],
+  });
+  assert.equal(res.status, 'C4C_ERROR');
+  assert.match(res.message, /Item 99/);
+  assert.equal(c4c.calls.filter((c) => c.method === 'PATCH').length, 0);
+});
+
+test('OData literals: a quote character in an id is doubled, so it cannot rewrite the filter', async () => {
+  const c4c = fakeC4c();
+  const client = createC4cClient({ resolveDestination: () => DEST, fetchImpl: c4c.fetchImpl });
+  await client.writeBack({ objectType: 'QUOTE', objectId: "1' or ID ne '", user: 'alice', items: [{ partNumber: 'EU-T100', landedCost: '1' }] });
+  const lookup = c4c.calls.find((c) => c.method === 'GET' && c.url.includes('SalesQuoteCollection'));
+  assert.ok(lookup.url.includes("eq '1''%20or%20ID%20ne%20'''"), lookup.url); // every quote doubled: the value stays one literal
 });
