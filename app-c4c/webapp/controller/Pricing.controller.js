@@ -4,8 +4,10 @@ sap.ui.define([
   "sap/ui/core/Fragment",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
-  "sap/m/MessageBox"
-], function (BaseController, JSONModel, Fragment, Filter, FilterOperator, MessageBox) {
+  "sap/m/MessageBox",
+  "sap/m/Menu",
+  "sap/m/MenuItem"
+], function (BaseController, JSONModel, Fragment, Filter, FilterOperator, MessageBox, Menu, MenuItem) {
   "use strict";
 
   /**
@@ -24,7 +26,7 @@ sap.ui.define([
         items: [],
         busy: false,
         hasResults: false,
-        showAdvanced: false,
+        showAdvanced: false, detailIndex: 0,
         itemCount: 0, search: "", shownCount: 0, writableCount: 0,
         // C4C's own item (processing) types — the code is what the gateway receives, the label is what the user reads.
         itemTypes: [
@@ -36,6 +38,7 @@ sap.ui.define([
         message: "",
         messageType: "Information"
       });
+      vm.setProperty("/itemTypes", vm.getProperty("/itemTypes").map(function (t) { return Object.assign({}, t, { label: t.text.replace(/^\w+ - /, "") }); }));
       // Overlapping async calls (load -> enrich -> enrich) each hold the grid busy; it only
       // frees when the LAST one finishes — a plain boolean cleared early under a running call.
       vm.busyStart = function () { this._busyN = (this._busyN || 0) + 1; this.setProperty("/busy", true); };
@@ -55,7 +58,7 @@ sap.ui.define([
       return {
         itemNo: 0, partNumber: "", description: "", quantity: "1", uom: "", itemType: "AGN", priceUnit: "100", // C4C item types: default AGN (Product), the user can choose // C4C's own default: prices and costs are per 100 pieces
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
-        customerPartNumber: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
+        customerPartNumber: "", customItemId: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
         priceBreak: false, alternativeToLine: "", parentItemNo: "", perKitQty: "", fromC4c: false, stale: false, // parentItemNo/perKitQty: a kit COMPONENT row (ZCOM) points at its header (ZKIT) and holds the quantity in ONE kit; // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
         supplierExternalId: "", supplierName: "",
@@ -375,8 +378,11 @@ sap.ui.define([
     },
 
     onRemoveRow: function (oEvent) {
-      var ctx = oEvent.getSource().getBindingContext("vm");
-      var index = Number(ctx.getPath().split("/").pop());
+      this._removeRowAt(oEvent.getSource().getBindingContext("vm").getPath());
+    },
+
+    _removeRowAt: function (path) {
+      var index = Number(path.split("/").pop());
       var items = this._vm().getProperty("/items");
       var gone = items[index];
       if (gone && gone.parentItemNo) { return; } // a component belongs to its kit — remove the kit instead
@@ -614,8 +620,10 @@ sap.ui.define([
     onPriceEdit: function (e) { e.getSource().getBindingContext("vm").getModel().setProperty(e.getSource().getBindingContext("vm").getPath() + "/priceBy", "PRICE"); },
     onMarginEdit: function (e) { e.getSource().getBindingContext("vm").getModel().setProperty(e.getSource().getBindingContext("vm").getPath() + "/priceBy", "MARGIN"); },
 
-    onFetchCosts: function () { this._runPricing(false); },
-    onCalculatePrices: function () { this._runPricing(true); },
+    /** ONE action for both host objects (owner 2026-11-27): an OPPORTUNITY gets its cost, a QUOTE cost AND price/margin. */
+    onCalculate: function () {
+      this._runPricing(this.getSession().getProperty("/objectType") !== "OPPORTUNITY");
+    },
 
     /** Display-only order summary (sum of (price||landed cost) x rule-adjusted qty, per
      *  currency) — plain Number math, deliberately: the engine owns all real pricing math. */
@@ -979,7 +987,7 @@ sap.ui.define([
         "uom": "uom", "unit": "uom", "quantity uom": "uom",
         "item type": "itemType", "item type description": "itemType", "processing type": "itemType", "itemtypedesc": "itemType",
         "price/cost unit": "priceUnit", "price unit": "priceUnit", "cost unit": "priceUnit", "price per": "priceUnit",
-        "customer part number": "customerPartNumber", "customer part no": "customerPartNumber",
+        "customer part number": "customerPartNumber", "customer part no": "customerPartNumber", "tss item id": "customItemId", "tss custom item id": "customItemId", "custom item id": "customItemId",
         "origin of data": "ood", "data origin": "ood", "ood": "ood",
         "warehouse id": "warehouse", "warehouse": "warehouse",
         "no. of picks": "picks", "no of picks": "picks", "picks": "picks",
@@ -1036,6 +1044,83 @@ sap.ui.define([
       this.getRouter().navTo("admin");
     },
 
+
+    /** ⋯ menu at the start of every line: add a quantity break / an alternative (C4C's own modeling: an extra line,
+     *  Price break flag + "alternative to line" pointing back at the main line), fetch kit components, remove. */
+    onOpenRowMenu: function (oEvent) {
+      var that = this;
+      var btn = oEvent.getSource();
+      var path = btn.getBindingContext("vm").getPath();
+      var row = btn.getBindingContext("vm").getObject();
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      if (this._rowMenu) { this._rowMenu.destroy(); }
+      var menu = new Menu();
+      if (!row.parentItemNo) {
+        menu.addItem(new MenuItem({ text: bundle.getText("menuAddBreak"), icon: "sap-icon://add", press: function () { that._addLinkedRow(path, "BREAK"); } }));
+        menu.addItem(new MenuItem({ text: bundle.getText("menuAddAlternative"), icon: "sap-icon://duplicate", press: function () { that._addLinkedRow(path, "ALTERNATIVE"); } }));
+        if (row.itemType === "ZKIT") {
+          menu.addItem(new MenuItem({ text: bundle.getText("kitRefetch"), icon: "sap-icon://refresh", press: function () { that._explodeKit(that._vm().getProperty(path)); } }));
+        }
+        menu.addItem(new MenuItem({ text: bundle.getText("removeItem"), icon: "sap-icon://delete", startsSection: true, press: function () { that._removeRowAt(path); } }));
+      } else {
+        menu.addItem(new MenuItem({ text: bundle.getText("kitComponentNoRemove"), enabled: false }));
+      }
+      this._rowMenu = menu;
+      this.getView().addDependent(menu);
+      menu.openBy(btn);
+    },
+
+    /** A quantity break or an alternative of the line at `path`, placed right under it (and its other breaks). */
+    _addLinkedRow: function (path, kind) {
+      var vm = this._vm();
+      var items = vm.getProperty("/items");
+      var index = Number(path.split("/").pop());
+      var from = items[index];
+      // A break/alternative of a break belongs to the same MAIN line.
+      var mainNo = from.alternativeToLine ? Number(from.alternativeToLine) : from.itemNo;
+      var main = items.filter(function (r) { return r.itemNo === mainNo; })[0] || from;
+      var row = Object.assign({}, main, {
+        itemNo: 0, line: null, stale: false, status: "", confidence: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
+        sourceErp: "", marginNote: "", priceBy: "", costManual: false, parentItemNo: "", perKitQty: "", fromC4c: false, alternativeToLine: String(mainNo),
+        priceBreak: kind === "BREAK"
+      });
+      if (kind === "BREAK") { row.quantity = ""; } else { row.partNumber = ""; row.description = ""; }
+      // insert after the main line's last linked row
+      var at = items.indexOf(main);
+      items.forEach(function (r, i) { if (r === main || Number(r.alternativeToLine) === mainNo) { at = i; } });
+      items.splice(at + 1, 0, row);
+      vm.setProperty("/items", this._renumber(items));
+      vm.setProperty("/hasResults", false);
+      vm.setProperty("/orderTotal", "");
+      var bundle = this.getView().getModel("i18n").getResourceBundle();
+      this._message(bundle.getText(kind === "BREAK" ? "breakAdded" : "alternativeAdded", [mainNo]), "Information");
+    },
+
+    /** Line popup (WHAT / WHERE / WHY) bound to one line; ← → step through the lines without closing it. */
+    onOpenLineDetails: function (oEvent) {
+      var that = this;
+      var view = this.getView();
+      var index = Number(oEvent.getSource().getBindingContext("vm").getPath().split("/").pop());
+      if (!this._lineDialogPromise) {
+        this._lineDialogPromise = Fragment.load({ id: view.getId(), name: "com.tss.pricing.c4c.view.LineDetails", controller: this })
+          .then(function (dialog) { view.addDependent(dialog); return dialog; });
+      }
+      this._lineDialogPromise.then(function (dialog) { that._lineDialog = dialog; that._showDetailAt(index); dialog.open(); });
+    },
+
+    _showDetailAt: function (index) {
+      var vm = this._vm();
+      var max = vm.getProperty("/items").length - 1;
+      index = Math.max(0, Math.min(index, max));
+      vm.setProperty("/detailIndex", index);
+      this._lineDialog.bindElement({ path: "/items/" + index, model: "vm" });
+    },
+    onDetailsPrev: function () { this._showDetailAt(this._vm().getProperty("/detailIndex") - 1); },
+    onDetailsNext: function () { this._showDetailAt(this._vm().getProperty("/detailIndex") + 1); },
+    onCloseDetails: function () {
+      if (this._lineDialog) { this._lineDialog.close(); }
+      this._updateWritable();
+    },
 
     onShowTrace: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");

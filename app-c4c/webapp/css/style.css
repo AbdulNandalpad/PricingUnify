@@ -122,3 +122,7 @@
   color: var(--sapContent_LabelColor, #556b82);
   margin-bottom: 0.5rem;
 }
+
+/* second line of the Product cell: the description, small and muted */
+.rowSubText { font-size: 0.75rem; color: var(--sapContent_LabelColor); line-height: 1rem; }
+.lineSection .sapUiFormResGrid, .lineSection .sapUiForm { padding-bottom: 0.25rem; }

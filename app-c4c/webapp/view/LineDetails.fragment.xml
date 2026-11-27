@@ -1,0 +1,95 @@
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core" xmlns:f="sap.ui.layout.form">
+  <!-- Line popup (owner layout 2026-11-27): everything that does not fit the lean grid, stacked WHAT / WHERE / WHY.
+       Bound to ONE line of vm>/items (element binding), so every field edits the same model the grid shows. -->
+  <Dialog id="lineDialog" contentWidth="38rem" contentHeight="82%" stretchOnPhone="true" draggable="true" resizable="true" verticalScrolling="true">
+    <customHeader>
+      <Bar>
+        <contentLeft>
+          <Button icon="sap-icon://navigation-left-arrow" type="Transparent" tooltip="{i18n>detailsPrev}" press=".onDetailsPrev" enabled="{= ${vm>/detailIndex} > 0 }"/>
+          <Button icon="sap-icon://navigation-right-arrow" type="Transparent" tooltip="{i18n>detailsNext}" press=".onDetailsNext" enabled="{= ${vm>/detailIndex} &lt; ${vm>/itemCount} - 1 }"/>
+        </contentLeft>
+        <contentMiddle>
+          <Title text="{= ${i18n>lineDetails} + ' ' + ${vm>itemNo} + (${vm>partNumber} ? ' · ' + ${vm>partNumber} : '') }"/>
+        </contentMiddle>
+        <contentRight>
+          <Button icon="sap-icon://decline" type="Transparent" tooltip="{i18n>close}" press=".onCloseDetails"/>
+        </contentRight>
+      </Bar>
+    </customHeader>
+    <content>
+      <Panel headerText="{i18n>secWhat}" class="sapUiNoContentPadding lineSection">
+        <f:SimpleForm editable="true" layout="ColumnLayout" columnsM="1" columnsL="1" columnsXL="1" labelSpanM="4" labelSpanL="4">
+          <f:content>
+            <Label text="{i18n>colItemType}"/>
+            <Select selectedKey="{vm>itemType}" items="{path: 'vm>/itemTypes', templateShareable: false}" change=".onItemTypeChange" enabled="{= !${vm>parentItemNo} }">
+              <core:Item key="{vm>key}" text="{vm>text}"/>
+            </Select>
+            <Label text="{i18n>colProduct}"/>
+            <Input value="{vm>partNumber}" change=".onRowEdited"/>
+            <Label text="{i18n>colDescription}"/>
+            <Input value="{vm>description}"/>
+            <Label text="{i18n>colCustPart}"/>
+            <Input value="{vm>customerPartNumber}"/>
+            <Label text="{i18n>colCustomItemId}"/>
+            <Input value="{vm>customItemId}" placeholder="{i18n>colCustomItemIdHint}"/>
+            <Label text="{i18n>colCategory}"/>
+            <Input value="{vm>productCategory}" change=".onRowEdited"/>
+            <Label text="{i18n>colPicks}"/>
+            <Input value="{vm>picks}" type="Number" textAlign="End"/>
+            <Label text="{i18n>colAddlCost}" tooltip="{i18n>colAddlCostTip}"/>
+            <Select selectedKey="{vm>additionalCost}" change=".onRowEdited" tooltip="{i18n>colAddlCostTip}">
+              <core:Item key="0" text="{i18n>addlCost0}"/>
+              <core:Item key="1" text="{i18n>addlCost1}"/>
+              <core:Item key="3" text="{i18n>addlCost3}"/>
+              <core:Item key="4" text="{i18n>addlCost4}"/>
+              <core:Item key="5" text="{i18n>addlCost5}" enabled="false"/>
+            </Select>
+            <Label text="{i18n>colPerKit}" visible="{= !!${vm>parentItemNo} }" tooltip="{i18n>colPerKitTip}"/>
+            <Text text="{vm>perKitQty}" visible="{= !!${vm>parentItemNo} }"/>
+          </f:content>
+        </f:SimpleForm>
+      </Panel>
+
+      <Panel headerText="{i18n>secWhere}" class="sapUiNoContentPadding lineSection">
+        <f:SimpleForm editable="true" layout="ColumnLayout" columnsM="1" columnsL="1" columnsXL="1" labelSpanM="4" labelSpanL="4">
+          <f:content>
+            <Label text="{i18n>colDataOrigin}"/>
+            <Input value="{vm>ood}" change=".onRowEdited"/>
+            <Label text="{i18n>colWarehouse}"/>
+            <Input value="{vm>warehouse}" change=".onRowEdited"/>
+            <Label text="{i18n>colSupplier}"/>
+            <Input value="{vm>supplier}" change=".onRowEdited" editable="{= ${vm>itemType} !== 'ZKIT' }"/>
+            <Label text="{i18n>colSupplierExt}"/>
+            <Input value="{vm>supplierExternalId}" change=".onRowEdited" editable="{= ${vm>itemType} !== 'ZKIT' }"/>
+            <Label text="{i18n>colSupplierName}"/>
+            <Input value="{vm>supplierName}"/>
+            <Label text="{i18n>colLeadTime}"/>
+            <Input value="{vm>leadTime}"/>
+          </f:content>
+        </f:SimpleForm>
+      </Panel>
+
+      <Panel headerText="{i18n>secWhy}" class="sapUiNoContentPadding lineSection">
+        <f:SimpleForm editable="false" layout="ColumnLayout" columnsM="1" columnsL="1" columnsXL="1" labelSpanM="4" labelSpanL="4">
+          <f:content>
+            <Label text="{i18n>colStatus}"/>
+            <ObjectStatus text="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusText'}" state="{parts: ['vm>status', 'vm>confidence'], formatter: '.formatter.statusState'}"/>
+            <Label text="{i18n>colSourceErp}"/>
+            <Text text="{vm>sourceErp}"/>
+            <Label text="{i18n>colStockType}"/>
+            <Text text="{= ${vm>stockClassSel} ? ${vm>stockClassSel} + (${vm>stockClassHow} ? ' — ' + ${vm>stockClassHow} : '') : ${i18n>stockTypeNotSet} }"/>
+            <Label text="{i18n>colCost}"/>
+            <Text text="{vm>cost}"/>
+            <Label text="{i18n>colLandedCost}"/>
+            <Text text="{path: 'vm>landedCost', formatter: '.formatter.fmt2'}"/>
+            <Label text="{i18n>colMargin}" visible="{= !!${vm>marginNote} }"/>
+            <Text text="{vm>marginNote}" visible="{= !!${vm>marginNote} }"/>
+            <Label text=""/>
+            <Button text="{i18n>showCalcSteps}" icon="sap-icon://detail-view" press=".onShowTrace" enabled="{= !!${vm>line} }" type="Transparent"/>
+          </f:content>
+        </f:SimpleForm>
+      </Panel>
+    </content>
+    <endButton><Button text="{i18n>close}" press=".onCloseDetails"/></endButton>
+  </Dialog>
+</core:FragmentDefinition>
