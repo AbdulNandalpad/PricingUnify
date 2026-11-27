@@ -24,7 +24,7 @@ async function waitForHealth() {
 }
 
 before(async () => {
-  srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'srv', 'server.js')], { env: hermeticEnv({ PORT: String(SRV_PORT) }), stdio: 'ignore' });
+  srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'srv', 'server.js')], { env: hermeticEnv({ PORT: String(SRV_PORT), TSS_VIEWER_FOR_ALL: 'false' }), stdio: 'ignore' });
   await waitForHealth();
 });
 after(() => srv.kill('SIGKILL'));

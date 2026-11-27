@@ -17,10 +17,10 @@ Base path `/rest/pricing`. JSON in, JSON out. Every action takes `{ "payload": {
 
 | Operation | Role | What it does |
 |---|---|---|
-| `POST /price` | PricingViewer | Landed cost (and selling price) for 1–500 lines |
-| `POST /fetchItemAttributes` | PricingViewer | Preview supplier / country / warehouse / stock class per part, no price |
-| `POST /searchC4cProducts` | PricingViewer | Part-number type-ahead (C4C product master, else local catalog) |
-| `POST /fetchKitComponents` | PricingViewer | A kit's components from the ERP behind its Origin of Data, with SAP-style item numbers |
+| `POST /price` | any signed-in user | Landed cost (and selling price) for 1–500 lines |
+| `POST /fetchItemAttributes` | any signed-in user | Preview supplier / country / warehouse / stock class per part, no price |
+| `POST /searchC4cProducts` | any signed-in user | Part-number type-ahead (C4C product master, else local catalog) |
+| `POST /fetchKitComponents` | any signed-in user | A kit's components from the ERP behind its Origin of Data, with SAP-style item numbers |
 | `GET /me` | any authenticated user | Identity and roles |
 
 Configuration is a separate admin API (`/rest/config`, PricingAdmin only) and is not part of this contract.
@@ -80,7 +80,7 @@ curl -s -X POST "$BASE/rest/pricing/price" \
 | Environment | How |
 |---|---|
 | Local dev | HTTP Basic with the mocked users: `alice` (PricingViewer), `bob` (PricingAdmin + PricingViewer), `carol` (no role); password `x`. Start with `npm run start:srv` (port 4004). |
-| BTP | XSUAA bearer token. Pricing needs the `PricingViewer` scope. **Interactive users** get it from their role collection through the approuter. **Machine clients** (another app, a scheduled job, the MCP server in shared mode) use the OAuth2 client-credentials grant against the XSUAA instance and call the **srv URL directly**; the token must carry `PricingViewer`, which means the client has to be granted that scope (`grant-as-authority-to-apps` on the scope plus `authorities` on the consumer's own XSUAA instance, or a service key created with that authority). |
+| BTP | XSUAA bearer token. Every signed-in user may use the pricing API (no role assignment needed); only `PricingAdmin` is granted individually. If `TSS_VIEWER_FOR_ALL=false` is set, the `PricingViewer` scope is required again. **Interactive users** get it from their role collection through the approuter. **Machine clients** (another app, a scheduled job, the MCP server in shared mode) use the OAuth2 client-credentials grant against the XSUAA instance and call the **srv URL directly**; the token must carry `PricingViewer`, which means the client has to be granted that scope (`grant-as-authority-to-apps` on the scope plus `authorities` on the consumer's own XSUAA instance, or a service key created with that authority). |
 
 > **Not yet exercised on BTP.** The role/scope model and `xs-security.json` are in place and the service-level
 > enforcement is test-pinned locally, but the machine-client grant above has not been set up or tested against a

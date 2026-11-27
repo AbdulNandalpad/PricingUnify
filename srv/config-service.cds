@@ -49,6 +49,7 @@ service ConfigService {
 
   // Every config document (all versions) as JSON, for promoting a config to another environment through
   // the repo (config/<kind>.json). Pricing rules are code; this is how QUA edits reach PROD.
+  @requires: 'PricingAdmin'
   function exportConfig() returns Map;
 
   @requires: 'PricingAdmin'

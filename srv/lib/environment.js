@@ -58,4 +58,8 @@ function configEditable() { return flag(process.env.TSS_CONFIG_EDIT, name() === 
 /** Demo suppliers / customers are seeded in QUA only unless TSS_SEED_DEMO=true. */
 function seedDemo() { return flag(process.env.TSS_SEED_DEMO, name() === 'QUA'); }
 
-module.exports = { name, profile, urlVar, secretVar, honours, configEditable, seedDemo, PROFILES };
+/** Every authenticated user may use the pricing screen/API (Viewer) without a role assignment; PricingAdmin stays
+ *  an explicit grant. TSS_VIEWER_FOR_ALL=false requires the PricingViewer role per user again. */
+function viewerForAll() { return flag(process.env.TSS_VIEWER_FOR_ALL, true); }
+
+module.exports = { name, viewerForAll, profile, urlVar, secretVar, honours, configEditable, seedDemo, PROFILES };

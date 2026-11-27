@@ -201,3 +201,17 @@ entitled (step 2), role collection not assigned (step 6), a typo in the `.mtaext
 service actually received), or the first login showing a redirect-URI error (then add the approuter URL pattern under
 `oauth2-configuration.redirect-uris` in `srv/xs-security.json` and redeploy).
 Changing rules later: edit in QUA, Export configuration, commit under `config/`, rebuild and deploy (see "Persistence: none").
+
+
+---
+
+## Who may use what (access model, 2026-11-27)
+
+- **Everyone who can sign in is a Viewer** — no role has to be assigned to the ~1200 users. They can use the pricing screen and
+  the pricing API.
+- **Admin is an explicit grant:** add only the people who maintain the rules to the role collection `TSS_Pricing_Admin`
+  (BTP cockpit -> Security -> Role Collections). Everything under Admin (rules, suppliers, connections, export) requires it.
+- To go back to "Viewer only by assignment": set `TSS_VIEWER_FOR_ALL=false` (then assign `TSS_Pricing_Viewer`).
+- Who can *sign in* at all is decided by the identity provider trusted by the subaccount, not by this app.
+- Note: write-back to C4C uses the technical integration user, so any Viewer can write a priced result onto a quote
+  they can name — C4C's own per-user authorizations do not apply to that call. See the decision log for the open question.

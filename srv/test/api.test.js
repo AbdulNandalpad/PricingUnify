@@ -28,7 +28,7 @@ async function waitForHealth(timeoutMs = 20000) {
 
 before(async () => {
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: hermeticEnv({ PORT: String(PORT) }),
+    env: hermeticEnv({ PORT: String(PORT), TSS_VIEWER_FOR_ALL: 'false' }),
     stdio: 'ignore',
   });
   await waitForHealth();

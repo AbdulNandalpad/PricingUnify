@@ -14,7 +14,7 @@ let child;
 const auth = (u) => `Basic ${Buffer.from(`${u}:x`).toString('base64')}`;
 
 before(async () => {
-  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: hermeticEnv({ PORT: String(PORT), PRICING_MAX_ITEMS: '5' }), stdio: 'ignore' });
+  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: hermeticEnv({ PORT: String(PORT), PRICING_MAX_ITEMS: '5', TSS_VIEWER_FOR_ALL: 'false' }), stdio: 'ignore' });
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
     try { if ((await fetch(`${BASE}/health`)).ok) return; } catch { /* not up */ }

@@ -43,7 +43,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 let child;
 const auth = (u) => `Basic ${Buffer.from(`${u}:x`).toString('base64')}`;
 before(async () => {
-  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: hermeticEnv({ PORT: String(PORT) }), stdio: 'ignore' });
+  child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: hermeticEnv({ PORT: String(PORT), TSS_VIEWER_FOR_ALL: 'false' }), stdio: 'ignore' });
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) { try { if ((await fetch(`${BASE}/health`)).ok) return; } catch { /* not up */ } await new Promise((r) => setTimeout(r, 300)); }
   throw new Error('srv did not start');

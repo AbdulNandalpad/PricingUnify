@@ -925,12 +925,18 @@ module.exports = (srv) => {
     });
   });
 
+  // Viewer for everyone who is authenticated, unless TSS_VIEWER_FOR_ALL=false (then the PricingViewer role is required).
+  srv.before('*', (req) => {
+    if (req.event === 'me') return;
+    if (!require('./lib/environment').viewerForAll() && !req.user.is('PricingViewer')) return req.reject(403, 'Forbidden');
+  });
+
   srv.on('me', (req) => ({
     id: req.user.id,
     environment: require('./lib/environment').name(),
     configEditable: require('./lib/environment').configEditable(),
     roles: {
-      PricingViewer: req.user.is('PricingViewer'),
+      PricingViewer: req.user.is('PricingViewer') || require('./lib/environment').viewerForAll(),
       PricingAdmin: req.user.is('PricingAdmin'),
     },
   }));
