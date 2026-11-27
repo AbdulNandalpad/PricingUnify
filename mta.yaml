@@ -24,7 +24,7 @@ modules:
       NODE_ENV: production
       TSS_ENVIRONMENT: QUA   # QUA | PROD — see docs/DEPLOYMENT.md "QUA -> PROD"
     build-parameters:
-      ignore: ["node_modules/", "app/node_modules/", ".git/"]
+      ignore: ["node_modules/", "app/node_modules/", ".git/", "mta_archives/", ".PricingUnify_mta_build_tmp/", "qua.mtaext"]  # never ship build leftovers or the secrets file inside the app
     provides:
       - name: srv-api
         properties:
