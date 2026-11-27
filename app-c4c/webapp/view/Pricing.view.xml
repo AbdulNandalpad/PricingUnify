@@ -33,14 +33,13 @@
       <VBox id="contextHeader" class="ctxHeader">
         <HBox justifyContent="SpaceBetween" alignItems="Center" wrap="Wrap">
           <HBox alignItems="Center">
-            <core:Icon src="sap-icon://sales-quote" size="1.5rem" class="ctxIcon sapUiSmallMarginEnd"/>
-            <VBox>
+            <Image src="img/trelleborg-logo.svg" alt="Trelleborg" height="3.25rem" class="ctxLogo"/>
+            <VBox class="ctxTitleBlock">
               <Title text="{i18n>titleApp}" level="H3" class="ctxTitle"/>
-              <HBox alignItems="Center">
-                <ObjectStatus text="{= ${session>/objectType} === 'OPPORTUNITY' ? ${i18n>objTypeOpportunity} : ${i18n>objTypeQuote} }" state="None" class="sapUiSmallMarginEnd"/>
-                <ObjectStatus text="{session>/objectId}" state="Information" visible="{= !!${session>/objectId} }" class="sapUiSmallMarginEnd"/>
-                <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' }" class="sapUiSmallMarginEnd"/>
-                <ObjectStatus text="{session>/environment}" state="{= ${session>/environment} === 'PROD' ? 'Error' : 'Success' }" inverted="true" visible="{= !!${session>/environment} }" tooltip="{i18n>environmentTip}"/>
+              <HBox alignItems="Center" wrap="Wrap">
+                <Text text="{= ${session>/objectId} ? ( ${session>/objectType} === 'OPPORTUNITY' ? ${i18n>objTypeOpportunity} : ${i18n>objTypeQuote} ) + ' ' + ${session>/objectId} : ${i18n>subtitleBlank} }" class="ctxSubtitle sapUiTinyMarginEnd"/>
+                <ObjectStatus text="{i18n>costOnlyBadge}" state="Warning" visible="{= ${session>/objectType} === 'OPPORTUNITY' &amp;&amp; !!${session>/objectId} }" class="sapUiTinyMarginEnd"/>
+                <ObjectStatus text="{session>/environment}" state="{= ${session>/environment} === 'PROD' ? 'Error' : 'Warning' }" visible="{= !!${session>/environment} }" tooltip="{i18n>environmentTip}"/>
               </HBox>
             </VBox>
           </HBox>
@@ -53,42 +52,9 @@
           </HBox>
         </HBox>
         <HBox wrap="Wrap" class="ctxFacts" alignItems="Start">
-          <VBox class="ctxFact">
-            <Label text="{i18n>account}"/>
-            <Text text="{= ${vm>/header/account} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact">
-            <Label text="{i18n>currency}"/>
-            <Text text="{= ${vm>/header/currency} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custId}"/>
-            <Text text="{= ${vm>/customer/customerId} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custCountry}"/>
-            <Text text="{= ${vm>/customer/countryCode} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custTerritory}"/>
-            <Text text="{= ${vm>/customer/salesTerritory} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custClass}"/>
-            <Text text="{= ${vm>/customer/classCode} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custPriceGroup}"/>
-            <Text text="{= ${vm>/customer/priceGroup} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact" visible="{= !!${vm>/customer} }">
-            <Label text="{i18n>custOod}"/>
-            <Text text="{= ${vm>/customer/originOfData} || '—' }" class="ctxValue"/>
-          </VBox>
-          <VBox class="ctxFact">
-            <Label text="{i18n>salesOrg}"/>
-            <Text text="{session>/salesOrg}" class="ctxValue"/>
-          </VBox>
+          <!-- Region once: the pricing region is the one setting that decides the rules, so it
+               leads the strip (a select standalone, plain text when C4C passes the context).
+               The other facts appear only when they carry a value. Sales org is not shown. -->
           <VBox class="ctxFact">
             <Label text="{i18n>region}"/>
             <Text text="{session>/region}" class="ctxValue" visible="{session>/hostContext}"/>
@@ -98,6 +64,38 @@
               <core:Item key="INDIA" text="INDIA"/>
               <core:Item key="AMERICAS" text="AMERICAS"/>
             </Select>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/header/account} }">
+            <Label text="{i18n>account}"/>
+            <Text text="{vm>/header/account}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/header/currency} }">
+            <Label text="{i18n>currency}"/>
+            <Text text="{vm>/header/currency}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/customerId} }">
+            <Label text="{i18n>custId}"/>
+            <Text text="{vm>/customer/customerId}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/countryCode} }">
+            <Label text="{i18n>custCountry}"/>
+            <Text text="{vm>/customer/countryCode}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/salesTerritory} }">
+            <Label text="{i18n>custTerritory}"/>
+            <Text text="{vm>/customer/salesTerritory}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/classCode} }">
+            <Label text="{i18n>custClass}"/>
+            <Text text="{vm>/customer/classCode}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/priceGroup} }">
+            <Label text="{i18n>custPriceGroup}"/>
+            <Text text="{vm>/customer/priceGroup}" class="ctxValue"/>
+          </VBox>
+          <VBox class="ctxFact" visible="{= !!${vm>/customer/originOfData} }">
+            <Label text="{i18n>custOod}"/>
+            <Text text="{vm>/customer/originOfData}" class="ctxValue"/>
           </VBox>
           <!-- Standalone (3c): no objectId -> search field for a Quote/Opportunity id. -->
           <VBox class="ctxFact" visible="{= !${session>/hostContext} }">
