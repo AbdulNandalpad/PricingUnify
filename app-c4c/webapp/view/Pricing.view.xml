@@ -145,15 +145,13 @@
         </headerToolbar>
         <content>
           <t:Table id="itemTable" rows="{vm>/items}" selectionMode="MultiToggle" selectionBehavior="RowSelector" busy="{vm>/busy}" busyIndicatorDelay="0"
-            fixedColumnCount="2" visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 14) }" rowHeight="52" alternateRowColors="true"
+            fixedColumnCount="2" visibleRowCountMode="Fixed" visibleRowCount="{= Math.min(Math.max(${vm>/itemCount}, 5), 14) }" rowHeight="44" columnHeaderHeight="40" alternateRowColors="true"
             rowSelectionChange=".onSelectionChange" rowsUpdated=".onRowsUpdated" noData="{= ${vm>/search} ? ${i18n>noMatchingLines} : ${i18n>noItems} }">
             <t:rowSettingsTemplate>
               <t:RowSettings highlight="{= ${vm>itemType} === 'ZKIT' ? 'Information' : 'None' }"/>
             </t:rowSettingsTemplate>
             <t:columns>
-              <!-- Lean grid (owner layout 2026-11-27): C4C's own order — item, alternative/price break first, then what it is, how much, the result.
-                   Everything else lives in the line popup (WHAT / WHERE / WHY) so nothing scrolls sideways. -->
-              <t:Column width="5.2rem">
+              <t:Column width="4.8rem">
                 <Label text="{i18n>colDetails}"/>
                 <t:template>
                   <HBox>
@@ -169,13 +167,14 @@
                 <!-- A kit's components sit under their header: 10 -> 11, 12, 13 -> next item 20 (SAP sub-item numbering). -->
                 <t:template><Text text="{= ${vm>parentItemNo} ? '↳ ' + ${vm>itemNo} : ${vm>itemNo} }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitHeaderTip} : (${vm>parentItemNo} ? ${i18n>kitComponentTip} : '') }"/></t:template>
               </t:Column>
-              <t:Column width="3rem" hAlign="Center">
+              <t:Column hAlign="Center" width="3rem">
                 <Label text="{i18n>colAltShort}" tooltip="{i18n>colAltLine}"/>
-                <t:template><Text text="{vm>alternativeToLine}"/></t:template>
+                <t:template><Input value="{vm>alternativeToLine}" type="Number" textAlign="Center" change=".onAltEdited" editable="{= !${vm>parentItemNo} }"
+                  valueState="{= ${vm>altInvalid} ? 'Error' : 'None' }" valueStateText="{i18n>altInvalidText}" tooltip="{i18n>colAltLine}"/></t:template>
               </t:Column>
-              <t:Column width="3.2rem" hAlign="Center">
+              <t:Column hAlign="Center" width="3.2rem">
                 <Label text="{i18n>colBrkShort}" tooltip="{i18n>colPriceBreak}"/>
-                <t:template><Text text="{= ${vm>priceBreak} ? '✓' : '' }"/></t:template>
+                <t:template><CheckBox selected="{vm>priceBreak}" select=".onRowEdited" enabled="{= !${vm>parentItemNo} }" tooltip="{i18n>colPriceBreak}"/></t:template>
               </t:Column>
               <t:Column width="6.2rem">
                 <Label text="{i18n>colItemType}" tooltip="{i18n>colItemTypeTip}"/>
@@ -185,24 +184,33 @@
                   </Select>
                 </t:template>
               </t:Column>
-              <t:Column width="9.4rem">
+              <t:Column minWidth="144">
                 <Label text="{i18n>colProduct}"/>
                 <t:template>
-                  <VBox>
-                    <Input value="{vm>partNumber}" change=".onRowEdited"/>
-                    <Text text="{vm>description}" maxLines="1" class="rowSubText"/>
-                  </VBox>
+                  <Input value="{vm>partNumber}" change=".onRowEdited" tooltip="{vm>description}"/>
                 </t:template>
               </t:Column>
-              <t:Column width="4.2rem">
+              <t:Column width="8rem" visible="{= ${vm>/xwide} }">
+                <Label text="{i18n>colCustPart}"/>
+                <t:template><Input value="{vm>customerPartNumber}"/></t:template>
+              </t:Column>
+              <t:Column width="8rem" visible="{= ${vm>/xwide} }">
+                <Label text="{i18n>colCustomItemId}"/>
+                <t:template><Input value="{vm>customItemId}"/></t:template>
+              </t:Column>
+              <t:Column minWidth="150" visible="{= ${vm>/wide} }">
+                <Label text="{i18n>colDescription}"/>
+                <t:template><Input value="{vm>description}"/></t:template>
+              </t:Column>
+              <t:Column hAlign="End" width="4.2rem">
                 <Label text="{i18n>colQty}"/>
                 <t:template><Input value="{vm>quantity}" type="Number" textAlign="End" change=".onQtyChange" editable="{= !${vm>parentItemNo} }" tooltip="{= ${vm>parentItemNo} ? ${i18n>kitQtyFollowsTip} : '' }"/></t:template>
               </t:Column>
-              <t:Column width="3.4rem">
+              <t:Column visible="{= !${vm>/narrow} }" width="3.4rem">
                 <Label text="{i18n>colUom}"/>
                 <t:template><Input value="{vm>uom}"/></t:template>
               </t:Column>
-              <t:Column width="4.2rem" hAlign="End">
+              <t:Column visible="{= !${vm>/narrow} }" hAlign="End" width="4.2rem">
                 <Label text="{i18n>colPerShort}" tooltip="{i18n>colPriceUnitTip}"/>
                 <t:template><Input value="{vm>priceUnit}" type="Number" textAlign="End" change=".onRowEdited" tooltip="{i18n>colPriceUnitTip}"/></t:template>
               </t:Column>
@@ -218,25 +226,55 @@
                   </Select>
                 </t:template>
               </t:Column>
-              <t:Column width="5.6rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
+              <t:Column width="4.4rem" hAlign="End" visible="{= ${vm>/xwide} }">
+                <Label text="{i18n>colPicks}"/>
+                <t:template><Input value="{vm>picks}" type="Number" textAlign="End"/></t:template>
+              </t:Column>
+              <t:Column width="11rem" visible="{= ${vm>/xwide} }">
+                <Label text="{i18n>colAddlCost}"/>
+                <t:template><Select selectedKey="{vm>additionalCost}" width="100%" change=".onRowEdited" tooltip="{i18n>colAddlCostTip}">
+                    <core:Item key="0" text="{i18n>addlCost0}"/>
+                    <core:Item key="1" text="{i18n>addlCost1}"/>
+                    <core:Item key="3" text="{i18n>addlCost3}"/>
+                    <core:Item key="4" text="{i18n>addlCost4}"/>
+                    <core:Item key="5" text="{i18n>addlCost5}" enabled="false"/>
+                  </Select></t:template>
+              </t:Column>
+              <t:Column hAlign="End" width="5.6rem" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colLineValue}"/>
                 <t:template><Text text="{vm>lineValue}"/></t:template>
               </t:Column>
-              <t:Column width="6rem" hAlign="End">
+              <t:Column hAlign="End" width="6rem">
                 <Label text="{i18n>colCost}"/>
                 <t:template><Input value="{vm>cost}" type="Number" textAlign="End" change=".onCostEdit" valueState="{= ${vm>costManual} ? 'Information' : 'None' }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitRollUpTip} : ${i18n>costEditTip} }" editable="{= ${vm>itemType} !== 'ZKIT' &amp;&amp; !${vm>parentItemNo} }"/></t:template>
               </t:Column>
-              <t:Column width="6.2rem" hAlign="End">
+              <t:Column hAlign="End" width="5.8rem">
                 <Label text="{i18n>colLandedCost}"/>
                 <t:template><Text text="{path: 'vm>landedCost', formatter: '.formatter.fmt2'}"/></t:template>
               </t:Column>
-              <t:Column width="6.4rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
+              <t:Column hAlign="End" width="6rem" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colPrice}"/>
                 <t:template><Input value="{vm>price}" type="Number" textAlign="End" change=".onPriceEdit" valueState="{= ${vm>priceBy} === 'PRICE' ? 'Information' : 'None' }" tooltip="{= ${vm>itemType} === 'ZKIT' ? ${i18n>kitRollUpTip} : ${i18n>priceEditTip} }" editable="{= ${vm>itemType} !== 'ZKIT' &amp;&amp; !${vm>parentItemNo} }"/></t:template>
               </t:Column>
-              <t:Column width="5.6rem" hAlign="End" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
+              <t:Column hAlign="End" width="5.6rem" visible="{= ${session>/objectType} !== 'OPPORTUNITY' }">
                 <Label text="{i18n>colMargin}"/>
                 <t:template><Input value="{vm>marginPct}" type="Number" textAlign="End" change=".onMarginEdit" valueState="{= ${vm>priceBy} === 'MARGIN' ? 'Information' : 'None' }" tooltip="{= ${vm>marginNote} || (${vm>itemType} === 'ZKIT' ? ${i18n>kitMarginTip} : ${i18n>marginEditTip}) }" editable="{= !${vm>parentItemNo} }"/></t:template>
+              </t:Column>
+              <t:Column width="5.6rem" visible="{= ${vm>/wide} }">
+                <Label text="{i18n>colDataOrigin}"/>
+                <t:template><Input value="{vm>ood}" change=".onRowEdited"/></t:template>
+              </t:Column>
+              <t:Column width="6.4rem" visible="{= ${vm>/wide} }">
+                <Label text="{i18n>colWarehouse}"/>
+                <t:template><Input value="{vm>warehouse}" change=".onRowEdited"/></t:template>
+              </t:Column>
+              <t:Column width="7rem" visible="{= ${vm>/wide} }">
+                <Label text="{i18n>colSupplier}"/>
+                <t:template><Input value="{vm>supplier}" change=".onRowEdited" editable="{= ${vm>itemType} !== 'ZKIT' }"/></t:template>
+              </t:Column>
+              <t:Column width="9rem" visible="{= ${vm>/xwide} }">
+                <Label text="{i18n>colSupplierName}"/>
+                <t:template><Input value="{vm>supplierName}"/></t:template>
               </t:Column>
               <t:Column width="4.8rem">
                 <Label text="{i18n>colStatus}"/>

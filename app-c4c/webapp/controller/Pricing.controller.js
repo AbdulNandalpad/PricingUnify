@@ -26,7 +26,7 @@ sap.ui.define([
         items: [],
         busy: false,
         hasResults: false,
-        showAdvanced: false, detailIndex: 0,
+        showAdvanced: false, detailIndex: 0, narrow: false, wide: false, xwide: false,
         itemCount: 0, search: "", shownCount: 0, writableCount: 0,
         // C4C's own item (processing) types — the code is what the gateway receives, the label is what the user reads.
         itemTypes: [
@@ -39,6 +39,15 @@ sap.ui.define([
         messageType: "Information"
       });
       vm.setProperty("/itemTypes", vm.getProperty("/itemTypes").map(function (t) { return Object.assign({}, t, { label: t.text.replace(/^\w+ - /, "") }); }));
+      // Narrow frame (C4C iframe, small laptop): UoM and Per leave the grid so nothing scrolls sideways; they stay in the line popup.
+      var applyWidth = function () {
+        var w = window.innerWidth;
+        vm.setProperty("/narrow", w < 1400);
+        vm.setProperty("/wide", w >= 1900);   // origin, warehouse, supplier, description join the grid
+        vm.setProperty("/xwide", w >= 2500);  // + customer part no., TSS item ID, picks, additional cost, supplier name — C4C's full order
+      };
+      window.addEventListener("resize", applyWidth);
+      applyWidth();
       // Overlapping async calls (load -> enrich -> enrich) each hold the grid busy; it only
       // frees when the LAST one finishes — a plain boolean cleared early under a running call.
       vm.busyStart = function () { this._busyN = (this._busyN || 0) + 1; this.setProperty("/busy", true); };
@@ -60,7 +69,7 @@ sap.ui.define([
         stockClassSel: "", stockClassHow: "", supplier: "", productCategory: "", pricingType: "COST_PLUS",
         customerPartNumber: "", customItemId: "", ood: "", warehouse: "", picks: "1", leadTime: "", additionalCost: "1", // C4C's own defaults on a new line: 1 pick, Additional Cost 1
 
-        priceBreak: false, alternativeToLine: "", parentItemNo: "", perKitQty: "", fromC4c: false, stale: false, // parentItemNo/perKitQty: a kit COMPONENT row (ZCOM) points at its header (ZKIT) and holds the quantity in ONE kit; // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
+        priceBreak: false, alternativeToLine: "", altInvalid: false, parentItemNo: "", perKitQty: "", fromC4c: false, stale: false, // parentItemNo/perKitQty: a kit COMPONENT row (ZCOM) points at its header (ZKIT) and holds the quantity in ONE kit; // fromC4c: itemNo is C4C's own ItemID; stale: inputs changed after the last calculation
         supplierExternalId: "", supplierName: "",
         sourceErp: "", cost: "", landedCost: "", price: "", marginPct: "", lineValue: "",
         priceBy: "", marginNote: "", costManual: false, currency: "", // priceBy: "MARGIN" | "PRICE" = what the user typed last; costManual = a typed cost replaces the fetched one
@@ -248,6 +257,19 @@ sap.ui.define([
 
     /** A priced line whose inputs changed no longer matches its result: mark it outdated so it
      *  is neither shown as current nor written back until it is calculated again. */
+    /** Alt. line must point at an existing line (a quantity break / alternative OF that line). */
+    onAltEdited: function (oEvent) {
+      var ctx = oEvent.getSource().getBindingContext("vm");
+      var vm = this._vm();
+      var row = ctx.getObject();
+      var val = String(row.alternativeToLine || "").trim();
+      var items = vm.getProperty("/items");
+      var ok = val === "" || items.some(function (r, i) { return String(r.itemNo) === val && ("/items/" + i) !== ctx.getPath(); });
+      vm.setProperty(ctx.getPath() + "/alternativeToLine", val);
+      vm.setProperty(ctx.getPath() + "/altInvalid", !ok);
+      this.onRowEdited(oEvent);
+    },
+
     onRowEdited: function (oEvent) {
       var ctx = oEvent.getSource().getBindingContext("vm");
       if (!ctx) { return; }

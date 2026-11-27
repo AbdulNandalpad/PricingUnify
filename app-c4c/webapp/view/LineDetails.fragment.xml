@@ -32,6 +32,14 @@
             <Input value="{vm>customerPartNumber}"/>
             <Label text="{i18n>colCustomItemId}"/>
             <Input value="{vm>customItemId}" placeholder="{i18n>colCustomItemIdHint}"/>
+            <Label text="{i18n>colUom}"/>
+            <Input value="{vm>uom}"/>
+            <Label text="{i18n>colPriceUnit}" tooltip="{i18n>colPriceUnitTip}"/>
+            <Input value="{vm>priceUnit}" type="Number" textAlign="End" change=".onRowEdited" tooltip="{i18n>colPriceUnitTip}"/>
+            <Label text="{i18n>colAltLine}"/>
+            <Input value="{vm>alternativeToLine}" type="Number" change=".onAltEdited" editable="{= !${vm>parentItemNo} }" valueState="{= ${vm>altInvalid} ? 'Error' : 'None' }" valueStateText="{i18n>altInvalidText}"/>
+            <Label text="{i18n>colPriceBreak}"/>
+            <CheckBox selected="{vm>priceBreak}" select=".onRowEdited" enabled="{= !${vm>parentItemNo} }"/>
             <Label text="{i18n>colCategory}"/>
             <Input value="{vm>productCategory}" change=".onRowEdited"/>
             <Label text="{i18n>colPicks}"/>

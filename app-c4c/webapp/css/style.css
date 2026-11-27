@@ -126,3 +126,8 @@
 /* second line of the Product cell: the description, small and muted */
 .rowSubText { font-size: 0.75rem; color: var(--sapContent_LabelColor); line-height: 1rem; }
 .lineSection .sapUiFormResGrid, .lineSection .sapUiForm { padding-bottom: 0.25rem; }
+
+/* every cell of a grid row sits on the same centre line (the Product cell has an optional second line) */
+.sapUiTableCell { vertical-align: middle; }
+
+/* Product cell: the input stays on the same centre line as every other input of the row; the description sits under it */
